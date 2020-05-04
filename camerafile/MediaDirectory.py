@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
-from vivicfm.MediaFile import MediaFile
-from vivicfm.MediaCameraModel import MediaCameraModel
+from camerafile.MediaFile import MediaFile
+from camerafile.MediaCameraModel import MediaCameraModel
 
 
 class VisualFileCounter:

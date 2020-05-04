@@ -2,7 +2,7 @@ import os
 import json
 import logging
 
-from vivicfm.OutputDirectory import OutputDirectory
+from camerafile.OutputDirectory import OutputDirectory
 
 LOGGER = logging.getLogger(__name__)
 

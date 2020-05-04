@@ -1,10 +1,10 @@
 import logging
 import shutil
 from functools import wraps
-from vivicfm.ExifTool import ExifTool
-from vivicfm.OutputFile import OutputFile
-from vivicfm.MediaDirectory import MediaDirectory
-from vivicfm.ConsoleProgressBar import ConsoleProgressBar
+from camerafile.ExifTool import ExifTool
+from camerafile.OutputFile import OutputFile
+from camerafile.MediaDirectory import MediaDirectory
+from camerafile.ConsoleProgressBar import ConsoleProgressBar
 
 LOGGER = logging.getLogger(__name__)
 

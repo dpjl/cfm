@@ -6,7 +6,7 @@ from dateutil import parser
 from threading import Thread
 from queue import Queue, Empty
 
-from vivicfm.Resource import Resource
+from camerafile.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
 

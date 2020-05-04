@@ -1,7 +1,7 @@
 import logging
 import os
-from vivicfm.ExifTool import ExifTool
-from vivicfm.AviMetaEdit import AviMetaEdit
+from camerafile.ExifTool import ExifTool
+from camerafile.AviMetaEdit import AviMetaEdit
 
 LOGGER = logging.getLogger(__name__)
 

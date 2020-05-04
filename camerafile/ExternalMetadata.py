@@ -4,7 +4,7 @@ from json import JSONDecodeError
 from pathlib import Path
 from dateutil import parser
 
-from vivicfm.ExifTool import ExifTool
+from camerafile.ExifTool import ExifTool
 
 
 class ExternalMetadata:

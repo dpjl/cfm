@@ -2,7 +2,7 @@ import locale
 import subprocess
 import logging
 
-from vivicfm.Resource import Resource
+from camerafile.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
 

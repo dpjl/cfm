@@ -1,2 +1,2 @@
-# vivi-cfm
+# camerafile
 Camera files manager

@@ -3,9 +3,9 @@ import shutil
 import imagehash
 from PIL import Image
 from pathlib import Path
-from vivicfm.MediaDate import MediaDate
-from vivicfm.MediaCameraModel import MediaCameraModel
-from vivicfm.ExternalMetadata import ExternalMetadata
+from camerafile.MediaDate import MediaDate
+from camerafile.MediaCameraModel import MediaCameraModel
+from camerafile.ExternalMetadata import ExternalMetadata
 
 
 class MediaFile:

@@ -3,11 +3,11 @@ import logging
 import logging.config
 from pathlib import Path
 
-from vivicfm.AviMetaEdit import AviMetaEdit
-from vivicfm.OutputDirectory import OutputDirectory
-from vivicfm.Resource import Resource
-from vivicfm.CameraFilesProcessor import CameraFilesProcessor
-from vivicfm.ExifTool import ExifTool
+from camerafile.AviMetaEdit import AviMetaEdit
+from camerafile.OutputDirectory import OutputDirectory
+from camerafile.Resource import Resource
+from camerafile.CameraFilesProcessor import CameraFilesProcessor
+from camerafile.ExifTool import ExifTool
 
 BASE_OUTPUT_PATH = Path("cfm-wip")
 LOGGER = logging.getLogger(__name__)
