@@ -1,0 +1,4 @@
+{
+  "exiftool": "bin/Image-ExifTool-11.97/exiftool",
+  "avimetaedit": "bin/avimetaedit-1.0.2"
+}

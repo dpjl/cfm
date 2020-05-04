@@ -1,0 +1,61 @@
+ça prenait à peine 10 minutes avant pour les 33000 fichiers pour la lecture avec exiftool
+là, on est autour de 20 minutes! je n'ai rien changé je crois...
+à étudier, peut-être c'est parce que j'ai copié collé les 33000 et que c'est la première fois que je lance sur ceux là (cache de l'os)
+
+voir combien de temps ça prend quand je lance une seul fois exfitool en dehors
+- sur 33000 nouveaux fichiers
+- en relançant
+
+
+idée pour plus tard:
+
+- recover: ne pas se baser sur la liste des fichier traités, scanner tout et si un fichier .original existe, le remplacer. et à la fin dire combien de fichiers ont été restaurés. + sûr
+- ne pas enregistrer le cache s'il n'a pas été modifié
+- supprimer (ou pas?) les fichiers 'unknown' et 'recovered' une fois l'apply correctement effectué
+
+------------------
+utilisation programme
+
+--camera-model,-m check|apply|revert <input-dir>
+--reorganize,-r
+--duplicate, -d
+--compare, -c
+--face-recognition, -f
+--no-cache, -n
+
+python cfm.py -m check <input-dir>
+python cfm.py -m apply <input-dir>
+python cfm.py -m revert <input-dir>
+
+python cfm.py -r check <input-dir> <output-dir>
+python cfm.py -r apply <input-dir> <output-dir>
+python cfm.py -r revert <input-dir> <output-dir>
+
+=> reorganize: comme pour la lecture, le faire fichier par fichier dans exiftool. Enregistrer dans un fichier la liste des déplacements
+=> erreur à détecter
+
+python cfm.py -d check <input-dir>
+python cfm.py -d apply <input-dir>
+python cfm.py -d revert <input-dir>
+
+python cfm.py -c check <input-dir> <output-dir>
+
+------------------
+
+[2020-04-24:00h02m30s] Details of input list of files saved in ...
+
+- options avec getopt
+- Texte qui dit combien d'éléments vont être mis à jour
+- Sauter si 0 éléments
+- nom du répertoire de sortie avec un id généré + à la racine un fichier txt avec le path complet traité
+- on recherche dans output si un répertoire correspond à celui qu'on traite actuellement (avec le fichier texte à la racine)
+- sauver et recharger l'analyse exiftool (option reset pour forcer le re-calcul)
+- analyse en profondeur: avec imagemagic, calculer des hash des fichiers
+
+- option pour supprimer les données en cache / ou forcer le recalcul
+- fichier de logs de sortie où l'on met toutes les sorties d'appels aux programmes pour la modification.
+
+modification d'un mov ?
+
+CAS d'ERREUR
+---
