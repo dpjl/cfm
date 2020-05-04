@@ -117,7 +117,7 @@ class ConsoleProgressBar:
 
             if hour != 0:
                 self.remaining_time = "{h: >4}h".format(h=hour)
-            elif minutes != "00":
+            elif minutes != 0:
                 self.remaining_time = "{m: >4}m".format(m=minutes)
             else:
                 self.remaining_time = "{s: >4}s".format(s=seconds)

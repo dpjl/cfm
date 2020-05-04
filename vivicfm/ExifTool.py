@@ -2,10 +2,11 @@ import json
 import locale
 import logging
 import subprocess
+from dateutil import parser
 from threading import Thread
 from queue import Queue, Empty
 
-from vivicfm.CFMResource import CFMResource
+from vivicfm.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,73 +63,102 @@ class ExifTool(object):
     IMAGE_UPDATE = "image files updated"
     SOURCE_METADATA = "Source"
     MODEL_METADATA = "Model"
+    CREATE_DATE_METADATA = "CreateDate"
+    MODIFY_DATE_METADATA = "FileModifyDate"
     SENTINEL = "{ready}\n"
 
-    def __init__(self, executable=None, stdout_file_path=None, stderr_file_path=None):
-        self.executable = executable
-        if self.executable is None:
-            self.executable = CFMResource.exiftool_executable
-        self.process = None
-        self.stdout_reader = NonBlockingStreamReader(redirected_file_path=stdout_file_path)
-        self.stderr_reader = NonBlockingStreamReader(redirected_file_path=stderr_file_path)
+    executable = None
+    process = None
+    stdout_reader = NonBlockingStreamReader(redirected_file_path=None)
+    stderr_reader = NonBlockingStreamReader(redirected_file_path=None)
 
-    def __enter__(self):
-        self.start()
-        return self
+    @classmethod
+    def init(cls, stdout_file_path=None, stderr_file_path=None):
+        cls.stdout_reader = NonBlockingStreamReader(redirected_file_path=stdout_file_path)
+        cls.stderr_reader = NonBlockingStreamReader(redirected_file_path=stderr_file_path)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.stop()
+    @classmethod
+    def start(cls):
+        if cls.process is None:
+            cls.executable = Resource.exiftool_executable
+            LOGGER.info("Starting %s", cls.executable)
+            cls.process = subprocess.Popen(
+                [cls.executable, "-stay_open", "True", "-@", "-"],
+                universal_newlines=True, bufsize=1,
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            cls.stdout_reader.start_read(cls.process.stdout)
+            cls.stderr_reader.start_read(cls.process.stderr)
 
-    def start(self):
-        LOGGER.info("Starting %s", self.executable)
-        self.process = subprocess.Popen(
-            [self.executable, "-stay_open", "True", "-@", "-"],
-            universal_newlines=True, bufsize=1,
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.stdout_reader.start_read(self.process.stdout)
-        self.stderr_reader.start_read(self.process.stderr)
+    @classmethod
+    def stop(cls):
+        if cls.process is not None:
+            LOGGER.info("Stopping %s", cls.executable)
+            cls.process.stdin.write("-stay_open\nFalse\n")
+            cls.process.stdin.flush()
+            cls.process = None
 
-    def stop(self):
-        LOGGER.info("Stopping %s", self.executable)
-        self.process.stdin.write("-stay_open\nFalse\n")
-        self.process.stdin.flush()
+    @classmethod
+    def execute_once(cls, *args):
+        result = cls.execute(args)
+        cls.stop()
+        return result
 
-    def execute(self, *args):
-        args = ExifTool.CHARSET_OPTION + args + ("-execute\n",)
-        self.process.stdin.write(str.join("\n", args))
-        self.process.stdin.flush()
+    @classmethod
+    def execute(cls, *args):
+        if cls.process is None:
+            cls.start()
+        args = cls.CHARSET_OPTION + args + ("-execute\n",)
+        cls.process.stdin.write(str.join("\n", args))
+        cls.process.stdin.flush()
         output = ""
-        while not output.endswith(self.SENTINEL):
-            output += self.stdout_reader.get_new_line()
+        while not output.endswith(cls.SENTINEL):
+            output += cls.stdout_reader.get_new_line()
         err = ""
         new_line = ""
         while new_line is not None:
-            new_line = self.stderr_reader.get_new_line_no_wait()
+            new_line = cls.stderr_reader.get_new_line_no_wait()
             if new_line is not None:
                 err += new_line
         if err != "":
             LOGGER.error(err.strip())
-        return output[:-len(self.SENTINEL)], err
+        return output[:-len(cls.SENTINEL)], err
 
-    def get_model_or_source(self, filename):
-        stdout, stderr = self.execute("-j", "-n", "-model", "-source", filename)
+    @classmethod
+    def get_model_and_date(cls, filename):
+        stdout, stderr = cls.execute("-j", "-n",
+                                     "-" + cls.MODEL_METADATA,
+                                     "-" + cls.SOURCE_METADATA,
+                                     "-" + cls.CREATE_DATE_METADATA,
+                                     "-" + cls.MODIFY_DATE_METADATA,
+                                     filename)
         result = json.loads(stdout)
         if len(result) == 0:
-            return None
-        if ExifTool.MODEL_METADATA in result[0]:
-            return result[0][ExifTool.MODEL_METADATA]
-        if ExifTool.SOURCE_METADATA in result[0]:
-            return result[0][ExifTool.SOURCE_METADATA]
-        return None
+            return None, None
 
-    def update_model(self, filename, new_model):
-        stdout, stderr = self.execute("-overwrite_original", "-source=" + new_model, filename)
-        if ExifTool.IMAGE_UPDATE not in stdout:
+        model = None
+        if cls.MODEL_METADATA in result[0]:
+            model = result[0][cls.MODEL_METADATA]
+        elif cls.SOURCE_METADATA in result[0]:
+            model = result[0][cls.SOURCE_METADATA]
+
+        date = None
+        if cls.CREATE_DATE_METADATA in result[0]:
+            date = parser.parse(result[0][cls.CREATE_DATE_METADATA])
+        elif cls.MODIFY_DATE_METADATA in result[0]:
+            date = parser.parse(result[0][cls.MODIFY_DATE_METADATA])
+
+        return model, date
+
+    @classmethod
+    def update_model(cls, filename, new_model):
+        stdout, stderr = cls.execute("-overwrite_original", "-source=" + new_model, filename)
+        if cls.IMAGE_UPDATE not in stdout:
             return "Error when trying to update %s" % filename
         return ""
 
-    def update_source(self, filename, new_model):
-        stdout, stderr = self.execute("-overwrite_original", "-source=" + new_model, filename)
-        if ExifTool.IMAGE_UPDATE not in stdout:
+    @classmethod
+    def update_source(cls, filename, new_model):
+        stdout, stderr = cls.execute("-overwrite_original", "-source=" + new_model, filename)
+        if cls.IMAGE_UPDATE not in stdout:
             return "Error when trying to update %s" % filename
         return ""
