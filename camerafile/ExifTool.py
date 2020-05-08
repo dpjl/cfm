@@ -2,10 +2,9 @@ import json
 import locale
 import logging
 import subprocess
-from dateutil import parser
+from datetime import datetime
 from threading import Thread
 from queue import Queue, Empty
-
 from camerafile.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
@@ -143,9 +142,11 @@ class ExifTool(object):
 
         date = None
         if cls.CREATE_DATE_METADATA in result[0]:
-            date = parser.parse(result[0][cls.CREATE_DATE_METADATA])
+            str_date = result[0][cls.CREATE_DATE_METADATA]
+            date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
         elif cls.MODIFY_DATE_METADATA in result[0]:
-            date = parser.parse(result[0][cls.MODIFY_DATE_METADATA])
+            str_date = result[0][cls.MODIFY_DATE_METADATA]
+            date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
 
         return model, date
 

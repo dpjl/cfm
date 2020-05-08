@@ -3,5 +3,5 @@ build
 .idea
 __pycache__
 *.egg-info
-cfm-output
+cfm-wip
 *.spec

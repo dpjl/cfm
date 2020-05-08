@@ -1,3 +1,2 @@
 ImageHash
 Pillow
-python-dateutil

@@ -2,32 +2,45 @@ import sys
 import logging
 import logging.config
 from pathlib import Path
-
+from camerafile.ExifTool import ExifTool
+from camerafile.Resource import Resource
 from camerafile.AviMetaEdit import AviMetaEdit
 from camerafile.OutputDirectory import OutputDirectory
-from camerafile.Resource import Resource
 from camerafile.CameraFilesProcessor import CameraFilesProcessor
-from camerafile.ExifTool import ExifTool
 
 BASE_OUTPUT_PATH = Path("cfm-wip")
 LOGGER = logging.getLogger(__name__)
 
 
-def execute_program(input_dir_path, action, output_directory):
-
+def execute_program(action, input_dir_path, output_dir_path):
     cmp = CameraFilesProcessor(input_dir_path)
 
-    if action == "camera-model-check":
-        cmp.recover_camera_model()
+    if action == "test":
+        cmp.test()
 
-    if action == "reset-camera-model":
-        cmp.undo_recover_camera_model()
+    if action == "cmp":
+        cmp.cmp(output_dir_path)
+
+    if action == "cm":
+        cmp.compute_cm()
+
+    if action == "delete-cm":
+        cmp.delete_cm()
+
+    if action == "sig":
+        cmp.compute_signature()
+
+    if action == "delete-sig":
+        cmp.delete_signature()
 
     if action == "delete-metadata":
         cmp.delete_metadata()
 
-    if action == "reorganize":
-        cmp.organize(output_directory)
+    if action == "move":
+        cmp.move(output_dir_path)
+
+    if action == "unmove":
+        cmp.unmove(output_dir_path)
 
 
 def load_logging():
@@ -44,15 +57,12 @@ def main():
         LOGGER.error("No arguments. At least an input directory is required as first argument")
         sys.exit(0)
 
-    input_dir_path = Path(sys.argv[1])
+    action = sys.argv[1]
+    input_dir_path = Path(sys.argv[2])
 
-    action = "camera-model-check"
-    if len(sys.argv) > 2:
-        action = sys.argv[2]
-
-    output_directory = None
+    output_dir_path = None
     if len(sys.argv) > 3:
-        output_directory = sys.argv[3]
+        output_dir_path = sys.argv[3]
 
     OutputDirectory.init(BASE_OUTPUT_PATH, input_dir_path)
     Resource.init()
@@ -66,7 +76,7 @@ def main():
 
     try:
         LOGGER.info("cfm started with options: %s" % " ".join(sys.argv))
-        execute_program(input_dir_path, action, output_directory)
+        execute_program(action, input_dir_path, output_dir_path)
     finally:
         LOGGER.info("cfm ended")
 

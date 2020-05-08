@@ -1,17 +1,33 @@
-ça prenait à peine 10 minutes avant pour les 33000 fichiers pour la lecture avec exiftool
-là, on est autour de 20 minutes! je n'ai rien changé je crois...
-à étudier, peut-être c'est parce que j'ai copié collé les 33000 et que c'est la première fois que je lance sur ceux là (cache de l'os)
 
-voir combien de temps ça prend quand je lance une seul fois exfitool en dehors
-- sur 33000 nouveaux fichiers
-- en relançant
+cfm cm recover <dir>
+cfm cm revert <dir>
+cfm metadata rm <dir>
+cfm cache rm <dit>
+
+cfm getnew <dir1>[:[no-]metadata][:[no-][<type>-]cache] <dir2>[:metadata][:cache]
+
+by default, cfm getnew <dir1> <dir2> is equivalent to cfm getnew <dir1>:no-metadata:cache <dir2>:no-metadata:cache
+
+:metadata -> for each media file a .metadata file is created, with computed informations
+:no-metadata ->
+:cache -> a cache with all read metadata information and computed signature is used
+
+	charge dir
+	charge album
+	
+Pour chaque fichier d
+
+MediaDirectory(dir1).read_metadata_files
+MediaDirectory(dir1).write_metadata_files
+MediaDirectory(dir1).read_cache_file
+MediaDirectory(dir1).write_cache_file
+
+Configuration.exif_tool_stdout_file
+Configuration.exif_tool_stderr_file
+Configuration.avi_meta_edit_stdout_file
+Configuration.avi_meta_edit_stderr_file
 
 
-idée pour plus tard:
-
-- recover: ne pas se baser sur la liste des fichier traités, scanner tout et si un fichier .original existe, le remplacer. et à la fin dire combien de fichiers ont été restaurés. + sûr
-- ne pas enregistrer le cache s'il n'a pas été modifié
-- supprimer (ou pas?) les fichiers 'unknown' et 'recovered' une fois l'apply correctement effectué
 
 ------------------
 utilisation programme
@@ -29,14 +45,14 @@ python cfm.py -m revert <input-dir>
 
 python cfm.py -r check <input-dir> <output-dir>
 python cfm.py -r apply <input-dir> <output-dir>
-python cfm.py -r revert <input-dir> <output-dir>
+python cfmem.py -r revert <input-dir> <output-dir>
 
 => reorganize: comme pour la lecture, le faire fichier par fichier dans exiftool. Enregistrer dans un fichier la liste des déplacements
 => erreur à détecter
 
 python cfm.py -d check <input-dir>
 python cfm.py -d apply <input-dir>
-python cfm.py -d revert <input-dir>
+python cfm.py -d revert <input-dir>me
 
 python cfm.py -c check <input-dir> <output-dir>
 

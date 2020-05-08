@@ -1,56 +1,56 @@
 import os
 import shutil
-import imagehash
-from PIL import Image
+from datetime import datetime
 from pathlib import Path
-from camerafile.MediaDate import MediaDate
-from camerafile.MediaCameraModel import MediaCameraModel
-from camerafile.ExternalMetadata import ExternalMetadata
+from camerafile.MetadataList import MetadataList
+from camerafile.Metadata import ORIGINAL_PATH, DESTINATION_PATH, CAMERA_MODEL, DATE, SIGNATURE
 
 
 class MediaFile:
     TYPE = [".jpg", ".jpeg", ".png", ".mp4", ".mov", ".avi", ".wav"]
 
-    def __init__(self, path, parent_dir):
+    def __init__(self, path, parent_dir, exists=True):
         self.path = path
         self.parent_dir = parent_dir
         self.name = Path(self.path).name
         self.extension = os.path.splitext(self.name)[1].lower()
-
-        self.camera_model = MediaCameraModel(self)
-        self.date = MediaDate(self)
-        self.signature = None
-
-        self.external_metadata = ExternalMetadata(path)
+        self.metadata = MetadataList(self)
+        self.exists = exists
 
     def __str__(self):
         return self.path
 
-    def compute_signature(self):
-        signature = self.external_metadata.get_signature()
-        if signature is None:
-            signature = imagehash.average_hash(Image.open(self.path))
-            self.external_metadata.update_signature(str(signature))
-            self.external_metadata.save()
+    def __eq__(self, other):
+        self.metadata.compute_value(SIGNATURE)
+        other.metadata.compute_value(SIGNATURE)
+        if self.metadata.get_value(SIGNATURE) == other.metadata.get_value(SIGNATURE):
+            return True
+        return False
+
+    def unmove(self):
+        original_path = self.metadata.get_value(ORIGINAL_PATH)
+        destination_path = self.metadata.get_value(DESTINATION_PATH)
+        shutil.move(destination_path, original_path)
+        if os.path.exists(destination_path + MetadataList.METADATA_EXTENSION):
+            os.remove(destination_path + MetadataList.METADATA_EXTENSION)
 
     def move(self, new_root_path):
-        camera_model = self.camera_model.get().replace(" ", "-")
-        date = self.date.get()
+        camera_model = self.metadata.get_value(CAMERA_MODEL).replace(" ", "-")
+        date = datetime.strptime(self.metadata.get_value(DATE), '%Y:%m:%d %H:%M:%S')
         year = date.strftime("%Y")
         month = date.strftime("%m-%B")
         new_dir_path = Path(new_root_path) / year / month / camera_model
         os.makedirs(new_dir_path, exist_ok=True)
 
         new_file_path = new_dir_path / self.name
-        new_metadata_file_path = new_dir_path / self.external_metadata.file_name
+        new_metadata_file_path = new_dir_path / Path(self.metadata.external_metadata_file_path).name
 
-        self.external_metadata.update_original_path(str(self.path))
-        self.external_metadata.update_destination_path(str(new_file_path))
-        self.external_metadata.save()
+        self.metadata.set_value(ORIGINAL_PATH, str(self.path))
+        self.metadata.set_value(DESTINATION_PATH, str(new_file_path))
 
-        # shutil.move(self.path, new_file_path)
-        # self.path = new_file_path  # necessary ?
-        # shutil.copy2(self.external_metadata.file_path, new_metadata_file_path)
+        shutil.move(self.path, new_file_path)
+        if os.path.exists(self.metadata.external_metadata_file_path):
+            shutil.copy2(self.metadata.external_metadata_file_path, new_metadata_file_path)
 
     def backup(self):
         original_renamed = self.path + ".original"
@@ -65,13 +65,5 @@ class MediaFile:
         if os.path.exists(original_file):
             os.remove(self.path)
             os.rename(original_file, self.path)
-            return True
-        return False
-
-    @classmethod
-    def is_media_file(cls, file_path):
-        file_name = Path(file_path).name
-        file_extension = os.path.splitext(file_name)[1].lower()
-        if file_extension in cls.TYPE:
             return True
         return False
