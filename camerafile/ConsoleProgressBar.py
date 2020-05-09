@@ -111,16 +111,16 @@ class ConsoleProgressBar:
             current_time = time.time()
             rem_time = ((current_time - self.start_time) / self.position) * (self.max - self.position)
 
-            hour = int(rem_time / 3600)
-            minutes = int((rem_time - hour * 3600) / 60)
-            seconds = int((rem_time - hour * 3600) % 60)
+            hours = int(rem_time / 3600)
+            minutes = int((rem_time - hours * 3600) / 60)
+            seconds = int((rem_time - hours * 3600) % 60)
 
-            if hour != 0:
-                self.remaining_time = "{h: >4}h".format(h=hour)
+            if hours != 0:
+                self.remaining_time = "{num: >4}h".format(num=hours)
             elif minutes != 0:
-                self.remaining_time = "{m: >4}m".format(m=minutes)
+                self.remaining_time = "{num: >4}m".format(num=minutes)
             else:
-                self.remaining_time = "{s: >4}s".format(s=seconds)
+                self.remaining_time = "{num: >4}s".format(num=seconds)
 
     def increment(self):
         with self.lock_increment:
@@ -163,29 +163,31 @@ class ConsoleProgressBar:
         self.defil_position += 1
         position_100 = self.position * 100 / self.max
 
-        before = "{title} [".format(
-            title=self.title)
+        before_bar = "{title} [".format(title=self.title)
 
-        after = "] {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} ".format(
+        after_bar = "] {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} ".format(
             position=self.position, position_len=len(str(self.max)),
             max=self.max,
             percent=str(int(position_100))[:3],
             remaining=self.remaining_time[:5])
 
-        progress_bar_size = self.console_width - len(before) - len(after)
-        position_progress_bar = int(position_100 * progress_bar_size / 100) + 1
-        present_size = position_progress_bar - 1
-        future_size = progress_bar_size - present_size - 1
+        progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
+        current_position_progress_bar = int(position_100 * progress_bar_size / 100) + 1
+        past_size = current_position_progress_bar - 1
+        future_size = progress_bar_size - past_size - 1
         defil_char = DEFIL_CHARACTERS[self.defil_position % len(DEFIL_CHARACTERS)]
-        if present_size == progress_bar_size:
+
+        if past_size == progress_bar_size:
             defil_char = ''
             future_size = 0
-        bar = "{present:{c1}<{l1}}{now}{future:{c3}<{l3}}".format(
-            present='', c1=BAR_CHAR, l1=present_size,
+
+        bar = "{past:{c1}<{l1}}{now}{future:{c3}<{l3}}".format(
+            past='', c1=BAR_CHAR, l1=past_size,
             now=defil_char,
             future='', c3=SPACE, l3=future_size)
 
-        sys.stdout.write("{bef}{b}{af}".format(bef=before, b=bar, af=after))
+        sys.stdout.write("{before}{progress_bar}{after}"
+                         .format(before=before_bar, progress_bar=bar, after=after_bar))
 
 
 if __name__ == "__main__":

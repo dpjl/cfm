@@ -16,9 +16,9 @@ class MetadataSignature(Metadata):
                 self.value_computed = str(image_hash)
                 # imagehash.hex_to_hash(self.value_computed)
             else:
-                self.value_computed = self.blake2b_hash()
+                self.value_computed = self.md5_hash()
 
-    def blake2b_hash(self):
+    def md5_hash(self):
         with open(self.media_file.path, "rb") as f:
             file_hash = hashlib.md5()
             while chunk := f.read(8192):

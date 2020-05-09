@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 from datetime import datetime
@@ -9,11 +10,13 @@ from camerafile.Metadata import ORIGINAL_PATH, DESTINATION_PATH, CAMERA_MODEL, D
 class MediaFile:
     TYPE = [".jpg", ".jpeg", ".png", ".mp4", ".mov", ".avi", ".wav"]
 
-    def __init__(self, path, parent_dir, exists=True):
+    def __init__(self, path, parent_dir, parent_set, exists=True):
         self.path = path
         self.parent_dir = parent_dir
+        self.parent_set = parent_set
         self.name = Path(self.path).name
         self.extension = os.path.splitext(self.name)[1].lower()
+        self.id = hashlib.md5(self.path.encode()).hexdigest()
         self.metadata = MetadataList(self)
         self.exists = exists
 
@@ -33,6 +36,10 @@ class MediaFile:
         shutil.move(destination_path, original_path)
         if os.path.exists(destination_path + MetadataList.METADATA_EXTENSION):
             os.remove(destination_path + MetadataList.METADATA_EXTENSION)
+
+    def copy(self, second_root_path):
+        # ADD a file à la racine du second path files-add-timestamp.json
+        pass
 
     def move(self, new_root_path):
         camera_model = self.metadata.get_value(CAMERA_MODEL).replace(" ", "-")

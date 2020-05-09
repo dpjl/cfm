@@ -7,6 +7,7 @@ from camerafile.ExifTool import ExifTool
 from camerafile.Metadata import Metadata, CAMERA_MODEL, DATE, ORIGINAL_PATH, DESTINATION_PATH, SIGNATURE
 from camerafile.MetadataSignature import MetadataSignature
 from camerafile.MetadataCameraModel import MetadataCameraModel
+from camerafile.OutputDirectory import OutputDirectory
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,9 +24,12 @@ class MetadataList:
                               ORIGINAL_PATH: Metadata(media_file),
                               DESTINATION_PATH: Metadata(media_file),
                               SIGNATURE: MetadataSignature(media_file)}
-        self.external_metadata = {}
+        self.saved_metadata = {}
         self.external_metadata_file_path = str(self.media_file.path) + MetadataList.METADATA_EXTENSION
-        self.load_from_external_metadata()
+        self.create_json_metadata = self.media_file.parent_set.create_json_metadata
+        cache_path = self.media_file.parent_set.output_directory.cache_path
+        self.cache_metadata_file_path = cache_path / (self.media_file.id + ".json")
+        self.load()
 
     def __getitem__(self, item):
         return self.metadata_list[item]
@@ -44,17 +48,15 @@ class MetadataList:
         return self[name].value_read
 
     def compute_value(self, name):
-        initial_value = self[name].value_computed
         self[name].compute_value()
         value = self[name].value_computed
-        if initial_value != value:
-            self.save_to_external_metadata()
+        self.save()
         return value
 
     def delete_computed_value(self, name):
         if self[name].value_computed is not None:
             self[name].value_computed = None
-            self.save_to_external_metadata()
+        self.save()
 
     def load_from_media(self, name):
         if name in [DATE, CAMERA_MODEL]:
@@ -67,35 +69,47 @@ class MetadataList:
                 self[DATE].set_value_read(date.strftime("%Y/%m/%d %H:%M:%S"))
             else:
                 self[DATE].set_value_read(Metadata.UNKNOWN)
-            self.save_to_external_metadata()
+            self.save()
 
-    def load_from_external_metadata(self):
-        self.external_metadata = {}
-        if os.path.exists(self.external_metadata_file_path):
-            with open(self.external_metadata_file_path, 'r') as f:
-                try:
-                    self.external_metadata = json.load(f)
-                    for metadata_name, metadata in self.metadata_list.items():
-                        if metadata_name in self.external_metadata:
-                            metadata.set_value_read(self.external_metadata[metadata_name])
-                        if MetadataList.COMPUTE_PREFIX + metadata_name in self.external_metadata:
-                            metadata.set_value_computed(
-                                self.external_metadata[MetadataList.COMPUTE_PREFIX + metadata_name])
-                except JSONDecodeError:
-                    self.external_metadata = {}
+    def load(self):
+        self.saved_metadata = {}
+        self.load_from_file(self.cache_metadata_file_path)
+        self.load_from_file(self.external_metadata_file_path)
 
-    def save_to_external_metadata(self):
-        new_external_metadata = {}
+    def save(self):
+        new_saved_metadata = self.create_new_saved_metadata()
+        self.save_to_file(self.external_metadata_file_path, new_saved_metadata, self.create_json_metadata)
+        self.save_to_file(self.cache_metadata_file_path, new_saved_metadata, True)
+        self.saved_metadata = new_saved_metadata
+
+    def create_new_saved_metadata(self):
+        new_saved_metadata = {}
         for metadata_name, metadata in self.metadata_list.items():
             if metadata.value_read is not None:
-                new_external_metadata[metadata_name] = metadata.value_read
+                new_saved_metadata[metadata_name] = metadata.value_read
             if metadata.value_computed is not None:
-                new_external_metadata[MetadataList.COMPUTE_PREFIX + metadata_name] = metadata.value_computed
+                new_saved_metadata[MetadataList.COMPUTE_PREFIX + metadata_name] = metadata.value_computed
+        return new_saved_metadata
 
-        if new_external_metadata != self.external_metadata:
-            with open(self.external_metadata_file_path, 'w') as f:
-                json.dump(new_external_metadata, f, indent=4)
-            self.external_metadata = new_external_metadata
+    def load_from_file(self, file_path):
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                try:
+                    self.saved_metadata = json.load(f)
+                    for metadata_name, metadata in self.metadata_list.items():
+                        if metadata_name in self.saved_metadata:
+                            metadata.set_value_read(self.saved_metadata[metadata_name])
+                        if MetadataList.COMPUTE_PREFIX + metadata_name in self.saved_metadata:
+                            metadata.set_value_computed(
+                                self.saved_metadata[MetadataList.COMPUTE_PREFIX + metadata_name])
+                except JSONDecodeError:
+                    self.saved_metadata = {}
+
+    def save_to_file(self, file_path, new_saved_metadata, create_if_not_exist):
+        if not os.path.exists(file_path) or new_saved_metadata != self.saved_metadata:
+            if os.path.exists(file_path) or create_if_not_exist:
+                with open(file_path, 'w') as f:
+                    json.dump(new_saved_metadata, f, indent=4)
 
     def delete_metadata_file(self):
         if os.path.exists(self.external_metadata_file_path):
