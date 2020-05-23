@@ -143,11 +143,16 @@ class ExifTool(object):
         date = None
         if cls.CREATE_DATE_METADATA in result[0]:
             str_date = result[0][cls.CREATE_DATE_METADATA]
-            date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
+            try:
+                date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
+            except ValueError:
+                date = datetime.min
         elif cls.MODIFY_DATE_METADATA in result[0]:
             str_date = result[0][cls.MODIFY_DATE_METADATA]
-            date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
-
+            try:
+                date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
+            except ValueError:
+                date = datetime.min
         return model, date
 
     @classmethod

@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
-from camerafile.MediaFile import MediaFile
-from camerafile.Metadata import CAMERA_MODEL
-from camerafile.MetadataList import MetadataList
-from camerafile.Metadata import Metadata, SIGNATURE
+
 from camerafile.MediaDirectory import MediaDirectory
+from camerafile.MediaFile import MediaFile
+from camerafile.MediaSetDatabase import MediaSetDatabase
+from camerafile.Metadata import CAMERA_MODEL
+from camerafile.Metadata import Metadata
 from camerafile.OutputDirectory import OutputDirectory
 
 
@@ -12,15 +13,37 @@ class MediaSet:
 
     def __init__(self, path):
         self.create_json_metadata = False
-        self.root_path = Path(self.parse_path(path))
-        print(self.root_path)
+        self.root_path = Path(self.parse_path(path)).resolve()
         self.name = self.root_path.name
         self.output_directory = OutputDirectory(self.root_path)
         self.media_file_list = []
         self.media_dir_list = {}
-        self.iter_ext_filter = None
-        self.iter_cm_filter = None
+        self.sig_map = {}
+        self.av_sig_map = {}
+        self.database = MediaSetDatabase(self.root_path)
         self.initialize_file_and_dir_list()
+
+    def __del__(self):
+        self.save_database()
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # self.save_database()
+        # pourquoi est-ce plus lent en utilisant un enter/exit plutôt qu'un init/del ??
+        pass
+
+    def delete_file(self, file_path):
+        self.media_file_list.remove(file_path)
+
+    def save_database(self):
+        print("Saving database...")
+        for media_file in self.media_file_list:
+            self.database.save_media_file(media_file)
+        self.database.file_connection.commit()
+        self.database.file_connection.close()
+        print("End saving database.")
 
     def parse_path(self, path):
         root_path = path
@@ -35,107 +58,118 @@ class MediaSet:
         return self.root_path
 
     def __len__(self):
-        num = 0
-        for _ in self:
-            num += 1
-        return num
+        return len(self.media_file_list)
 
-    def __eq__(self, other):
+    def __iter__(self):
+        for media_file in self.media_file_list:
+            yield media_file
+
+    def update_sig_maps(self, media_file):
+        self.add_to_sig_map(media_file)
+        self.add_to_av_sig_map(media_file)
+
+    def add_file(self, media_file):
+        self.media_file_list.append(media_file)
+        self.update_sig_maps(media_file)
+
+    def add_to_sig_map(self, media_file):
+        sig = media_file.get_exact_signature()
+        if sig is not None:
+            if sig not in self.sig_map:
+                self.sig_map[sig] = []
+            self.sig_map[sig].append(media_file)
+
+    def add_to_av_sig_map(self, media_file):
+        sig = media_file.get_average_signature()
+        if sig is not None:
+            if sig not in self.av_sig_map:
+                self.av_sig_map[sig] = []
+            self.av_sig_map[sig].append(media_file)
+
+    def contains_exact(self, item):
+        sig = item.get_exact_signature()
+        return sig is not None and sig in self.sig_map
+
+    def contains_similar(self, item):
+        sig = item.get_average_signature()
+        return sig is not None and sig in self.av_sig_map
+
+    def get_copied_files(self):
         result = []
-        for media_file in self:
-            if media_file in other and media_file not in result:
+        for media_file in self.media_file_list:
+            if media_file.is_copied_file():
                 result.append(media_file)
         return result
 
-    def __gt__(self, other):
-        result = []
-        duplicates = 0
-        for media_file in self:
-            if media_file not in other:
-                if media_file not in result:
-                    result.append(media_file)
-                else:
-                    duplicates += 1
-        return result, duplicates
+    def get_files_in(self, other):
+        result = {}
+        sig_map_1 = self.av_sig_map
+        sig_map_2 = other.av_sig_map
+        for sig in sig_map_1:
+            if sig in sig_map_2:
+                result[sig] = sig_map_1[sig]
+        return result
 
-    def __contains__(self, item):
-        for media_file in self:
-            if item == media_file:
-                return True
-        return False
+    def get_files_not_in(self, other):
+        result = {}
+        sig_map_1 = self.av_sig_map
+        sig_map_2 = other.av_sig_map
+        for sig in sig_map_1:
+            if sig not in sig_map_2:
+                result[sig] = sig_map_1[sig]
+        return result
 
     def analyze_duplicates(self):
         str_list = []
+
         total = 0
-        sig_map = {}
-        for media_file in self:
-            total += 1
-            media_file.metadata.compute_value(SIGNATURE)
-            sig = media_file.metadata.get_value(SIGNATURE)
-            if sig not in sig_map:
-                sig_map[sig] = []
-            sig_map[sig].append(media_file)
 
-        str_list.append("All files: " + str(total))
-        str_list.append("Distinct files: " + str(len(sig_map)))
+        str_list.append("All media files: " + str(len(self.media_file_list)))
+        str_list.append("Distinct elements: {distinct}".format(distinct=str(len(self.av_sig_map))))
 
-        num_dup = {}
-        for sig, list_same_file in sig_map.items():
-            if len(list_same_file) not in num_dup:
-                num_dup[len(list_same_file)] = 1
-            else:
-                num_dup[len(list_same_file)] += 1
+        number_of_n_copied = {}
+        for n_copied in map(len, self.av_sig_map.values()):
+            if n_copied != 1:
+                if n_copied not in number_of_n_copied:
+                    number_of_n_copied[n_copied] = 0
+                number_of_n_copied[n_copied] += 1
 
-        for xtimes, num_of_files in num_dup.items():
-            str_list.append("x%s -> %s distinct" % (xtimes, num_of_files))
+        for n_copied, number_of_n_copied in sorted(number_of_n_copied.items()):
+            str_list.append("%s elem. found %s-times" % (number_of_n_copied, n_copied))
 
         return str_list
 
-    def iter_filter(self, media_file):
+    def get_file_list(self, ext=None, cm=None):
+        result = []
+        for media_file in self.media_file_list:
+            if self.filter(media_file, ext, cm):
+                result.append(media_file)
+        return result
 
-        if self.iter_ext_filter is not None:
-            if media_file.extension not in self.iter_ext_filter:
+    @staticmethod
+    def filter(media_file, ext_filter, cm_filter):
+        if ext_filter is not None:
+            if media_file.extension not in ext_filter:
                 return False
 
         camera_model = media_file.metadata[CAMERA_MODEL]
 
-        if self.iter_cm_filter == "known":
+        if cm_filter == "known":
             if camera_model.value_read == Metadata.UNKNOWN:
                 return False
 
-        elif self.iter_cm_filter == "unknown":
+        elif cm_filter == "unknown":
             if camera_model.value_read != Metadata.UNKNOWN or camera_model.value_computed is not None:
                 return False
 
-        elif self.iter_cm_filter == "recovered":
+        elif cm_filter == "recovered":
             if camera_model.value_computed is None:
                 return False
 
         return True
 
-    def __iter__(self):
-        for media_file in self.media_file_list:
-            if media_file.exists and self.iter_filter(media_file):
-                yield media_file
-
-        self.iter_ext_filter = None
-        self.iter_cm_filter = None
-
-    def __call__(self, ext=None, cm=None):
-        self.iter_ext_filter = ext
-        self.iter_cm_filter = cm
-        return self
-
-    def get_file_list(self, ext=None, cm=None):
-        result = []
-        self.iter_ext_filter = ext
-        self.iter_cm_filter = cm
-        for media_file in self:
-            result.append(media_file)
-        return result
-
     def initialize_file_and_dir_list(self):
-
+        print(self.root_path)
         number_of_files = 0
         root_dir = MediaDirectory(str(self.root_path), None, self)
         self.media_dir_list[str(self.root_path)] = root_dir
@@ -157,13 +191,8 @@ class MediaSet:
 
                 if media_file_extension in MediaFile.TYPE:
                     new_media_file = MediaFile(media_file_path, parent_media_dir, self)
-                    self.media_file_list.append(new_media_file)
-
-                elif media_file_extension == MetadataList.METADATA_EXTENSION:
-                    media_file_path = media_file_path[:-len(MetadataList.METADATA_EXTENSION)]
-                    if not os.path.exists(media_file_path):
-                        new_media_file = MediaFile(media_file_path, parent_media_dir, self, exists=False)
-                        self.media_file_list.append(new_media_file)
+                    self.database.load_media_file(new_media_file)
+                    self.add_file(new_media_file)
 
             print("\r{number: >15} files found".format(number=number_of_files), end='')
         print("")

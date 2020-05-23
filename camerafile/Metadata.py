@@ -5,8 +5,10 @@ LOGGER = logging.getLogger(__name__)
 CAMERA_MODEL = "Camera Model"
 SIGNATURE = "Hash"
 DATE = "Creation Date"
-ORIGINAL_PATH = "Original Path"
-DESTINATION_PATH = "Destination Path"
+ORIGINAL_COPY_PATH = "Original Copy Path"
+DESTINATION_COPY_PATH = "Destination Copy Path"
+ORIGINAL_MOVE_PATH = "Original Move Path"
+DESTINATION_MOVE_PATH = "Destination Move Path"
 
 
 class Metadata:

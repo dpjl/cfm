@@ -71,23 +71,23 @@ def create_media_cp_sub_parser(sp_list):
     p.add_argument('dir2', metavar='directory2[>create-json-metadata]', type=str, help='Second media directory path')
 
 
-def create_media_mv_sub_parser(sp_list):
-    p = sp_list.add_parser('mv', help='Move media files from first directory to second directory')
-    p.set_defaults(command=CameraFilesProcessor.move_media)
-    p.add_argument('--new', action='store_true', help='Copy only media files that are not already in second directory')
-    p.add_argument('dir1', metavar='directory1[>create-json-metadata]', type=str, help='First media directory path')
-    p.add_argument('dir2', metavar='directory2[>create-json-metadata]', type=str, help='Second media directory path')
+def create_media_org_sub_parser(sp_list):
+    p = sp_list.add_parser('org', help='Organize new copied media files of media directory')
+    p.set_defaults(command=CameraFilesProcessor.organize_media)
+    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Media directory path')
 
 
 def create_media_cmp_sub_parser(sp_list):
     p = sp_list.add_parser('cmp', help='Compare files of two media directories, using their signatures')
     p.set_defaults(command=CameraFilesProcessor.cmp)
+    p.add_argument('--new', action='store_true', help='Copy only media files that are not already in second directory')
     p.add_argument('dir1', metavar='directory1[>create-json-metadata]', type=str, help='First media directory path')
     p.add_argument('dir2', metavar='directory2[>create-json-metadata]', type=str, help='Second media directory path')
 
 
 def create_media_dup_sub_parser(sp_list):
     p = sp_list.add_parser('dup', help='Find an display duplicated files of one directory')
+    p.set_defaults(command=CameraFilesProcessor.dup)
     p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
 
 
@@ -95,7 +95,7 @@ def create_media_sub_parser(sp_list):
     p = sp_list.add_parser('media', help='Manage media files')
     sp_list = p.add_subparsers()
     create_media_cp_sub_parser(sp_list)
-    create_media_mv_sub_parser(sp_list)
+    create_media_org_sub_parser(sp_list)
     create_media_cmp_sub_parser(sp_list)
     create_media_dup_sub_parser(sp_list)
 
@@ -114,7 +114,8 @@ def create_jm_sub_parser(sp_list):
 
 def create_cache_remove_parser(sp_list):
     p = sp_list.add_parser('rm', help='Delete all json metadata files from a media directory')
-    p.set_defaults(command=CameraFilesProcessor.remove_cache)
+    p.set_defaults(command=CameraFilesProcessor.delete_metadata_cache)
+    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
 
 
 def create_cache_sub_parser(sp_list):

@@ -1,35 +1,34 @@
-import os
-import json
 import logging
 from typing import Dict
-from json import JSONDecodeError
 from camerafile.ExifTool import ExifTool
-from camerafile.Metadata import Metadata, CAMERA_MODEL, DATE, ORIGINAL_PATH, DESTINATION_PATH, SIGNATURE
-from camerafile.MetadataSignature import MetadataSignature
+from camerafile.Metadata import Metadata, CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
+    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH
 from camerafile.MetadataCameraModel import MetadataCameraModel
-from camerafile.OutputDirectory import OutputDirectory
+from camerafile.MetadataExternalFile import MetadataExternalFile
+from camerafile.MetadataSignature import MetadataSignature
 
 LOGGER = logging.getLogger(__name__)
 
 
 class MetadataList:
     metadata_list: Dict[str, Metadata]
-    COMPUTE_PREFIX = "Computed "
     METADATA_EXTENSION = ".cfm-metadata"
+    COMPUTE_PREFIX = "Computed "
 
     def __init__(self, media_file):
         self.media_file = media_file
         self.metadata_list = {CAMERA_MODEL: MetadataCameraModel(media_file),
                               DATE: Metadata(media_file),
-                              ORIGINAL_PATH: Metadata(media_file),
-                              DESTINATION_PATH: Metadata(media_file),
+                              ORIGINAL_COPY_PATH: Metadata(media_file),
+                              DESTINATION_COPY_PATH: Metadata(media_file),
+                              ORIGINAL_MOVE_PATH: Metadata(media_file),
+                              DESTINATION_MOVE_PATH: Metadata(media_file),
                               SIGNATURE: MetadataSignature(media_file)}
-        self.saved_metadata = {}
-        self.external_metadata_file_path = str(self.media_file.path) + MetadataList.METADATA_EXTENSION
-        self.create_json_metadata = self.media_file.parent_set.create_json_metadata
-        cache_path = self.media_file.parent_set.output_directory.cache_path
-        self.cache_metadata_file_path = cache_path / (self.media_file.id + ".json")
-        self.load()
+
+        ext_metadata_file_path = str(self.media_file.path) + MetadataList.METADATA_EXTENSION
+        self.external_metadata = MetadataExternalFile(ext_metadata_file_path,
+                                                      self,
+                                                      self.media_file.parent_set.create_json_metadata)
 
     def __getitem__(self, item):
         return self.metadata_list[item]
@@ -50,13 +49,13 @@ class MetadataList:
     def compute_value(self, name):
         self[name].compute_value()
         value = self[name].value_computed
-        self.save()
+        self.save_external_metadata()
         return value
 
     def delete_computed_value(self, name):
         if self[name].value_computed is not None:
             self[name].value_computed = None
-        self.save()
+        self.save_external_metadata()
 
     def load_from_media(self, name):
         if name in [DATE, CAMERA_MODEL]:
@@ -69,50 +68,33 @@ class MetadataList:
                 self[DATE].set_value_read(date.strftime("%Y/%m/%d %H:%M:%S"))
             else:
                 self[DATE].set_value_read(Metadata.UNKNOWN)
-            self.save()
+            self.save_external_metadata()
 
-    def load(self):
-        self.saved_metadata = {}
-        self.load_from_file(self.cache_metadata_file_path)
-        self.load_from_file(self.external_metadata_file_path)
-
-    def save(self):
-        new_saved_metadata = self.create_new_saved_metadata()
-        self.save_to_file(self.external_metadata_file_path, new_saved_metadata, self.create_json_metadata)
-        self.save_to_file(self.cache_metadata_file_path, new_saved_metadata, True)
-        self.saved_metadata = new_saved_metadata
-
-    def create_new_saved_metadata(self):
-        new_saved_metadata = {}
+    def save_to_dict(self):
+        result = {}
         for metadata_name, metadata in self.metadata_list.items():
             if metadata.value_read is not None:
-                new_saved_metadata[metadata_name] = metadata.value_read
+                result[metadata_name] = metadata.value_read
             if metadata.value_computed is not None:
-                new_saved_metadata[MetadataList.COMPUTE_PREFIX + metadata_name] = metadata.value_computed
-        return new_saved_metadata
+                result[MetadataList.COMPUTE_PREFIX + metadata_name] = metadata.value_computed
+        return result
 
-    def load_from_file(self, file_path):
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                try:
-                    self.saved_metadata = json.load(f)
-                    for metadata_name, metadata in self.metadata_list.items():
-                        if metadata_name in self.saved_metadata:
-                            metadata.set_value_read(self.saved_metadata[metadata_name])
-                        if MetadataList.COMPUTE_PREFIX + metadata_name in self.saved_metadata:
-                            metadata.set_value_computed(
-                                self.saved_metadata[MetadataList.COMPUTE_PREFIX + metadata_name])
-                except JSONDecodeError:
-                    self.saved_metadata = {}
+    def load_from_dict(self, media_file_dict):
+        for md_name, md_value in self.metadata_list.items():
+            if md_name in media_file_dict:
+                md_value.set_value_read(media_file_dict[md_name])
+            if MetadataList.COMPUTE_PREFIX + md_name in media_file_dict:
+                md_value.set_value_computed(media_file_dict[MetadataList.COMPUTE_PREFIX + md_name])
 
-    def save_to_file(self, file_path, new_saved_metadata, create_if_not_exist):
-        if not os.path.exists(file_path) or new_saved_metadata != self.saved_metadata:
-            if os.path.exists(file_path) or create_if_not_exist:
-                with open(file_path, 'w') as f:
-                    json.dump(new_saved_metadata, f, indent=4)
+    def get_thumbnail(self):
+        return self.metadata_list[SIGNATURE].thumbnail
+
+    def set_thumbnail(self, thumbnail):
+        self.metadata_list[SIGNATURE].thumbnail = thumbnail
+
+    def save_external_metadata(self):
+        json_metadata = self.save_to_dict()
+        self.external_metadata.save(json_metadata)
 
     def delete_metadata_file(self):
-        if os.path.exists(self.external_metadata_file_path):
-            os.remove(self.external_metadata_file_path)
-            return True
-        return False
+        self.external_metadata.delete()
