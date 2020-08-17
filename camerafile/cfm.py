@@ -1,11 +1,12 @@
 import argparse
 import logging
 import logging.config
-from camerafile.ExifTool import ExifTool
-from camerafile.Resource import Resource
+
 from camerafile.AviMetaEdit import AviMetaEdit
-from camerafile.OutputDirectory import OutputDirectory
 from camerafile.CameraFilesProcessor import CameraFilesProcessor
+from camerafile.ExifTool import ExifTool
+from camerafile.OutputDirectory import OutputDirectory
+from camerafile.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
 

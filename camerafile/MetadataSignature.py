@@ -29,7 +29,7 @@ class MetadataSignature(Metadata):
                     image.thumbnail((100, 100))
                     bytes_output = io.BytesIO()
                     image.save(bytes_output, format='JPEG')
-                    image_hash = imagehash.average_hash(image)
+                    image_hash = imagehash.phash(image)
                     # imagehash.hex_to_hash(self.value_computed)
 
                     self.thumbnail = bytes_output.getvalue()

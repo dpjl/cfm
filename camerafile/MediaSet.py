@@ -11,7 +11,7 @@ from camerafile.OutputDirectory import OutputDirectory
 
 class MediaSet:
 
-    def __init__(self, path):
+    def __init__(self, path, progress_signal=None):
         self.create_json_metadata = False
         self.root_path = Path(self.parse_path(path)).resolve()
         self.name = self.root_path.name
@@ -21,7 +21,7 @@ class MediaSet:
         self.sig_map = {}
         self.av_sig_map = {}
         self.database = MediaSetDatabase(self.root_path)
-        self.initialize_file_and_dir_list()
+        self.initialize_file_and_dir_list(progress_signal)
 
     def __del__(self):
         self.save_database()
@@ -120,12 +120,8 @@ class MediaSet:
         return result
 
     def analyze_duplicates(self):
-        str_list = []
-
-        total = 0
-
-        str_list.append("All media files: " + str(len(self.media_file_list)))
-        str_list.append("Distinct elements: {distinct}".format(distinct=str(len(self.av_sig_map))))
+        str_list = ["All media files: " + str(len(self.media_file_list)),
+                    "Distinct elements: {distinct}".format(distinct=str(len(self.av_sig_map)))]
 
         number_of_n_copied = {}
         for n_copied in map(len, self.av_sig_map.values()):
@@ -138,6 +134,16 @@ class MediaSet:
             str_list.append("%s elem. found %s-times" % (number_of_n_copied, n_copied))
 
         return str_list
+
+    def analyze_duplicates_2(self):
+        number_of_n_copied = {}
+        for signature in self.av_sig_map:
+            n_copied = len(self.av_sig_map[signature])
+            if n_copied not in number_of_n_copied:
+                number_of_n_copied[n_copied] = {}
+            number_of_n_copied[n_copied][signature] = self.av_sig_map[signature]
+
+        return number_of_n_copied
 
     def get_file_list(self, ext=None, cm=None):
         result = []
@@ -168,7 +174,21 @@ class MediaSet:
 
         return True
 
-    def initialize_file_and_dir_list(self):
+    def create_media_dir_parent(self, dir_or_file_path):
+        parent = str(Path(dir_or_file_path).parent)
+        if parent not in self.media_dir_list:
+            new_media_dir = MediaDirectory(parent, self.create_media_dir_parent(parent), self)
+            self.media_dir_list[parent] = new_media_dir
+        return self.media_dir_list[parent]
+
+    def initialize_file_and_dir_list2(self, progress_signal=None):
+        print(self.root_path)
+        number_of_files = 0
+        root_dir = MediaDirectory(str(self.root_path), None, self)
+        self.media_dir_list[str(self.root_path)] = root_dir
+        self.database.load_all_media_files(self, progress_signal)
+
+    def initialize_file_and_dir_list(self, progress_signal=None):
         print(self.root_path)
         number_of_files = 0
         root_dir = MediaDirectory(str(self.root_path), None, self)
@@ -194,5 +214,7 @@ class MediaSet:
                     self.database.load_media_file(new_media_file)
                     self.add_file(new_media_file)
 
+            if progress_signal is not None:
+                progress_signal.emit(number_of_files)
             print("\r{number: >15} files found".format(number=number_of_files), end='')
         print("")

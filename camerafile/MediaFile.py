@@ -4,6 +4,7 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
+
 from camerafile.MetadataList import MetadataList
 from camerafile.Metadata import CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
     ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH
@@ -19,10 +20,12 @@ class MediaFile:
 
     def __init__(self, path, parent_dir, parent_set):
         self.path = path
+        self.relative_path = Path(self.path).relative_to(parent_set.root_path)
         self.parent_dir = parent_dir
         self.parent_set = parent_set
         self.name = Path(self.path).name
         self.extension = os.path.splitext(self.name)[1].lower()
+        # TODO: still useful ??
         self.id = hashlib.md5(self.path.encode()).hexdigest()
         self.metadata = MetadataList(self)
         self.loaded_from_database = False
@@ -76,7 +79,7 @@ class MediaFile:
         if new_media_set.contains_exact(self):
             return "Image already exists"
 
-        relative_path = Path(self.path).relative_to(self.parent_set.root_path).parent
+        relative_path = self.relative_path.parent
         new_dir_path = Path(new_media_set.root_path) / CFM_COPY / relative_path
         os.makedirs(new_dir_path, exist_ok=True)
         new_file_path = new_dir_path / self.name

@@ -5,6 +5,8 @@ from json import JSONDecodeError
 import sqlite3
 from pathlib import Path
 
+from camerafile.MediaFile import MediaFile
+
 
 class MediaSetDatabase:
 
@@ -25,6 +27,35 @@ class MediaSetDatabase:
                                     last_update_date TIMESTAMP)''')
         self.cursor.execute('''CREATE UNIQUE INDEX idx_file_path ON metadata(file)''')
         self.file_connection.commit()
+
+    def load_all_media_files(self, media_set, progress_signal=None):
+        try:
+            self.cursor.execute('select file_id, file, thumbnail, jm from metadata')
+            result_list = self.cursor.fetchall()
+            number_of_files = 0
+            for result in result_list:
+                if result is not None and len(result) >= 1:
+                    file_id = result[0]
+                    file_path = str(Path(media_set.root_path / result[1]))
+                    thumbnail = result[2]
+                    json_content = result[3]
+                    try:
+                        new_media_file = MediaFile(file_path, media_set.create_media_dir_parent(file_path), media_set)
+                        new_media_file.metadata.set_thumbnail(thumbnail)
+                        new_media_file.metadata.load_from_dict(json.loads(json_content))
+                        new_media_file.loaded_from_database = True
+                        new_media_file.db_id = file_id
+                        media_set.add_file(new_media_file)
+
+                        number_of_files += 1
+                        if progress_signal is not None and number_of_files % 1000 == 0:
+                            progress_signal.emit(number_of_files)
+
+                    except JSONDecodeError:
+                        print("Invalid json in database: %s" % file_path)
+        except:
+            print("can't load database")
+            raise
 
     def load_media_file(self, media_file):
         try:

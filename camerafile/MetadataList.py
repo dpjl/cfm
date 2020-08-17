@@ -25,10 +25,10 @@ class MetadataList:
                               DESTINATION_MOVE_PATH: Metadata(media_file),
                               SIGNATURE: MetadataSignature(media_file)}
 
-        ext_metadata_file_path = str(self.media_file.path) + MetadataList.METADATA_EXTENSION
-        self.external_metadata = MetadataExternalFile(ext_metadata_file_path,
-                                                      self,
-                                                      self.media_file.parent_set.create_json_metadata)
+        #ext_metadata_file_path = str(self.media_file.path) + MetadataList.METADATA_EXTENSION
+        #self.external_metadata = MetadataExternalFile(ext_metadata_file_path,
+        #                                              self,
+        #                                              self.media_file.parent_set.create_json_metadata)
 
     def __getitem__(self, item):
         return self.metadata_list[item]
@@ -49,13 +49,13 @@ class MetadataList:
     def compute_value(self, name):
         self[name].compute_value()
         value = self[name].value_computed
-        self.save_external_metadata()
+        #self.save_external_metadata()
         return value
 
     def delete_computed_value(self, name):
         if self[name].value_computed is not None:
             self[name].value_computed = None
-        self.save_external_metadata()
+        #self.save_external_metadata()
 
     def load_from_media(self, name):
         if name in [DATE, CAMERA_MODEL]:
@@ -68,7 +68,7 @@ class MetadataList:
                 self[DATE].set_value_read(date.strftime("%Y/%m/%d %H:%M:%S"))
             else:
                 self[DATE].set_value_read(Metadata.UNKNOWN)
-            self.save_external_metadata()
+            #self.save_external_metadata()
 
     def save_to_dict(self):
         result = {}

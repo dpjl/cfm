@@ -1,14 +1,14 @@
 import concurrent
-import shutil
 import logging
+import shutil
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import wraps
 
+from camerafile.ConsoleProgressBar import ConsoleProgressBar
 from camerafile.ConsoleTable import ConsoleTable
 from camerafile.ExifTool import ExifTool
-from camerafile.Metadata import CAMERA_MODEL, SIGNATURE
 from camerafile.MediaSet import MediaSet
-from camerafile.ConsoleProgressBar import ConsoleProgressBar
+from camerafile.Metadata import CAMERA_MODEL, SIGNATURE
 
 LOGGER = logging.getLogger(__name__)
 
