@@ -4,7 +4,7 @@
   "formatters": {
     "console": {
       "format": "[%(asctime)s] %(message)s",
-      "datefmt": "%I:%M:%S"
+      "datefmt": "%H:%M:%S"
     },
     "simple": {
       "format": "[%(asctime)s] %(message)s"

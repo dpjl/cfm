@@ -1,3 +1,104 @@
+29 aout:
+
+=> ne plus lancer le sig compute, il est lancer automatiquement que pour ce qui est nécessaire lors de la copie.
+=> Créer une étape avec barre de progression "lecture des metadonnées exif" (plutôt que ça soit implicite quand on lit les cameramodel)
+
++====================================================+====================================================|
+|                       Status                       |                       Number                       |
++====================================================+====================================================|
+|                       Copied                       |                       53443                        |
++----------------------------------------------------+----------------------------------------------------|
+|                Image already exists                |                       25534                        |
++----------------------------------------------------+----------------------------------------------------|
 
 
-- move/copy files: add a file at the root of the new directory with the list of copied-moved files
++====================================================+====================================================|
+|                       Status                       |                       Number                       |
++====================================================+====================================================|
+|                       Copied                       |                       52469                        |
++----------------------------------------------------+----------------------------------------------------|
+|                Image already exists                |                       26508                        |
++----------------------------------------------------+----------------------------------------------------|
+
+
+>>>>>
+
+au lieu des propagate_to_duplicates, faire la diffusion aux dupliqués à chaque mise à jour de computed_value
+	compute_value du cm
+		propage_to_duplicate(media_file)
+	compute_value de sig
+		update_date_and_sig_map()
+		propagate_sig_to_duplicate(media_file)
+		propagate_cm_to_duplicate(media_file) (puisqu'on a mis à jour la date_and_sig_map)
+
+ajouter la liste des fichiers ignorés
+ajouter la liste des fichiers non copiés
+
+=======
+[1280x720][2008-08-12_11h04m12s].mp4
+
+Nommer chaque fichier comme ça:
+2008-08-12_11h04m12~{file0006}~1280x720
+=> on ajoute la taille systématiquement ... plus simple pour garder les différentes tailles.
+
+
+
+
+
+19 aout:
+
+Beaucoup de simplifications pour avancer:
+
+- Pour l'instant j'abandonne les signatures pour comparer les images => remplacement par un md5 pour tout
+- Suppression du calcul des miniatures (à réétudier plus tard, c'est commité donc je pourrai le récupérer dans l'historique)
+- lors de la réorganisation: si plusieurs versions, ajouter -<taille> à la fin du nom de fichier
+- suppression des json-metadata
+- ajouter un "cfm media sync <dir>" pour synchroniser avec la base (notamment retirer ce qui n'existe pas et ajouter ce qui manque, mais sans rien calculer)
+
+- ajouter un fichier pour lister les "ignored"
+- prendre en compte les thm, car ils permettent de connaître parfois d'où vient une vidéo
+- pourquoi origine vidéo par détecter ?
+
+
+Je ne sais plus pourquoi j'avais mis des chemin absolu dans la base ... il faudrait des chemin relatif à l'endroit ou est cfm.db.
+Cela pourrait poser problème ?
+Pour origin/destination je peux laisser des chemins absolus. D'ailleurs je peux mettre deux colonnes éventuellement.
+L'idée est au moins d'en avoir une en chemin relatif pour retrouver l'entrée dans la base même si la lettre du lecteur a changé / si le répertoire racine a été déplacé.
+
+Quand on lance une analyse:
+
+- d'abord le "cm find" (mieux de le lancer avant au cas où la copie "casse" des répertoires)
+	=> à termes, séparer la récupération des metadata dans une commande à part
+- puis lancer le "sig compute" (dans un second temps car pour l'instant ça utilise la date récupérée dans le cm find)
+- Puis le "cp"
+- Puis le "org"
+
+
+-----------------------------------------------------------------------------------------
+Core:
+
+- Chargement en trois temps:
+	* créer d'abord tous les MediaFile à partir de la base de données complète
+	* synchroniser ensuite (dans la GUI, le faire en arrière plan): charger les fichiers qui n'ont pas été chargés, supprimer ceux qui n'existent plus.
+	* calculer les signtures et les metadonnées (dans la GUI, le faire en arrière plan)
+	* Enregistrer la base de données
+ 
+
+- Ajouter dans la base de données une table global avec différents status:
+	* Toutes les signatures ont été calculées à un moment donnée
+	* Toutes metadonnées ont été lues à un moment données
+
+
+- page intéressante sur les hash: https://fullstackml.com/wavelet-image-hash-in-python-3504fdd282b5
+- Pour extraire des images de vidéos: https://pypi.org/project/moviepy/
+exemples:
+	* https://medium.com/@abderrahimremuos/steps-to-create-thumbnails-from-video-in-python-using-moviepy-3eab81b6ad8c
+	* https://github.com/flavioribeiro/video-thumbnail-generator/blob/master/generator
+
+Pour ensuite éventuellement créer un gif/png animé: https://note.nkmk.me/en/python-pillow-gif/
+
+GUI:
+
+- trouver de belles icones et ajouter correctement les resources au projet
+- 
+

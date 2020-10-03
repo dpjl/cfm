@@ -62,6 +62,9 @@ class ExifTool(object):
     IMAGE_UPDATE = "image files updated"
     SOURCE_METADATA = "Source"
     MODEL_METADATA = "Model"
+    WIDTH_METADATA = "ImageWidth"
+    HEIGHT_METADATA = "ImageHeight"
+    ORIENTATION_METADATA = "Orientation"
     CREATE_DATE_METADATA = "CreateDate"
     MODIFY_DATE_METADATA = "FileModifyDate"
     SENTINEL = "{ready}\n"
@@ -123,12 +126,15 @@ class ExifTool(object):
         return output[:-len(cls.SENTINEL)], err
 
     @classmethod
-    def get_model_and_date(cls, filename):
+    def get_metadata(cls, filename):
         stdout, stderr = cls.execute("-j", "-n",
                                      "-" + cls.MODEL_METADATA,
                                      "-" + cls.SOURCE_METADATA,
                                      "-" + cls.CREATE_DATE_METADATA,
                                      "-" + cls.MODIFY_DATE_METADATA,
+                                     "-" + cls.WIDTH_METADATA,
+                                     "-" + cls.HEIGHT_METADATA,
+                                     "-" + cls.ORIENTATION_METADATA,
                                      filename)
         result = json.loads(stdout)
         if len(result) == 0:
@@ -141,19 +147,37 @@ class ExifTool(object):
             model = result[0][cls.SOURCE_METADATA]
 
         date = None
+
         if cls.CREATE_DATE_METADATA in result[0]:
             str_date = result[0][cls.CREATE_DATE_METADATA]
             try:
                 date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
             except ValueError:
-                date = datetime.min
-        elif cls.MODIFY_DATE_METADATA in result[0]:
+                date = None
+
+        if date is None and cls.MODIFY_DATE_METADATA in result[0]:
             str_date = result[0][cls.MODIFY_DATE_METADATA]
             try:
                 date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
             except ValueError:
-                date = datetime.min
-        return model, date
+                date = None
+
+        if date is None:
+            date = datetime.min
+
+        width = None
+        if cls.WIDTH_METADATA in result[0]:
+            width = result[0][cls.WIDTH_METADATA]
+
+        height = None
+        if cls.HEIGHT_METADATA in result[0]:
+            height = result[0][cls.HEIGHT_METADATA]
+
+        orientation = None
+        if cls.ORIENTATION_METADATA in result[0]:
+            orientation = result[0][cls.ORIENTATION_METADATA]
+
+        return model, date, width, height, orientation
 
     @classmethod
     def update_model(cls, filename, new_model):

@@ -1,10 +1,14 @@
 import logging
+from datetime import datetime
 from typing import Dict
+
+from PIL import Image
+
+from camerafile.Constants import IMAGE_TYPE
 from camerafile.ExifTool import ExifTool
 from camerafile.Metadata import Metadata, CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
-    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH
+    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, ORIENTATION
 from camerafile.MetadataCameraModel import MetadataCameraModel
-from camerafile.MetadataExternalFile import MetadataExternalFile
 from camerafile.MetadataSignature import MetadataSignature
 
 LOGGER = logging.getLogger(__name__)
@@ -12,23 +16,20 @@ LOGGER = logging.getLogger(__name__)
 
 class MetadataList:
     metadata_list: Dict[str, Metadata]
-    METADATA_EXTENSION = ".cfm-metadata"
     COMPUTE_PREFIX = "Computed "
 
     def __init__(self, media_file):
         self.media_file = media_file
         self.metadata_list = {CAMERA_MODEL: MetadataCameraModel(media_file),
                               DATE: Metadata(media_file),
+                              WIDTH: Metadata(media_file),
+                              HEIGHT: Metadata(media_file),
+                              ORIENTATION: Metadata(media_file),
                               ORIGINAL_COPY_PATH: Metadata(media_file),
                               DESTINATION_COPY_PATH: Metadata(media_file),
                               ORIGINAL_MOVE_PATH: Metadata(media_file),
                               DESTINATION_MOVE_PATH: Metadata(media_file),
                               SIGNATURE: MetadataSignature(media_file)}
-
-        #ext_metadata_file_path = str(self.media_file.path) + MetadataList.METADATA_EXTENSION
-        #self.external_metadata = MetadataExternalFile(ext_metadata_file_path,
-        #                                              self,
-        #                                              self.media_file.parent_set.create_json_metadata)
 
     def __getitem__(self, item):
         return self.metadata_list[item]
@@ -49,26 +50,74 @@ class MetadataList:
     def compute_value(self, name):
         self[name].compute_value()
         value = self[name].value_computed
-        #self.save_external_metadata()
         return value
 
     def delete_computed_value(self, name):
         if self[name].value_computed is not None:
             self[name].value_computed = None
-        #self.save_external_metadata()
+
+    def get_metadata_with_pil(self):
+        model = None
+        date = None
+        orientation = None
+        try:
+            img = Image.open(self.media_file.path)
+            width, height = img.size
+            if img.getexif() is not None:
+                exif = dict(img.getexif().items())
+                if 0x0110 in exif:
+                    model = exif[0x0110].strip("\u0000").strip(" ")
+                if 0x9003 in exif:
+                    try:
+                        date = datetime.strptime(exif[0x9003], '%Y:%m:%d %H:%M:%S')
+                    except ValueError:
+                        date = None
+                        # comment récupérer ici l'équivalent de FileModifyDate (voir ExifTool) ?
+                if 0x0112 in exif:
+                    orientation = exif[0x0112]
+
+        except OSError:
+            # print("%s can't be hashed as an image" % self.media_file.path)
+            return None, None, None, None, None
+
+        return model, date, width, height, orientation
 
     def load_from_media(self, name):
-        if name in [DATE, CAMERA_MODEL]:
-            model, date = ExifTool.get_model_and_date(self.media_file.path)
-            if model is not None:
-                self[CAMERA_MODEL].set_value_read(model)
-            else:
-                self[CAMERA_MODEL].set_value_read(Metadata.UNKNOWN)
+        if name in [DATE, CAMERA_MODEL, WIDTH, HEIGHT, ORIENTATION]:
+
+            model = None
+            date = None
+            width = None
+            height = None
+            orientation = None
+
+            if self.media_file.extension in IMAGE_TYPE:
+                model, date, width, height, orientation = self.get_metadata_with_pil()
+
+            if date is None:
+                model, date, width, height, orientation = ExifTool.get_metadata(self.media_file.path)
+
+            if orientation is not None and (orientation == 6 or orientation == 8):
+                old_width = width
+                width = height
+                height = old_width
+
             if date is not None:
-                self[DATE].set_value_read(date.strftime("%Y/%m/%d %H:%M:%S"))
-            else:
-                self[DATE].set_value_read(Metadata.UNKNOWN)
-            #self.save_external_metadata()
+                date = date.strftime("%Y/%m/%d %H:%M:%S")
+
+            self.set_metadata_read_value(DATE, date)
+            self.set_metadata_read_value(CAMERA_MODEL, model)
+            self.set_metadata_read_value(WIDTH, width)
+            self.set_metadata_read_value(HEIGHT, height)
+            self.set_metadata_read_value(ORIENTATION, orientation)
+
+            self.media_file.parent_set.update_date_and_name_map(self.media_file)
+
+    def set_metadata_read_value(self, metadata_name, value):
+        if value is not None:
+            self[metadata_name].set_value_read(value)
+        else:
+            self[metadata_name].set_value_read(Metadata.UNKNOWN)
 
     def save_to_dict(self):
         result = {}
@@ -85,16 +134,3 @@ class MetadataList:
                 md_value.set_value_read(media_file_dict[md_name])
             if MetadataList.COMPUTE_PREFIX + md_name in media_file_dict:
                 md_value.set_value_computed(media_file_dict[MetadataList.COMPUTE_PREFIX + md_name])
-
-    def get_thumbnail(self):
-        return self.metadata_list[SIGNATURE].thumbnail
-
-    def set_thumbnail(self, thumbnail):
-        self.metadata_list[SIGNATURE].thumbnail = thumbnail
-
-    def save_external_metadata(self):
-        json_metadata = self.save_to_dict()
-        self.external_metadata.save(json_metadata)
-
-    def delete_metadata_file(self):
-        self.external_metadata.delete()

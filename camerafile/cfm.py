@@ -1,6 +1,7 @@
 import argparse
 import logging
 import logging.config
+from pathlib import Path
 
 from camerafile.AviMetaEdit import AviMetaEdit
 from camerafile.CameraFilesProcessor import CameraFilesProcessor
@@ -29,13 +30,13 @@ def init_logging():
 def create_cm_find_sub_parser(sp_list):
     p = sp_list.add_parser('find', help='Search for camera models and try to recover missing ones')
     p.set_defaults(command=CameraFilesProcessor.find_cm)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
 def create_cm_reset_sub_parser(sp_list):
-    p = sp_list.add_parser('reset', help='Remove all found camera models from cache and json metadata')
+    p = sp_list.add_parser('reset', help='Remove all found camera models from database')
     p.set_defaults(command=CameraFilesProcessor.reset_cm)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
 def create_cm_sub_parser(sp_list):
@@ -48,13 +49,13 @@ def create_cm_sub_parser(sp_list):
 def create_sig_compute_sub_parser(sp_list):
     p = sp_list.add_parser('compute', help='Compute all signatures')
     p.set_defaults(command=CameraFilesProcessor.compute_signature)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
 def create_sig_reset_sub_parser(sp_list):
-    p = sp_list.add_parser('reset', help='Remove all computed signatures from cache and json metadata')
+    p = sp_list.add_parser('reset', help='Remove all computed signatures from database')
     p.set_defaults(command=CameraFilesProcessor.reset_signature)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
 def create_sig_sub_parser(sp_list):
@@ -65,31 +66,30 @@ def create_sig_sub_parser(sp_list):
 
 
 def create_media_cp_sub_parser(sp_list):
-    p = sp_list.add_parser('cp', help='Copy media files from first directory to second directory')
+    p = sp_list.add_parser('cp', help='Copy media files from first directory to second directory, '
+                                      'if they are not already present')
     p.set_defaults(command=CameraFilesProcessor.copy_media)
-    p.add_argument('--new', action='store_true', help='Copy only media files that are not already in second directory')
-    p.add_argument('dir1', metavar='directory1[>create-json-metadata]', type=str, help='First media directory path')
-    p.add_argument('dir2', metavar='directory2[>create-json-metadata]', type=str, help='Second media directory path')
+    p.add_argument('dir1', metavar='directory1', type=str, help='First media directory path')
+    p.add_argument('dir2', metavar='directory2', type=str, help='Second media directory path')
 
 
 def create_media_org_sub_parser(sp_list):
     p = sp_list.add_parser('org', help='Organize new copied media files of media directory')
     p.set_defaults(command=CameraFilesProcessor.organize_media)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Media directory path')
+    p.add_argument('dir1', metavar='directory', type=str, help='Media directory path')
 
 
 def create_media_cmp_sub_parser(sp_list):
-    p = sp_list.add_parser('cmp', help='Compare files of two media directories, using their signatures')
+    p = sp_list.add_parser('cmp', help='Compare files of two media directories.')
     p.set_defaults(command=CameraFilesProcessor.cmp)
-    p.add_argument('--new', action='store_true', help='Copy only media files that are not already in second directory')
-    p.add_argument('dir1', metavar='directory1[>create-json-metadata]', type=str, help='First media directory path')
-    p.add_argument('dir2', metavar='directory2[>create-json-metadata]', type=str, help='Second media directory path')
+    p.add_argument('dir1', metavar='directory1', type=str, help='First media directory path')
+    p.add_argument('dir2', metavar='directory2', type=str, help='Second media directory path')
 
 
 def create_media_dup_sub_parser(sp_list):
-    p = sp_list.add_parser('dup', help='Find an display duplicated files of one directory')
+    p = sp_list.add_parser('dup', help='Find and display duplicated media files of one directory')
     p.set_defaults(command=CameraFilesProcessor.dup)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
 def create_media_sub_parser(sp_list):
@@ -104,25 +104,7 @@ def create_media_sub_parser(sp_list):
 def create_jm_remove_sub_parser(sp_list):
     p = sp_list.add_parser('rm', help='Delete all json metadata files from a media directory')
     p.set_defaults(command=CameraFilesProcessor.delete_metadata)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
-
-
-def create_jm_sub_parser(sp_list):
-    p = sp_list.add_parser('jm', help='Manage json metadata files')
-    sp_list = p.add_subparsers()
-    create_jm_remove_sub_parser(sp_list)
-
-
-def create_cache_remove_parser(sp_list):
-    p = sp_list.add_parser('rm', help='Delete all json metadata files from a media directory')
-    p.set_defaults(command=CameraFilesProcessor.delete_metadata_cache)
-    p.add_argument('dir1', metavar='directory[>create-json-metadata]', type=str, help='Root media directory')
-
-
-def create_cache_sub_parser(sp_list):
-    p = sp_list.add_parser('cache', help='Manage application cache')
-    sp_list = p.add_subparsers()
-    create_cache_remove_parser(sp_list)
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
 def create_main_args_parser():
@@ -131,15 +113,16 @@ def create_main_args_parser():
     create_media_sub_parser(sp_list)
     create_cm_sub_parser(sp_list)
     create_sig_sub_parser(sp_list)
-    create_jm_sub_parser(sp_list)
-    create_cache_sub_parser(sp_list)
     return parser
 
 
-def main():
-    OutputDirectory.init("cfm-wip")
+def init_program(base_dir):
+    OutputDirectory.init(Path(base_dir))
     Resource.init()
     init_logging()
+
+
+def main():
     parser = create_main_args_parser()
     args = parser.parse_args()
 
@@ -147,6 +130,8 @@ def main():
     for param_name in ['dir1', 'dir2']:
         if param_name in args:
             params += (args.__getattribute__(param_name),)
+
+    init_program(params[0])
     args.command(*params)
 
 

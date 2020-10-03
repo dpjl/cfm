@@ -44,11 +44,12 @@ def with_progression_thread(batch_title="", threads=1):
             progress_bar = ConsoleProgressBar(len(input_list), batch_title)
             LOGGER.info("Start batch <{title}>".format(title=batch_title))
             try:
-                walk, task = f(input_list, *args)
+                walk, task, print_result = f(input_list, *args)
                 with ThreadPoolExecutor(max_workers=threads) as executor:
                     future_list = {executor.submit(task, item, progress_bar): item for item in walk()}
                     for future in concurrent.futures.as_completed(future_list):
                         data = future.result()
+                print_result()
             finally:
                 progress_bar.stop()
                 ExifTool.stop()
@@ -88,22 +89,6 @@ class CameraFilesProcessor:
                 progress_bar.increment()
 
     @staticmethod
-    @with_progression(batch_title="Delete external metadata files")
-    def batch_delete_external_metadata(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            media_file.metadata.delete_metadata_file()
-            if progress_bar is not None:
-                progress_bar.increment()
-
-    @staticmethod
-    @with_progression(batch_title="Delete external metadata cache")
-    def batch_delete_metadata_cache(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            media_file.metadata.delete_metadata_cache()
-            if progress_bar is not None:
-                progress_bar.increment()
-
-    @staticmethod
     @with_progression(batch_title="Organize media files")
     def batch_organize(media_file_list, progress_bar=None):
         result = {}
@@ -122,19 +107,55 @@ class CameraFilesProcessor:
 
     @staticmethod
     @with_progression(batch_title="Copy media files")
-    def batch_copy(media_file_list, new_media_set, progress_bar=None):
+    def batch_copy(old_media_set, new_media_set, progress_bar=None):
         result = {}
-        for media_file in media_file_list:
+        not_copied_files = []
+        for media_file in old_media_set:
+            if progress_bar is not None:
+                progress_bar.set_item_text(str(media_file.relative_path))
             status = media_file.copy(new_media_set)
             if status not in result:
                 result[status] = 0
             result[status] += 1
+            if status != "Copied":
+                not_copied_files.append(media_file)
             if progress_bar is not None:
                 progress_bar.increment()
         tab = ConsoleTable()
         tab.print_header("Status", "Number")
         for status in result:
             tab.print_line(status, str(result[status]))
+        old_media_set.output_directory.save_list(not_copied_files, "not-copied-files.json")
+
+    @staticmethod
+    @with_progression_thread(batch_title="Copy media files (multi-threads)", threads=8)
+    def batch_copy_2(old_media_set, new_media_set):
+
+        result = {}
+        not_copied_files = []
+
+        def walk():
+            for media_file in old_media_set:
+                yield media_file
+
+        def task(media_file, progress_bar=None):
+            status = media_file.copy(new_media_set)
+            if status not in result:
+                result[status] = 0
+            result[status] += 1
+            if status != "Copied":
+                not_copied_files.append(media_file)
+            if progress_bar is not None:
+                progress_bar.increment()
+
+        def print_result():
+            tab = ConsoleTable()
+            tab.print_header("Status", "Number")
+            for status in result:
+                tab.print_line(status, str(result[status]))
+            old_media_set.output_directory.save_list(not_copied_files, "not-copied-files.json")
+
+        return walk, task, print_result
 
     @staticmethod
     def compute_one_signature(media_file, progress_bar):
@@ -213,21 +234,26 @@ class CameraFilesProcessor:
         LOGGER.info("{l1} files detected as media file"
                     .format(l1=len(media_set)))
 
+        file_list_1 = media_set.get_possibly_duplicates()
+        file_list_2 = media_set2.get_possibly_duplicates()
+        file_list_3 = media_set.get_possibly_already_exists(media_set2)
+
+        for file in file_list_3:
+            if file not in file_list_1 and file not in file_list_2:
+                print(file)
+
+        CameraFilesProcessor.batch_compute_signature(file_list_1)
+        CameraFilesProcessor.batch_compute_signature(file_list_2)
+        CameraFilesProcessor.batch_compute_signature(file_list_3)
+
+        media_set.propagate_sig_to_duplicates()
+        media_set2.propagate_sig_to_duplicates()
+
+        # in case new duplicates have been found because of new computed signatures
+        media_set.propagate_cm_to_duplicates()
+        media_set2.propagate_cm_to_duplicates()
+
         CameraFilesProcessor.batch_copy(media_set, media_set2)
-
-    @staticmethod
-    def delete_metadata(dir_path):
-        media_set = MediaSet(dir_path)
-        LOGGER.info("{l1} files detected as media file"
-                    .format(l1=len(media_set)))
-        CameraFilesProcessor.batch_delete_external_metadata(media_set)
-
-    @staticmethod
-    def delete_metadata_cache(dir_path):
-        media_set = MediaSet(dir_path)
-        LOGGER.info("{l1} files detected as media file"
-                    .format(l1=len(media_set)))
-        CameraFilesProcessor.batch_delete_metadata_cache(media_set)
 
     @staticmethod
     def reset_cm(dir_path):
@@ -263,6 +289,7 @@ class CameraFilesProcessor:
             CameraFilesProcessor.status(media_set)
 
             CameraFilesProcessor.batch_compute_cm(media_set.get_file_list(cm="unknown"))
+            media_set.propagate_cm_to_duplicates()
             CameraFilesProcessor.status(media_set)
 
             media_set.output_directory.save_list(media_set.get_file_list(cm="unknown"),

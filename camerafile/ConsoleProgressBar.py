@@ -95,6 +95,7 @@ class ConsoleProgressBar:
         self.run = True
         self.start_time = time.time()
         self.remaining_time = ""
+        self.item_text = None
         self.clear_screen = clear_screen
         self.lock_increment = threading.Lock()
         self.stdout = StdoutWrapper(self.console_width)
@@ -121,6 +122,10 @@ class ConsoleProgressBar:
                 self.remaining_time = "{num: >4}m".format(num=minutes)
             else:
                 self.remaining_time = "{num: >4}s".format(num=seconds)
+
+    def set_item_text(self, item_text):
+        with self.lock_increment:
+            self.item_text = item_text
 
     def increment(self):
         with self.lock_increment:
@@ -163,31 +168,47 @@ class ConsoleProgressBar:
         self.defil_position += 1
         position_100 = self.position * 100 / self.max
 
-        before_bar = "{title} [".format(title=self.title)
+        if self.item_text is None:
 
-        after_bar = "] {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} ".format(
-            position=self.position, position_len=len(str(self.max)),
-            max=self.max,
-            percent=str(int(position_100))[:3],
-            remaining=self.remaining_time[:5])
+            before_bar = "{title} [".format(title=self.title)
 
-        progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
-        current_position_progress_bar = int(position_100 * progress_bar_size / 100) + 1
-        past_size = current_position_progress_bar - 1
-        future_size = progress_bar_size - past_size - 1
-        defil_char = DEFIL_CHARACTERS[self.defil_position % len(DEFIL_CHARACTERS)]
+            after_bar = "] {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} ".format(
+                position=self.position, position_len=len(str(self.max)),
+                max=self.max,
+                percent=str(int(position_100))[:3],
+                remaining=self.remaining_time[:5])
 
-        if past_size == progress_bar_size:
-            defil_char = ''
-            future_size = 0
+            progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
+            current_position_progress_bar = int(position_100 * progress_bar_size / 100) + 1
+            past_size = current_position_progress_bar - 1
+            future_size = progress_bar_size - past_size - 1
+            defil_char = DEFIL_CHARACTERS[self.defil_position % len(DEFIL_CHARACTERS)]
 
-        bar = "{past:{c1}<{l1}}{now}{future:{c3}<{l3}}".format(
-            past='', c1=BAR_CHAR, l1=past_size,
-            now=defil_char,
-            future='', c3=SPACE, l3=future_size)
+            if past_size == progress_bar_size:
+                defil_char = ''
+                future_size = 0
 
-        sys.stdout.write("{before}{progress_bar}{after}"
-                         .format(before=before_bar, progress_bar=bar, after=after_bar))
+            bar = "{past:{c1}<{l1}}{now}{future:{c3}<{l3}}".format(
+                past='', c1=BAR_CHAR, l1=past_size,
+                now=defil_char,
+                future='', c3=SPACE, l3=future_size)
+
+            sys.stdout.write("{before}{progress_bar}{after}"
+                             .format(before=before_bar, progress_bar=bar, after=after_bar))
+        else:
+            stats = "{title} | {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} - ".format(
+                title=self.title,
+                position=self.position, position_len=len(str(self.max)),
+                max=self.max,
+                percent=str(int(position_100))[:3],
+                remaining=self.remaining_time[:5])
+            line_size = len(stats) + len(self.item_text)
+            decal = 0
+            if line_size > self.console_width:
+                decal = line_size - self.console_width
+            line = stats + "{item}".format(
+                item=self.item_text[decal:])
+            sys.stdout.write(line)
 
 
 if __name__ == "__main__":

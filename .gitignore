@@ -5,3 +5,6 @@ __pycache__
 *.egg-info
 cfm-wip
 *.spec
+test-data
+test-data-org
+venv

@@ -120,7 +120,7 @@ class UIMediaSetTab(QtWidgets.QWidget):
         pixmap.loadFromData(media_file.metadata.get_thumbnail())
         label.setPixmap(pixmap)
         label.resize(pixmap.width(), pixmap.height())
-        label.setToolTip(media_file.path + '\n' + media_file.get_exact_signature())
+        label.setToolTip(media_file.path + '\n' + media_file.get_signature())
         label.focusInEvent = partial(self.thum_on_focus, label)
         label.focusOutEvent = partial(self.thum_out_focus, label)
         label.setFocusPolicy(QtCore.Qt.WheelFocus)

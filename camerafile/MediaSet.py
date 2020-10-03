@@ -1,10 +1,12 @@
 import os
+from datetime import datetime
 from pathlib import Path
 
+from camerafile.Constants import TYPE
 from camerafile.MediaDirectory import MediaDirectory
 from camerafile.MediaFile import MediaFile
 from camerafile.MediaSetDatabase import MediaSetDatabase
-from camerafile.Metadata import CAMERA_MODEL
+from camerafile.Metadata import CAMERA_MODEL, WIDTH, HEIGHT, DATE, SIGNATURE
 from camerafile.Metadata import Metadata
 from camerafile.OutputDirectory import OutputDirectory
 
@@ -12,15 +14,14 @@ from camerafile.OutputDirectory import OutputDirectory
 class MediaSet:
 
     def __init__(self, path, progress_signal=None):
-        self.create_json_metadata = False
-        self.root_path = Path(self.parse_path(path)).resolve()
+        self.root_path = Path(path).resolve()
         self.name = self.root_path.name
         self.output_directory = OutputDirectory(self.root_path)
         self.media_file_list = []
         self.media_dir_list = {}
-        self.sig_map = {}
-        self.av_sig_map = {}
-        self.database = MediaSetDatabase(self.root_path)
+        self.date_and_sig_map = {}
+        self.date_and_name_map = {}
+        self.database = MediaSetDatabase(self.output_directory)
         self.initialize_file_and_dir_list(progress_signal)
 
     def __del__(self):
@@ -34,8 +35,22 @@ class MediaSet:
         # pourquoi est-ce plus lent en utilisant un enter/exit plutôt qu'un init/del ??
         pass
 
-    def delete_file(self, file_path):
-        self.media_file_list.remove(file_path)
+    def get_file_from_path(self, file_path):
+        for media_file in self.media_file_list:
+            if str(media_file.path).lower() == str(file_path).lower():
+                return media_file
+
+    def add_size_to_filename(self, file_path):
+        media_file = self.get_file_from_path(file_path)
+        width = media_file.metadata.get_value(WIDTH)
+        height = media_file.metadata.get_value(HEIGHT)
+        media_file.add_suffix_to_filename("[" + str(width) + "x" + str(height) + "]")
+
+    def add_date_to_filename(self, file_path):
+        media_file = self.get_file_from_path(file_path)
+        date = datetime.strptime(media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
+        new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%Ss")
+        media_file.add_suffix_to_filename("[" + new_date_format + "]")
 
     def save_database(self):
         print("Saving database...")
@@ -44,15 +59,6 @@ class MediaSet:
         self.database.file_connection.commit()
         self.database.file_connection.close()
         print("End saving database.")
-
-    def parse_path(self, path):
-        root_path = path
-        split_path = path.split(">")
-        if len(split_path) == 2:
-            root_path = split_path[0]
-            if split_path[1] == "create-json-metadata":
-                self.create_json_metadata = True
-        return root_path
 
     def __str__(self):
         return self.root_path
@@ -64,35 +70,72 @@ class MediaSet:
         for media_file in self.media_file_list:
             yield media_file
 
-    def update_sig_maps(self, media_file):
-        self.add_to_sig_map(media_file)
-        self.add_to_av_sig_map(media_file)
-
     def add_file(self, media_file):
         self.media_file_list.append(media_file)
-        self.update_sig_maps(media_file)
+        self.update_date_and_sig_map(media_file)
+        self.update_date_and_name_map(media_file)
 
-    def add_to_sig_map(self, media_file):
-        sig = media_file.get_exact_signature()
-        if sig is not None:
-            if sig not in self.sig_map:
-                self.sig_map[sig] = []
-            self.sig_map[sig].append(media_file)
+    def update_date_and_name_map(self, media_file):
+        date_id = media_file.get_date_identifier()
+        if date_id is not None:
+            if date_id not in self.date_and_name_map:
+                self.date_and_name_map[date_id] = {}
+            if media_file.original_filename not in self.date_and_name_map[date_id]:
+                self.date_and_name_map[date_id][media_file.original_filename] = []
+            if media_file not in self.date_and_name_map[date_id][media_file.original_filename]:
+                self.date_and_name_map[date_id][media_file.original_filename].append(media_file)
 
-    def add_to_av_sig_map(self, media_file):
-        sig = media_file.get_average_signature()
-        if sig is not None:
-            if sig not in self.av_sig_map:
-                self.av_sig_map[sig] = []
-            self.av_sig_map[sig].append(media_file)
+    def update_date_and_sig_map(self, media_file):
+        date_id = media_file.get_date_identifier()
+        sig = media_file.get_signature()
+        if date_id is not None and sig is not None:
+            if date_id not in self.date_and_sig_map:
+                self.date_and_sig_map[date_id] = {}
+            if sig not in self.date_and_sig_map[date_id]:
+                self.date_and_sig_map[date_id][sig] = []
+            if media_file not in self.date_and_sig_map[date_id][sig]:
+                self.date_and_sig_map[date_id][sig].append(media_file)
 
-    def contains_exact(self, item):
-        sig = item.get_exact_signature()
-        return sig is not None and sig in self.sig_map
+    def contains(self, item):
+        date_id = item.get_date_identifier()
+        if date_id is not None:
+            if date_id in self.date_and_name_map:
+                if item.original_filename in self.date_and_name_map[date_id]:
+                    return True
+                if item.get_signature() is None:
+                    print("Warning: signature is not already computed. Should never happened.")
+                    item.metadata.compute_value(SIGNATURE)
+                if date_id in self.date_and_sig_map:
+                    if item.get_signature() in self.date_and_sig_map[date_id]:
+                        return True
+        return False
 
-    def contains_similar(self, item):
-        sig = item.get_average_signature()
-        return sig is not None and sig in self.av_sig_map
+    def get_possibly_duplicates(self):
+        result = []
+        for date_id in self.date_and_name_map:
+            if len(self.date_and_name_map[date_id]) > 1:
+                for filename in self.date_and_name_map[date_id]:
+                    result.append(self.date_and_name_map[date_id][filename][0])
+        return result
+
+    @staticmethod
+    def get_one_key(dictionary):
+        for key in dictionary:
+            return key
+
+    def get_possibly_already_exists(self, media_set2):
+        result = []
+        for date_id in self.date_and_name_map:
+            if date_id in media_set2.date_and_name_map:
+                if len(self.date_and_name_map[date_id]) == 1:
+                    filename1 = self.get_one_key(self.date_and_name_map[date_id])
+                    if filename1 not in media_set2.date_and_name_map[date_id]:
+                        result.append(self.date_and_name_map[date_id][filename1][0])
+                if len(media_set2.date_and_name_map[date_id]) == 1:
+                    filename1 = self.get_one_key(media_set2.date_and_name_map[date_id])
+                    if filename1 not in self.date_and_name_map[date_id]:
+                        result.append(media_set2.date_and_name_map[date_id][filename1][0])
+        return result
 
     def get_copied_files(self):
         result = []
@@ -101,30 +144,62 @@ class MediaSet:
                 result.append(media_file)
         return result
 
+    ## TO CHANGE
     def get_files_in(self, other):
         result = {}
-        sig_map_1 = self.av_sig_map
-        sig_map_2 = other.av_sig_map
+        sig_map_1 = self.date_and_sig_map
+        sig_map_2 = other.date_and_sig_map
         for sig in sig_map_1:
             if sig in sig_map_2:
                 result[sig] = sig_map_1[sig]
         return result
 
+    ## TO CHANGE
     def get_files_not_in(self, other):
         result = {}
-        sig_map_1 = self.av_sig_map
-        sig_map_2 = other.av_sig_map
+        sig_map_1 = self.date_and_sig_map
+        sig_map_2 = other.date_and_sig_map
         for sig in sig_map_1:
             if sig not in sig_map_2:
                 result[sig] = sig_map_1[sig]
         return result
 
+    @staticmethod
+    def propagate_metadata_computed_value(metadata_name, media_file_list):
+        if len(media_file_list) > 1:
+            not_empty_metadata_value = Metadata.UNKNOWN
+            for media_file in media_file_list:
+                current_metadata_value = media_file.metadata.get_value(metadata_name)
+                if current_metadata_value is not None and current_metadata_value != Metadata.UNKNOWN:
+                    not_empty_metadata_value = current_metadata_value
+            if not_empty_metadata_value != Metadata.UNKNOWN:
+                for media_file in media_file_list:
+                    current_metadata_value = media_file.metadata.get_value(metadata_name)
+                    if current_metadata_value is None or current_metadata_value == Metadata.UNKNOWN:
+                        media_file.metadata[metadata_name].set_value_computed(not_empty_metadata_value)
+
+    def propagate_sig_to_duplicates(self):
+        for date_id in self.date_and_name_map:
+            for filename in self.date_and_name_map[date_id]:
+                self.propagate_metadata_computed_value(SIGNATURE,
+                                                       self.date_and_name_map[date_id][filename])
+
+    def propagate_cm_to_duplicates(self):
+        for date_id in self.date_and_name_map:
+            for filename in self.date_and_name_map[date_id]:
+                self.propagate_metadata_computed_value(CAMERA_MODEL,
+                                                       self.date_and_name_map[date_id][filename])
+        for date_id in self.date_and_sig_map:
+            for sig in self.date_and_sig_map[date_id]:
+                self.propagate_metadata_computed_value(CAMERA_MODEL,
+                                                       self.date_and_sig_map[date_id][sig])
+
     def analyze_duplicates(self):
         str_list = ["All media files: " + str(len(self.media_file_list)),
-                    "Distinct elements: {distinct}".format(distinct=str(len(self.av_sig_map)))]
+                    "Distinct elements: {distinct}".format(distinct=str(len(self.date_and_sig_map)))]
 
         number_of_n_copied = {}
-        for n_copied in map(len, self.av_sig_map.values()):
+        for n_copied in map(len, self.date_and_sig_map.values()):
             if n_copied != 1:
                 if n_copied not in number_of_n_copied:
                     number_of_n_copied[n_copied] = 0
@@ -137,11 +212,11 @@ class MediaSet:
 
     def analyze_duplicates_2(self):
         number_of_n_copied = {}
-        for signature in self.av_sig_map:
-            n_copied = len(self.av_sig_map[signature])
+        for signature in self.date_and_sig_map:
+            n_copied = len(self.date_and_sig_map[signature])
             if n_copied not in number_of_n_copied:
                 number_of_n_copied[n_copied] = {}
-            number_of_n_copied[n_copied][signature] = self.av_sig_map[signature]
+            number_of_n_copied[n_copied][signature] = self.date_and_sig_map[signature]
 
         return number_of_n_copied
 
@@ -191,6 +266,7 @@ class MediaSet:
     def initialize_file_and_dir_list(self, progress_signal=None):
         print(self.root_path)
         number_of_files = 0
+        ignored_files = []
         root_dir = MediaDirectory(str(self.root_path), None, self)
         self.media_dir_list[str(self.root_path)] = root_dir
 
@@ -209,12 +285,15 @@ class MediaSet:
                 media_file_path = str(parent_media_dir_path / name)
                 media_file_extension = os.path.splitext(name)[1].lower()
 
-                if media_file_extension in MediaFile.TYPE:
+                if media_file_extension in TYPE:
                     new_media_file = MediaFile(media_file_path, parent_media_dir, self)
                     self.database.load_media_file(new_media_file)
                     self.add_file(new_media_file)
+                else:
+                    ignored_files.append(media_file_path)
 
             if progress_signal is not None:
                 progress_signal.emit(number_of_files)
             print("\r{number: >15} files found".format(number=number_of_files), end='')
         print("")
+        self.output_directory.save_list(ignored_files, "ignored-files.json")

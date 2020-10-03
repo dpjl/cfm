@@ -1,2 +1,4 @@
 ImageHash
 Pillow
+pyqt5
+jellyfish
