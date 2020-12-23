@@ -26,6 +26,7 @@ class MediaSet:
 
     def __del__(self):
         self.save_database()
+        self.close_database()
 
     def __enter__(self):
         pass
@@ -57,8 +58,10 @@ class MediaSet:
         for media_file in self.media_file_list:
             self.database.save_media_file(media_file)
         self.database.file_connection.commit()
-        self.database.file_connection.close()
         print("End saving database.")
+
+    def close_database(self):
+        self.database.file_connection.close()
 
     def __str__(self):
         return self.root_path
@@ -236,15 +239,15 @@ class MediaSet:
         camera_model = media_file.metadata[CAMERA_MODEL]
 
         if cm_filter == "known":
-            if camera_model.value_read == Metadata.UNKNOWN:
+            if camera_model.get_value_read() == Metadata.UNKNOWN:
                 return False
 
         elif cm_filter == "unknown":
-            if camera_model.value_read != Metadata.UNKNOWN or camera_model.value_computed is not None:
+            if camera_model.get_value_read() != Metadata.UNKNOWN or camera_model.get_value_computed() is not None:
                 return False
 
         elif cm_filter == "recovered":
-            if camera_model.value_computed is None:
+            if camera_model.get_value_computed() is None:
                 return False
 
         return True

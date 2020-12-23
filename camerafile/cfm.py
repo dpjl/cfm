@@ -27,6 +27,10 @@ def init_logging():
                      stderr_file_path=OutputDirectory.base_path / "avimetaedit-stderr.txt")
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    CM (Camera Model) sub-menu
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def create_cm_find_sub_parser(sp_list):
     p = sp_list.add_parser('find', help='Search for camera models and try to recover missing ones')
     p.set_defaults(command=CameraFilesProcessor.find_cm)
@@ -46,6 +50,10 @@ def create_cm_sub_parser(sp_list):
     create_cm_reset_sub_parser(sp_list)
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#     SIG (Signature) sub-menu
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def create_sig_compute_sub_parser(sp_list):
     p = sp_list.add_parser('compute', help='Compute all signatures')
     p.set_defaults(command=CameraFilesProcessor.compute_signature)
@@ -63,6 +71,19 @@ def create_sig_sub_parser(sp_list):
     sp_list = p.add_subparsers()
     create_sig_compute_sub_parser(sp_list)
     create_sig_reset_sub_parser(sp_list)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    Media sub-menu
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def create_media_sub_parser(sp_list):
+    p = sp_list.add_parser('media', help='Manage media files')
+    sp_list = p.add_subparsers()
+    create_media_cp_sub_parser(sp_list)
+    create_media_org_sub_parser(sp_list)
+    create_media_cmp_sub_parser(sp_list)
+    create_media_dup_sub_parser(sp_list)
 
 
 def create_media_cp_sub_parser(sp_list):
@@ -92,20 +113,39 @@ def create_media_dup_sub_parser(sp_list):
     p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
-def create_media_sub_parser(sp_list):
-    p = sp_list.add_parser('media', help='Manage media files')
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    Face sub-menu
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def create_face_sub_parser(sp_list):
+    p = sp_list.add_parser('face', help='Manage faces in images')
     sp_list = p.add_subparsers()
-    create_media_cp_sub_parser(sp_list)
-    create_media_org_sub_parser(sp_list)
-    create_media_cmp_sub_parser(sp_list)
-    create_media_dup_sub_parser(sp_list)
+    create_face_detect_sub_parser(sp_list)
+    create_face_reset_sub_parser(sp_list)
+    create_face_rec_sub_parser(sp_list)
 
 
-def create_jm_remove_sub_parser(sp_list):
-    p = sp_list.add_parser('rm', help='Delete all json metadata files from a media directory')
-    p.set_defaults(command=CameraFilesProcessor.delete_metadata)
+def create_face_detect_sub_parser(sp_list):
+    p = sp_list.add_parser('detect', help='Detect faces of images')
+    p.set_defaults(command=CameraFilesProcessor.detect_faces)
     p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
+
+def create_face_rec_sub_parser(sp_list):
+    p = sp_list.add_parser('rec', help='Recognize face of images')
+    p.set_defaults(command=CameraFilesProcessor.detect_faces)
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
+
+
+def create_face_reset_sub_parser(sp_list):
+    p = sp_list.add_parser('reset', help='Reset faces of images')
+    p.set_defaults(command=CameraFilesProcessor.reset_faces)
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    Menu - top level
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def create_main_args_parser():
     parser = argparse.ArgumentParser(description='Performs various actions on media files')
@@ -113,6 +153,7 @@ def create_main_args_parser():
     create_media_sub_parser(sp_list)
     create_cm_sub_parser(sp_list)
     create_sig_sub_parser(sp_list)
+    create_face_sub_parser(sp_list)
     return parser
 
 

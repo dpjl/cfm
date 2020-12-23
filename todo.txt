@@ -1,104 +1,83 @@
+
+20 dÃ©cembre:
+
+* Ajouter la reconnaissance dans les vidÃ©os: https://www.pyimagesearch.com/2018/06/18/face-recognition-with-opencv-python-and-deep-learning/
+* Rempacer PIL par Pillow-simd https://github.com/uploadcare/pillow-simd#pillow-simd
+* Supprimer la notion de value_read/value_computed au niveau de metadata. Le rendre spÃ©cifique Ã  CameraModel.
+* Ajoute la notion de text_value / binary_value dans metadata et dans la base de donnÃ©es (jm/bm)
+* Reconnaissance faciale :
+* - Ajouter une metadata faces qui contient la liste des boÃ®tes de personnes
+* - Ajouter une metadata persons qui contient la liste des noms de personnes reconnues (box_id, name, type)
+
+5 novembre:
+
+* CrÃ©er des .info avec le nom d'un fichier ou rÃ©pertoire dans le mÃªme rÃ©pertoire. Son contenu sera utilisÃ© pour dÃ©finir un Camera Model en cas de Unknown.
+
+9 octobre:
+
+* Ajouter la notion de "edited": si le fichier a une date exif d'update != de la date exif de crÃ©ation
+* Ajouter la notion de "edited-similar". Pour savoir si un fichier est similaire, utiliser le hash (qui existe actuellement).
+* CrÃ©er trois sortes de rÃ©pertoires diffÃ©rents: les -original / -edited / -edited-similar
+* Pour savoir si un fichier est dupliquÃ©: comparer simplement la taille du fichier (nombre d'octets) => devrait rÃ©soudre le problÃ¨me des photos en rafales qui peuvent Ãªtre prises Ã  la mÃªme seconde ?
+* Enregistrer les fichiers avec Ã  l'intÃ©rieur du nom la date exif d'update (au lieu de crÃ©ation)
+* ajouter une option --exclude-similar, qui ne crÃ©e pas "edited-similar"
+
+5 septembre:
+
+* Ajouter les THM, qui permettant parfois de retrouver le camera model des vidÃ©os. Exemple: E:\data\photos-all\depuis-samsung-T5\photos\2006\2006_06_06: OK
+* Pourquoi les avi sont en unknown ici : E:\data\photos-all\depuis-samsung-T5\photos\2012\mada - avril 2012\113___04 ? => parce qu'un fichier image du rÃ©pertoire n'est pas du mÃªme appareil photo ... bizarre.
+* Pour les unknown, renommer les rÃ©pertoires en "Unknown~{[path][to][the][unknown][file]}~", pour garder une trace du chemin des fichiers
+
 29 aout:
 
-=> ne plus lancer le sig compute, il est lancer automatiquement que pour ce qui est nécessaire lors de la copie.
-=> Créer une étape avec barre de progression "lecture des metadonnées exif" (plutôt que ça soit implicite quand on lit les cameramodel)
-
-+====================================================+====================================================|
-|                       Status                       |                       Number                       |
-+====================================================+====================================================|
-|                       Copied                       |                       53443                        |
-+----------------------------------------------------+----------------------------------------------------|
-|                Image already exists                |                       25534                        |
-+----------------------------------------------------+----------------------------------------------------|
-
-
-+====================================================+====================================================|
-|                       Status                       |                       Number                       |
-+====================================================+====================================================|
-|                       Copied                       |                       52469                        |
-+----------------------------------------------------+----------------------------------------------------|
-|                Image already exists                |                       26508                        |
-+----------------------------------------------------+----------------------------------------------------|
-
-
->>>>>
-
-au lieu des propagate_to_duplicates, faire la diffusion aux dupliqués à chaque mise à jour de computed_value
+* Ne plus lancer le sig compute, il est lancer automatiquement que pour ce qui est nÃ©cessaire lors de la copie.
+* CrÃ©er une Ã©tape avec barre de progression "lecture des metadonnÃ©es exif" (plutÃ´t que Ã§a soit implicite quand on lit les cameramodel)
+* Au lieu des propagate_to_duplicates, faire la diffusion aux dupliquÃ©s Ã  chaque mise Ã  jour de computed_value
 	compute_value du cm
 		propage_to_duplicate(media_file)
 	compute_value de sig
 		update_date_and_sig_map()
 		propagate_sig_to_duplicate(media_file)
-		propagate_cm_to_duplicate(media_file) (puisqu'on a mis à jour la date_and_sig_map)
-
-ajouter la liste des fichiers ignorés
-ajouter la liste des fichiers non copiés
-
-=======
-[1280x720][2008-08-12_11h04m12s].mp4
-
-Nommer chaque fichier comme ça:
-2008-08-12_11h04m12~{file0006}~1280x720
-=> on ajoute la taille systématiquement ... plus simple pour garder les différentes tailles.
-
-
-
-
+		propagate_cm_to_duplicate(media_file) (puisqu'on a mis Ã  jour la date_and_sig_map)
+* ajouter la liste des fichiers ignorÃ©s
+* ajouter la liste des fichiers non copiÃ©s
+* Nommer chaque fichier comme Ã§a: 2008-08-12_11h04m12~{file0006}~1280x720 (on ajoute la taille systÃ©matiquement ... plus simple pour garder les diffÃ©rentes tailles)
 
 19 aout:
 
-Beaucoup de simplifications pour avancer:
+* Pour l'instant, abandon des signatures pour comparer les images => remplacement par un md5 pour tout
+* Suppression du calcul des miniatures (Ã  rÃ©Ã©tudier plus tard, c'est commitÃ© donc je pourrai le rÃ©cupÃ©rer dans l'historique)
+* Lors de la rÃ©organisation: si plusieurs versions, ajouter -<taille> Ã  la fin du nom de fichier
+* Suppression des json-metadata
+* Ajouter un "cfm media sync <dir>" pour synchroniser avec la base (notamment retirer ce qui n'existe pas et ajouter ce qui manque, mais sans rien calculer)
+* Ajouter un fichier pour lister les "ignored"
+* Prendre en compte les thm, car ils permettent de connaÃ®tre parfois d'oÃ¹ vient une vidÃ©o
+* Mettre des chemin relatif Ã  l'endroit ou est cfm.db (pour origin/destination je peux laisser des chemins absolus. D'ailleurs je peux mettre deux colonnes Ã©ventuellement)
 
-- Pour l'instant j'abandonne les signatures pour comparer les images => remplacement par un md5 pour tout
-- Suppression du calcul des miniatures (à réétudier plus tard, c'est commité donc je pourrai le récupérer dans l'historique)
-- lors de la réorganisation: si plusieurs versions, ajouter -<taille> à la fin du nom de fichier
-- suppression des json-metadata
-- ajouter un "cfm media sync <dir>" pour synchroniser avec la base (notamment retirer ce qui n'existe pas et ajouter ce qui manque, mais sans rien calculer)
+* Quand on lance une analyse:
+	- d'abord le "cm find" (mieux de le lancer avant au cas oÃ¹ la copie "casse" des rÃ©pertoires)
+		=> Ã  termes, sÃ©parer la rÃ©cupÃ©ration des metadata dans une commande Ã  part
+	- puis lancer le "sig compute" (dans un second temps car pour l'instant Ã§a utilise la date rÃ©cupÃ©rÃ©e dans le cm find)
+	- Puis le "cp"
+	- Puis le "org"
 
-- ajouter un fichier pour lister les "ignored"
-- prendre en compte les thm, car ils permettent de connaître parfois d'où vient une vidéo
-- pourquoi origine vidéo par détecter ?
-
-
-Je ne sais plus pourquoi j'avais mis des chemin absolu dans la base ... il faudrait des chemin relatif à l'endroit ou est cfm.db.
-Cela pourrait poser problème ?
-Pour origin/destination je peux laisser des chemins absolus. D'ailleurs je peux mettre deux colonnes éventuellement.
-L'idée est au moins d'en avoir une en chemin relatif pour retrouver l'entrée dans la base même si la lettre du lecteur a changé / si le répertoire racine a été déplacé.
-
-Quand on lance une analyse:
-
-- d'abord le "cm find" (mieux de le lancer avant au cas où la copie "casse" des répertoires)
-	=> à termes, séparer la récupération des metadata dans une commande à part
-- puis lancer le "sig compute" (dans un second temps car pour l'instant ça utilise la date récupérée dans le cm find)
-- Puis le "cp"
-- Puis le "org"
-
-
------------------------------------------------------------------------------------------
-Core:
-
-- Chargement en trois temps:
-	* créer d'abord tous les MediaFile à partir de la base de données complète
-	* synchroniser ensuite (dans la GUI, le faire en arrière plan): charger les fichiers qui n'ont pas été chargés, supprimer ceux qui n'existent plus.
-	* calculer les signtures et les metadonnées (dans la GUI, le faire en arrière plan)
-	* Enregistrer la base de données
+* Chargement en trois temps:
+	* CrÃ©er d'abord tous les MediaFile Ã  partir de la base de donnÃ©es complÃ¨te
+	* Synchroniser ensuite (dans la GUI, le faire en arriÃ¨re plan): charger les fichiers qui n'ont pas Ã©tÃ© chargÃ©s, supprimer ceux qui n'existent plus.
+	* Calculer les signatures et les metadonnÃ©es (dans la GUI, le faire en arriÃ¨re plan)
+	* Enregistrer la base de donnÃ©es
  
+* Ajouter dans la base de donnÃ©es une table globale avec diffÃ©rents status:
+	* Toutes les signatures ont Ã©tÃ© calculÃ©es tel moment
+	* Toutes les metadonnÃ©es ont Ã©tÃ© lues Ã  tel moment
 
-- Ajouter dans la base de données une table global avec différents status:
-	* Toutes les signatures ont été calculées à un moment donnée
-	* Toutes metadonnées ont été lues à un moment données
+* page intÃ©ressante sur les hash: https://fullstackml.com/wavelet-image-hash-in-python-3504fdd282b5
+* Pour extraire des images de vidÃ©os: https://pypi.org/project/moviepy/
 
-
-- page intéressante sur les hash: https://fullstackml.com/wavelet-image-hash-in-python-3504fdd282b5
-- Pour extraire des images de vidéos: https://pypi.org/project/moviepy/
 exemples:
 	* https://medium.com/@abderrahimremuos/steps-to-create-thumbnails-from-video-in-python-using-moviepy-3eab81b6ad8c
 	* https://github.com/flavioribeiro/video-thumbnail-generator/blob/master/generator
 
-Pour ensuite éventuellement créer un gif/png animé: https://note.nkmk.me/en/python-pillow-gif/
+Pour ensuite Ã©ventuellement crÃ©er un gif/png animÃ©: https://note.nkmk.me/en/python-pillow-gif/
 
-GUI:
-
-- trouver de belles icones et ajouter correctement les resources au projet
-- 
-
+* GUI: trouver de belles icones et ajouter correctement les resources au projet

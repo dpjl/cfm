@@ -2,3 +2,7 @@ ImageHash
 Pillow
 pyqt5
 jellyfish
+numpy
+sklearn
+face_recognition
+dill

@@ -6,9 +6,11 @@ from PIL import Image
 
 from camerafile.Constants import IMAGE_TYPE
 from camerafile.ExifTool import ExifTool
+from camerafile.ImageTool import ImageTool
 from camerafile.Metadata import Metadata, CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
-    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, ORIENTATION
+    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, ORIENTATION, FACES
 from camerafile.MetadataCameraModel import MetadataCameraModel
+from camerafile.MetadataFaces import MetadataFaces
 from camerafile.MetadataSignature import MetadataSignature
 
 LOGGER = logging.getLogger(__name__)
@@ -29,82 +31,41 @@ class MetadataList:
                               DESTINATION_COPY_PATH: Metadata(media_file),
                               ORIGINAL_MOVE_PATH: Metadata(media_file),
                               DESTINATION_MOVE_PATH: Metadata(media_file),
-                              SIGNATURE: MetadataSignature(media_file)}
+                              SIGNATURE: MetadataSignature(media_file),
+                              FACES: MetadataFaces(media_file)}
 
     def __getitem__(self, item):
         return self.metadata_list[item]
 
     def set_value(self, name, value):
-        self[name].value_read = value
+        self[name].value = value
+        # Why that ?? I don't remember. TODO !
         self.load_from_media(name)
 
     def get_value(self, name):
+        # Here only because we wan't to load every exif data only one time
+        # TO CHANGE
         self.read_value(name)
         return self[name].get()
 
     def read_value(self, name):
-        if self[name].value_read is None:
+        if self[name].get_value_read() is None:
             self.load_from_media(name)
-        return self[name].value_read
+        return self[name].get_value_read()
 
     def compute_value(self, name):
         self[name].compute_value()
-        value = self[name].value_computed
+        value = self[name].get_value_computed()
         return value
 
     def delete_computed_value(self, name):
-        if self[name].value_computed is not None:
-            self[name].value_computed = None
-
-    def get_metadata_with_pil(self):
-        model = None
-        date = None
-        orientation = None
-        try:
-            img = Image.open(self.media_file.path)
-            width, height = img.size
-            if img.getexif() is not None:
-                exif = dict(img.getexif().items())
-                if 0x0110 in exif:
-                    model = exif[0x0110].strip("\u0000").strip(" ")
-                if 0x9003 in exif:
-                    try:
-                        date = datetime.strptime(exif[0x9003], '%Y:%m:%d %H:%M:%S')
-                    except ValueError:
-                        date = None
-                        # comment récupérer ici l'équivalent de FileModifyDate (voir ExifTool) ?
-                if 0x0112 in exif:
-                    orientation = exif[0x0112]
-
-        except OSError:
-            # print("%s can't be hashed as an image" % self.media_file.path)
-            return None, None, None, None, None
-
-        return model, date, width, height, orientation
+        if self[name].get_value_computed() is not None:
+            self[name].reset_value()
 
     def load_from_media(self, name):
         if name in [DATE, CAMERA_MODEL, WIDTH, HEIGHT, ORIENTATION]:
-
-            model = None
-            date = None
-            width = None
-            height = None
-            orientation = None
-
-            if self.media_file.extension in IMAGE_TYPE:
-                model, date, width, height, orientation = self.get_metadata_with_pil()
-
-            if date is None:
-                model, date, width, height, orientation = ExifTool.get_metadata(self.media_file.path)
-
-            if orientation is not None and (orientation == 6 or orientation == 8):
-                old_width = width
-                width = height
-                height = old_width
-
-            if date is not None:
-                date = date.strftime("%Y/%m/%d %H:%M:%S")
-
+            model, date, width, height, orientation = ImageTool.get_metadata(self.media_file.path,
+                                                                             self.media_file.extension)
             self.set_metadata_read_value(DATE, date)
             self.set_metadata_read_value(CAMERA_MODEL, model)
             self.set_metadata_read_value(WIDTH, width)
@@ -122,15 +83,34 @@ class MetadataList:
     def save_to_dict(self):
         result = {}
         for metadata_name, metadata in self.metadata_list.items():
-            if metadata.value_read is not None:
-                result[metadata_name] = metadata.value_read
-            if metadata.value_computed is not None:
-                result[MetadataList.COMPUTE_PREFIX + metadata_name] = metadata.value_computed
+            if metadata.value is not None:
+                result[metadata_name] = metadata.value
         return result
+
+    def save_binary_to_dict(self):
+        result = {}
+        for metadata_name, metadata in self.metadata_list.items():
+            if metadata.binary_value is not None:
+                result[metadata_name] = metadata.binary_value
+        return result
+
+    def load_binary_from_dict(self, media_file_dict):
+        for md_name, md_value in self.metadata_list.items():
+            if md_name in media_file_dict:
+                md_value.binary_value = media_file_dict[md_name]
 
     def load_from_dict(self, media_file_dict):
         for md_name, md_value in self.metadata_list.items():
-            if md_name in media_file_dict:
-                md_value.set_value_read(media_file_dict[md_name])
+
+            # For compatibility with old versions
+            old_set = False
+            if isinstance(md_value, MetadataCameraModel):
+                if md_name in media_file_dict and isinstance(media_file_dict[md_name], str):
+                    md_value.set_value_read(media_file_dict[md_name])
+                    old_set = True
+
             if MetadataList.COMPUTE_PREFIX + md_name in media_file_dict:
                 md_value.set_value_computed(media_file_dict[MetadataList.COMPUTE_PREFIX + md_name])
+
+            if not old_set and md_name in media_file_dict:
+                md_value.set_value(media_file_dict[md_name])

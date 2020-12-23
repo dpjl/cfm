@@ -7,9 +7,10 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+from camerafile.ImageTool import ImageTool
 from camerafile.MetadataList import MetadataList
 from camerafile.Metadata import CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
-    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, Metadata
+    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, Metadata, ORIENTATION
 
 CFM_COPY = "cfm-copy"
 
@@ -65,9 +66,9 @@ class MediaFile:
     def get_cfm_filename(self):
         m = re.search(".*~{(.*)}~.*", self.name)
         if m is None:
-            date = self.metadata[DATE].value_read
-            width = self.metadata[WIDTH].value_read
-            height = self.metadata[HEIGHT].value_read
+            date = self.metadata[DATE].value
+            width = self.metadata[WIDTH].value
+            height = self.metadata[HEIGHT].value
             if date is not None and width is not None and height is not None:
                 date = datetime.strptime(date, '%Y/%m/%d %H:%M:%S')
                 new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%S")
@@ -82,9 +83,9 @@ class MediaFile:
             return self.name
 
     def get_date_identifier(self):
-        date = self.metadata[DATE].value_read
-        width = self.metadata[WIDTH].value_read
-        height = self.metadata[HEIGHT].value_read
+        date = self.metadata[DATE].value
+        width = self.metadata[WIDTH].value
+        height = self.metadata[HEIGHT].value
         if date is not None and width is not None and height is not None:
             date = date + "-" + str(width) + "x" + str(height)
         return date

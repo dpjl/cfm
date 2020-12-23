@@ -1,68 +1,21 @@
-import concurrent
 import logging
-import shutil
-from concurrent.futures.thread import ThreadPoolExecutor
-from functools import wraps
+import signal
 
-from camerafile.ConsoleProgressBar import ConsoleProgressBar
+from camerafile.BatchTool import with_progression, with_progression_thread
 from camerafile.ConsoleTable import ConsoleTable
-from camerafile.ExifTool import ExifTool
+from camerafile.Constants import IMAGE_TYPE
 from camerafile.MediaSet import MediaSet
-from camerafile.Metadata import CAMERA_MODEL, SIGNATURE
+from camerafile.Metadata import CAMERA_MODEL, SIGNATURE, FACES, ORIENTATION
+from camerafile.MetadataFaces import MetadataFaces
 
 LOGGER = logging.getLogger(__name__)
 
 
-def with_progression(batch_title=""):
-    def with_progression_outer(f):
-        @wraps(f)
-        def with_progression_inner(input_list, *args, progress_bar=None):
-
-            CameraFilesProcessor.display_starting_line()
-            progress_bar = ConsoleProgressBar(len(input_list), batch_title)
-            LOGGER.info("Start batch <{title}>".format(title=batch_title))
-            try:
-                ret = f(input_list, *args, progress_bar)
-            finally:
-                progress_bar.stop()
-                ExifTool.stop()
-                LOGGER.info("End batch <{title}>".format(title=batch_title))
-                CameraFilesProcessor.display_ending_line()
-            return ret
-
-        return with_progression_inner
-
-    return with_progression_outer
-
-
-def with_progression_thread(batch_title="", threads=1):
-    def with_progression_outer(f):
-        @wraps(f)
-        def with_progression_inner(input_list, *args):
-
-            CameraFilesProcessor.display_starting_line()
-            progress_bar = ConsoleProgressBar(len(input_list), batch_title)
-            LOGGER.info("Start batch <{title}>".format(title=batch_title))
-            try:
-                walk, task, print_result = f(input_list, *args)
-                with ThreadPoolExecutor(max_workers=threads) as executor:
-                    future_list = {executor.submit(task, item, progress_bar): item for item in walk()}
-                    for future in concurrent.futures.as_completed(future_list):
-                        data = future.result()
-                print_result()
-            finally:
-                progress_bar.stop()
-                ExifTool.stop()
-                LOGGER.info("End batch <{title}>".format(title=batch_title))
-                CameraFilesProcessor.display_ending_line()
-            return None
-
-        return with_progression_inner
-
-    return with_progression_outer
-
-
 class CameraFilesProcessor:
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Find camera models
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     @staticmethod
     @with_progression(batch_title="Read camera models")
@@ -81,12 +34,35 @@ class CameraFilesProcessor:
                 progress_bar.increment()
 
     @staticmethod
-    @with_progression(batch_title="Reset camera models")
-    def batch_delete_cm(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            media_file.metadata.delete_computed_value(CAMERA_MODEL)
-            if progress_bar is not None:
-                progress_bar.increment()
+    def find_cm(dir_path):
+        media_set = MediaSet(dir_path)
+        with media_set:
+            LOGGER.info("{l1} files detected as media file".format(l1=len(media_set)))
+
+            CameraFilesProcessor.batch_read_cm(media_set)
+            CameraFilesProcessor.status(media_set)
+
+            CameraFilesProcessor.batch_compute_cm(media_set.get_file_list(cm="unknown"))
+            media_set.propagate_cm_to_duplicates()
+            CameraFilesProcessor.status(media_set)
+
+            media_set.output_directory.save_list(media_set.get_file_list(cm="unknown"),
+                                                 "unknown-camera-model-of-files.json")
+            media_set.output_directory.save_list(media_set.get_file_list(cm="recovered"),
+                                                 "recovered-camera-model-of-files.json")
+
+    @staticmethod
+    def status(media_set):
+        LOGGER.info("{l1} files have a camera model, "
+                    "{l2} have a recovered one, "
+                    "{l3} do not have one".
+                    format(l1=len(media_set.get_file_list(cm="known")),
+                           l2=len(media_set.get_file_list(cm="recovered")),
+                           l3=len(media_set.get_file_list(cm="unknown"))))
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Organize files
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     @staticmethod
     @with_progression(batch_title="Organize media files")
@@ -104,6 +80,18 @@ class CameraFilesProcessor:
         tab.print_header("Status", "Number")
         for status in result:
             tab.print_line(status, str(result[status]))
+
+    @staticmethod
+    def organize_media(input_dir_path):
+        media_set = MediaSet(input_dir_path)
+        LOGGER.info("{l1} files detected as media file"
+                    .format(l1=len(media_set)))
+
+        CameraFilesProcessor.batch_organize(media_set.get_copied_files())
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Copy files
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     @staticmethod
     @with_progression(batch_title="Copy media files")
@@ -126,106 +114,6 @@ class CameraFilesProcessor:
         for status in result:
             tab.print_line(status, str(result[status]))
         old_media_set.output_directory.save_list(not_copied_files, "not-copied-files.json")
-
-    @staticmethod
-    @with_progression_thread(batch_title="Copy media files (multi-threads)", threads=8)
-    def batch_copy_2(old_media_set, new_media_set):
-
-        result = {}
-        not_copied_files = []
-
-        def walk():
-            for media_file in old_media_set:
-                yield media_file
-
-        def task(media_file, progress_bar=None):
-            status = media_file.copy(new_media_set)
-            if status not in result:
-                result[status] = 0
-            result[status] += 1
-            if status != "Copied":
-                not_copied_files.append(media_file)
-            if progress_bar is not None:
-                progress_bar.increment()
-
-        def print_result():
-            tab = ConsoleTable()
-            tab.print_header("Status", "Number")
-            for status in result:
-                tab.print_line(status, str(result[status]))
-            old_media_set.output_directory.save_list(not_copied_files, "not-copied-files.json")
-
-        return walk, task, print_result
-
-    @staticmethod
-    def compute_one_signature(media_file, progress_bar):
-        media_file.metadata.compute_value(SIGNATURE)
-        if progress_bar is not None:
-            progress_bar.increment()
-
-    @staticmethod
-    @with_progression(batch_title="Compute signatures")
-    def batch_compute_signature(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            CameraFilesProcessor.compute_one_signature(media_file, progress_bar)
-
-    @staticmethod
-    @with_progression_thread(batch_title="Compute signatures", threads=2)
-    def batch_compute_signature2(media_file_list):
-
-        def walk():
-            for media_file in media_file_list:
-                yield media_file
-
-        def task(media_file, progress_bar=None):
-            media_file.metadata.compute_value(SIGNATURE)
-            if progress_bar is not None:
-                progress_bar.increment()
-
-        return walk, task
-
-    @staticmethod
-    @with_progression(batch_title="Delete signatures")
-    def batch_delete_signature(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            media_file.metadata.delete_computed_value(SIGNATURE)
-            if progress_bar is not None:
-                progress_bar.increment()
-
-    @staticmethod
-    def dup(dir_1_path):
-        media_set1 = MediaSet(dir_1_path)
-        str_list1 = media_set1.analyze_duplicates()
-        tab = ConsoleTable()
-        tab.print_header(str(media_set1.root_path))
-        tab.print_multi_line(str_list1)
-
-    @staticmethod
-    def cmp(dir_1_path, dir_2_path):
-        media_set1 = MediaSet(dir_1_path)
-        media_set2 = MediaSet(dir_2_path)
-
-        str_list1 = media_set1.analyze_duplicates()
-        str_list2 = media_set2.analyze_duplicates()
-
-        only_in_dir1 = media_set1.get_files_not_in(media_set2)
-        only_in_dir2 = media_set2.get_files_not_in(media_set1)
-        in_the_two_dirs = media_set1.get_files_in(media_set2)
-
-        tab = ConsoleTable()
-        tab.print_header(str(media_set1.root_path), str(media_set2.root_path))
-        tab.print_multi_line(str_list1, str_list2)
-        tab.print_line('+ %s distinct (%s files)' % (len(only_in_dir1), sum(map(len, only_in_dir1.values()))), '')
-        tab.print_line('', '+ %s distinct (%s files)' % (len(only_in_dir2), sum(map(len, only_in_dir2.values()))))
-        tab.print_line('%s distinct' % len(in_the_two_dirs))
-
-    @staticmethod
-    def organize_media(input_dir_path):
-        media_set = MediaSet(input_dir_path)
-        LOGGER.info("{l1} files detected as media file"
-                    .format(l1=len(media_set)))
-
-        CameraFilesProcessor.batch_organize(media_set.get_copied_files())
 
     @staticmethod
     def copy_media(input_dir_path, output_directory):
@@ -255,13 +143,21 @@ class CameraFilesProcessor:
 
         CameraFilesProcessor.batch_copy(media_set, media_set2)
 
-    @staticmethod
-    def reset_cm(dir_path):
-        media_set = MediaSet(dir_path)
-        LOGGER.info("{l1} files detected as media file"
-                    .format(l1=len(media_set)))
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Compute signature
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        CameraFilesProcessor.batch_delete_cm(media_set)
+    @staticmethod
+    def compute_one_signature(media_file, progress_bar):
+        media_file.metadata.compute_value(SIGNATURE)
+        if progress_bar is not None:
+            progress_bar.increment()
+
+    @staticmethod
+    @with_progression(batch_title="Compute signatures")
+    def batch_compute_signature(media_file_list, progress_bar=None):
+        for media_file in media_file_list:
+            CameraFilesProcessor.compute_one_signature(media_file, progress_bar)
 
     @staticmethod
     def compute_signature(dir_path):
@@ -271,6 +167,140 @@ class CameraFilesProcessor:
 
         CameraFilesProcessor.batch_compute_signature(media_set)
 
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Compute faces
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    @with_progression(batch_title="Detect faces")
+    def batch_detect_faces(media_file_list, progress_bar=None):
+        for media_file in media_file_list:
+            CameraFilesProcessor.detect_faces_in_one_image(media_file, progress_bar)
+
+    @staticmethod
+    @with_progression_thread(batch_title="Detect faces", threads=8)
+    def batch_detect_faces2(media_set):
+
+        def task():
+            return MetadataFaces.compute_face_boxes
+
+        def arguments():
+            n = 0
+            result = []
+            for media_file in media_set:
+                if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].binary_value is None:
+                    result.append((n, media_file.path, media_file.metadata.get_value(ORIENTATION)))
+                n = n + 1
+            return result
+
+        def post_task(result, progress_bar):
+            n, faces = result
+            media_set.media_file_list[n].metadata[FACES].value = faces["locations"]
+            media_set.media_file_list[n].metadata[FACES].binary_value = faces["encodings"]
+            progress_bar.increment()
+            if n % 1000 == 0:
+                media_set.save_database()
+
+        return task, arguments, post_task
+
+    @staticmethod
+    def detect_faces(dir_path):
+        media_set = MediaSet(dir_path)
+        LOGGER.info("{l1} files detected as media file"
+                    .format(l1=len(media_set)))
+
+        CameraFilesProcessor.batch_detect_faces2(media_set)
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Reset faces
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    @with_progression(batch_title="Delete faces")
+    def batch_delete_faces(media_file_list, progress_bar=None):
+        for media_file in media_file_list:
+            media_file.metadata[FACES].value = None
+            media_file.metadata[FACES].binary_value = None
+            if progress_bar is not None:
+                progress_bar.increment()
+
+    @staticmethod
+    def reset_faces(dir_path):
+        media_set = MediaSet(dir_path)
+        LOGGER.info("{l1} files detected as media file"
+                    .format(l1=len(media_set)))
+
+        CameraFilesProcessor.batch_delete_faces(media_set)
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Analyze (duplicates / comparison)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    def dup(dir_1_path):
+        media_set1 = MediaSet(dir_1_path)
+        str_list1 = media_set1.analyze_duplicates()
+        tab = ConsoleTable()
+        tab.print_header(str(media_set1.root_path))
+        tab.print_multi_line(str_list1)
+
+    @staticmethod
+    def cmp(dir_1_path, dir_2_path):
+        media_set1 = MediaSet(dir_1_path)
+        media_set2 = MediaSet(dir_2_path)
+
+        str_list1 = media_set1.analyze_duplicates()
+        str_list2 = media_set2.analyze_duplicates()
+
+        only_in_dir1 = media_set1.get_files_not_in(media_set2)
+        only_in_dir2 = media_set2.get_files_not_in(media_set1)
+        in_the_two_dirs = media_set1.get_files_in(media_set2)
+
+        tab = ConsoleTable()
+        tab.print_header(str(media_set1.root_path), str(media_set2.root_path))
+        tab.print_multi_line(str_list1, str_list2)
+        tab.print_line('+ %s distinct (%s files)' % (len(only_in_dir1), sum(map(len, only_in_dir1.values()))), '')
+        tab.print_line('', '+ %s distinct (%s files)' % (len(only_in_dir2), sum(map(len, only_in_dir2.values()))))
+        tab.print_line('%s distinct' % len(in_the_two_dirs))
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Reset camera models
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    @with_progression(batch_title="Reset camera models")
+    def batch_delete_cm(media_file_list, progress_bar=None):
+        for media_file in media_file_list:
+            media_file.metadata.delete_computed_value(CAMERA_MODEL)
+            if progress_bar is not None:
+                progress_bar.increment()
+
+    @staticmethod
+    def reset_cm(dir_path):
+        media_set = MediaSet(dir_path)
+        LOGGER.info("{l1} files detected as media file"
+                    .format(l1=len(media_set)))
+
+        CameraFilesProcessor.batch_delete_cm(media_set)
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Reset signatures
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    def detect_faces_in_one_image(media_file, progress_bar):
+        media_file.metadata.compute_value(FACES)
+        if progress_bar is not None:
+            progress_bar.increment()
+
+    @staticmethod
+    @with_progression(batch_title="Delete signatures")
+    def batch_delete_signature(media_file_list, progress_bar=None):
+        for media_file in media_file_list:
+            media_file.metadata.delete_computed_value(SIGNATURE)
+            if progress_bar is not None:
+                progress_bar.increment()
+
     @staticmethod
     def reset_signature(dir_path):
         media_set = MediaSet(dir_path)
@@ -278,46 +308,3 @@ class CameraFilesProcessor:
                     .format(l1=len(media_set)))
 
         CameraFilesProcessor.batch_delete_signature(media_set)
-
-    @staticmethod
-    def find_cm(dir_path):
-        media_set = MediaSet(dir_path)
-        with media_set:
-            LOGGER.info("{l1} files detected as media file".format(l1=len(media_set)))
-
-            CameraFilesProcessor.batch_read_cm(media_set)
-            CameraFilesProcessor.status(media_set)
-
-            CameraFilesProcessor.batch_compute_cm(media_set.get_file_list(cm="unknown"))
-            media_set.propagate_cm_to_duplicates()
-            CameraFilesProcessor.status(media_set)
-
-            media_set.output_directory.save_list(media_set.get_file_list(cm="unknown"),
-                                                 "unknown-camera-model-of-files.json")
-            media_set.output_directory.save_list(media_set.get_file_list(cm="recovered"),
-                                                 "recovered-camera-model-of-files.json")
-
-    @staticmethod
-    def status(media_set):
-        LOGGER.info("{l1} files have a camera model, "
-                    "{l2} have a recovered one, "
-                    "{l3} do not have one".
-                    format(l1=len(media_set.get_file_list(cm="known")),
-                           l2=len(media_set.get_file_list(cm="recovered")),
-                           l3=len(media_set.get_file_list(cm="unknown"))))
-
-    @staticmethod
-    def display_starting_line():
-        console_width = shutil.get_terminal_size((80, 20)).columns - 1
-        line = '\n{text:{fill}{align}{width}}'.format(
-            text='', fill='-', align='<', width=console_width,
-        )
-        print(line)
-
-    @staticmethod
-    def display_ending_line():
-        console_width = shutil.get_terminal_size((80, 20)).columns - 1
-        line = '{text:{fill}{align}{width}}\n'.format(
-            text='', fill='-', align='<', width=console_width,
-        )
-        print(line)
