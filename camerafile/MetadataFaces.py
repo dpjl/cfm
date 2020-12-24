@@ -1,8 +1,8 @@
-from camerafile.Constants import IMAGE_TYPE
-from camerafile.ImageTool import ImageTool
-from camerafile.Metadata import Metadata, ORIENTATION
-import numpy
 import face_recognition
+import numpy
+
+from camerafile.ImageTool import ImageTool
+from camerafile.Metadata import Metadata
 
 
 class MetadataFaces(Metadata):
@@ -13,8 +13,12 @@ class MetadataFaces(Metadata):
     @staticmethod
     def compute_face_boxes(arguments):
         identifier, path, orientation = arguments
-        image = ImageTool.read_image(path, orientation)
-        img = numpy.array(image)
-        result = {'locations': face_recognition.face_locations(img)}
-        result['encodings'] = face_recognition.face_encodings(img, known_face_locations=result['locations'])
-        return identifier, result
+        try:
+            image = ImageTool.read_image(path, orientation)
+            img = numpy.array(image)
+            result = {'locations': face_recognition.face_locations(img)}
+            result['encodings'] = face_recognition.face_encodings(img, known_face_locations=result['locations'])
+            return identifier, result
+        except:
+            print("-Error when processing: " + path)
+            return identifier, {'locations': [], 'encodings': []}

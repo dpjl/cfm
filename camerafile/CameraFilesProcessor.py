@@ -1,5 +1,4 @@
 import logging
-import signal
 
 from camerafile.BatchTool import with_progression, with_progression_thread
 from camerafile.ConsoleTable import ConsoleTable
