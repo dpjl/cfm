@@ -126,5 +126,5 @@ class MediaSetDatabase:
             except sqlite3.IntegrityError:
                 print("Integrity error when updating media " + str(media_file.relative_path))
         else:
-            self.cursor.execute("insert into metadata(file, jm, bm, last_update_date) values(?, ?, ?)",
+            self.cursor.execute("insert into metadata(file, jm, bm, last_update_date) values(?, ?, ?, ?)",
                                 (str(media_file.relative_path), json_content, binary_content, datetime.now()))

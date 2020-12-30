@@ -3,6 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from camerafile.Constants import TYPE
+from camerafile.FaceRecognition import FaceRecognition
 from camerafile.MediaDirectory import MediaDirectory
 from camerafile.MediaFile import MediaFile
 from camerafile.MediaSetDatabase import MediaSetDatabase
@@ -23,6 +24,7 @@ class MediaSet:
         self.date_and_name_map = {}
         self.database = MediaSetDatabase(self.output_directory)
         self.initialize_file_and_dir_list(progress_signal)
+        self.face_rec = FaceRecognition(self)
 
     def __del__(self):
         self.save_database()
@@ -35,6 +37,11 @@ class MediaSet:
         # self.save_database()
         # pourquoi est-ce plus lent en utilisant un enter/exit plutôt qu'un init/del ??
         pass
+
+    def train(self):
+        self.face_rec.add_training_data()
+        self.face_rec.save_training_data()
+        self.face_rec.train()
 
     def get_file_from_path(self, file_path):
         for media_file in self.media_file_list:
@@ -274,6 +281,9 @@ class MediaSet:
         self.media_dir_list[str(self.root_path)] = root_dir
 
         for (parent_media_dir_path, folder_names, file_names) in os.walk(self.root_path, topdown=True):
+
+            if ".cfm" in parent_media_dir_path:
+                continue
 
             parent_media_dir_path = Path(parent_media_dir_path)
             parent_media_dir = self.media_dir_list[str(parent_media_dir_path)]

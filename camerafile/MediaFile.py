@@ -7,10 +7,12 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from camerafile.ImageTool import ImageTool
-from camerafile.MetadataList import MetadataList
+from camerafile.Constants import IMAGE_TYPE
+from camerafile.ExifTool import ExifTool
+from camerafile.Image import Image
 from camerafile.Metadata import CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
-    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, Metadata, ORIENTATION
+    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, Metadata
+from camerafile.MetadataList import MetadataList
 
 CFM_COPY = "cfm-copy"
 
@@ -192,3 +194,24 @@ class MediaFile:
             os.rename(original_file, self.path)
             return True
         return False
+
+    def get_metadata(self):
+        model, date, width, height, orientation = None, None, None, None, None
+
+        if self.extension in IMAGE_TYPE:
+            img = Image(self.path)
+            model, date, width, height, orientation = img.model, img.date, img.width, img.height, img.orientation
+
+        if date is None:
+            model, date, width, height, orientation = ExifTool.get_metadata(self.path)
+
+        # TOTO: can this be done in Image class directly ?
+        if orientation is not None and (orientation == 6 or orientation == 8):
+            old_width = width
+            width = height
+            height = old_width
+
+        if date is not None:
+            date = date.strftime("%Y/%m/%d %H:%M:%S")
+
+        return model, date, width, height, orientation

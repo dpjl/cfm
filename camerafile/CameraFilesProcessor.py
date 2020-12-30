@@ -177,7 +177,7 @@ class CameraFilesProcessor:
             CameraFilesProcessor.detect_faces_in_one_image(media_file, progress_bar)
 
     @staticmethod
-    @with_progression_thread(batch_title="Detect faces", threads=8)
+    @with_progression_thread(batch_title="Detect faces", threads=7)
     def batch_detect_faces2(media_set):
 
         def task():
@@ -209,6 +209,24 @@ class CameraFilesProcessor:
                     .format(l1=len(media_set)))
 
         CameraFilesProcessor.batch_detect_faces2(media_set)
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Train faces
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    @with_progression(batch_title="Detect faces")
+    def batch_train_faces(media_file_list, progress_bar=None):
+        for media_file in media_file_list:
+            CameraFilesProcessor.train_faces(media_file, progress_bar)
+
+    @staticmethod
+    def train_faces(dir_path):
+        media_set = MediaSet(dir_path)
+        LOGGER.info("{l1} files detected as media file"
+                    .format(l1=len(media_set)))
+
+        media_set.train()
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Reset faces

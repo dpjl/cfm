@@ -121,6 +121,7 @@ def create_face_sub_parser(sp_list):
     p = sp_list.add_parser('face', help='Manage faces in images')
     sp_list = p.add_subparsers()
     create_face_detect_sub_parser(sp_list)
+    create_face_train_sub_parser(sp_list)
     create_face_reset_sub_parser(sp_list)
     create_face_rec_sub_parser(sp_list)
 
@@ -128,6 +129,12 @@ def create_face_sub_parser(sp_list):
 def create_face_detect_sub_parser(sp_list):
     p = sp_list.add_parser('detect', help='Detect faces of images')
     p.set_defaults(command=CameraFilesProcessor.detect_faces)
+    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
+
+
+def create_face_train_sub_parser(sp_list):
+    p = sp_list.add_parser('train', help='Train face recognition model')
+    p.set_defaults(command=CameraFilesProcessor.train_faces)
     p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 

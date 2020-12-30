@@ -1,12 +1,7 @@
 import logging
-from datetime import datetime
+
 from typing import Dict
 
-from PIL import Image
-
-from camerafile.Constants import IMAGE_TYPE
-from camerafile.ExifTool import ExifTool
-from camerafile.ImageTool import ImageTool
 from camerafile.Metadata import Metadata, CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
     ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, ORIENTATION, FACES
 from camerafile.MetadataCameraModel import MetadataCameraModel
@@ -64,8 +59,7 @@ class MetadataList:
 
     def load_from_media(self, name):
         if name in [DATE, CAMERA_MODEL, WIDTH, HEIGHT, ORIENTATION]:
-            model, date, width, height, orientation = ImageTool.get_metadata(self.media_file.path,
-                                                                             self.media_file.extension)
+            model, date, width, height, orientation = self.media_file.get_metadata()
             self.set_metadata_read_value(DATE, date)
             self.set_metadata_read_value(CAMERA_MODEL, model)
             self.set_metadata_read_value(WIDTH, width)
