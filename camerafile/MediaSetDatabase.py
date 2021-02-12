@@ -1,11 +1,13 @@
+import difflib
 import os
+import sys
+
 import dill
 import json
 import sqlite3
 from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
-
 from camerafile.MediaFile import MediaFile
 
 
@@ -128,3 +130,25 @@ class MediaSetDatabase:
         else:
             self.cursor.execute("insert into metadata(file, jm, bm, last_update_date) values(?, ?, ?, ?)",
                                 (str(media_file.relative_path), json_content, binary_content, datetime.now()))
+
+    def load_database_in_dict(self):
+        data_dict = {}
+        self.cursor.execute('select * from metadata')
+        result_list = self.cursor.fetchall()
+        text_fields, other_fields = self.get_columns_ids(self.cursor.description)
+        for result in result_list:
+            if result is not None and len(result) >= 1:
+                data_dict[result[text_fields["file"]]] = json.loads(result[text_fields["jm"]])
+                data_dict[result[text_fields["file"]]].pop('Faces', None)
+        return data_dict
+
+    def compare(self, db2):
+        db1 = self.load_database_in_dict()
+        db2 = db2.load_database_in_dict()
+        for file_path in db1:
+            if file_path not in db2:
+                print(str(file_path) + " is in (1) but not in (2)")
+                continue
+            d1 = json.dumps(db1[file_path], indent=4, sort_keys=True)
+            d2 = json.dumps(db2[file_path], indent=4, sort_keys=True)
+            sys.stdout.writelines(difflib.unified_diff([d1], [d2]))

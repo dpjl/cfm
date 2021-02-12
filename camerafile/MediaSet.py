@@ -18,13 +18,14 @@ class MediaSet:
         self.root_path = Path(path).resolve()
         self.name = self.root_path.name
         self.output_directory = OutputDirectory(self.root_path)
+        self.face_rec = FaceRecognition(self)
         self.media_file_list = []
         self.media_dir_list = {}
         self.date_and_sig_map = {}
         self.date_and_name_map = {}
+        self.id_map = {}
         self.database = MediaSetDatabase(self.output_directory)
         self.initialize_file_and_dir_list(progress_signal)
-        self.face_rec = FaceRecognition(self)
 
     def __del__(self):
         self.save_database()
@@ -82,8 +83,12 @@ class MediaSet:
 
     def add_file(self, media_file):
         self.media_file_list.append(media_file)
+        self.id_map[media_file.id] = media_file
         self.update_date_and_sig_map(media_file)
         self.update_date_and_name_map(media_file)
+
+    def get_media(self, media_id):
+        return self.id_map[media_id]
 
     def update_date_and_name_map(self, media_file):
         date_id = media_file.get_date_identifier()

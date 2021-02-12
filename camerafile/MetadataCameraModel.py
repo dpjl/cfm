@@ -28,15 +28,14 @@ class MetadataCameraModel(Metadata):
     def set_value_computed(self, value):
         self.value[COMPUTED] = value
 
-    def reset_value(self, value):
-        self.value[COMPUTED] = value
+    def reset_value(self):
+        self.value[COMPUTED] = None
 
     def compute_value(self):
         if (self.value[READ] == Metadata.UNKNOWN or self.value[READ] is None) and self.value[COMPUTED] is None:
             if self.media_file.parent_dir is not None:
                 parent_dir_cm = self.media_file.parent_dir.metadata[CAMERA_MODEL]
-                if parent_dir_cm.value[
-                    READ] is not None:  # ne peut pas être UNKNOWN, car on ne propage pas cette valeur
+                if parent_dir_cm.value[READ] is not None:  # ne peut pas être UNKNOWN, car on ne propage pas cette valeur
                     if parent_dir_cm.value[READ] != MetadataCameraModel.MULTIPLE:
                         self.value[COMPUTED] = parent_dir_cm.value[READ]
                 else:

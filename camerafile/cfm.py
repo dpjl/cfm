@@ -139,8 +139,8 @@ def create_face_train_sub_parser(sp_list):
 
 
 def create_face_rec_sub_parser(sp_list):
-    p = sp_list.add_parser('rec', help='Recognize face of images')
-    p.set_defaults(command=CameraFilesProcessor.detect_faces)
+    p = sp_list.add_parser('reco', help='Recognize face of images')
+    p.set_defaults(command=CameraFilesProcessor.reco_faces)
     p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
 
 
@@ -148,6 +148,23 @@ def create_face_reset_sub_parser(sp_list):
     p = sp_list.add_parser('reset', help='Reset faces of images')
     p.set_defaults(command=CameraFilesProcessor.reset_faces)
     p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#    DB sub-menu
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def create_db_sub_parser(sp_list):
+    p = sp_list.add_parser('db', help='Manage database')
+    sp_list = p.add_subparsers()
+    create_db_cmp_sub_parser(sp_list)
+
+
+def create_db_cmp_sub_parser(sp_list):
+    p = sp_list.add_parser('cmp', help='Compare two cfm databases content.')
+    p.set_defaults(command=CameraFilesProcessor.db_cmp)
+    p.add_argument('dir1', metavar='directory1', type=str, help='First media directory path')
+    p.add_argument('dir2', metavar='directory2', type=str, help='Second media directory path')
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -161,6 +178,7 @@ def create_main_args_parser():
     create_cm_sub_parser(sp_list)
     create_sig_sub_parser(sp_list)
     create_face_sub_parser(sp_list)
+    create_db_sub_parser(sp_list)
     return parser
 
 

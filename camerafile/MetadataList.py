@@ -27,10 +27,14 @@ class MetadataList:
                               ORIGINAL_MOVE_PATH: Metadata(media_file),
                               DESTINATION_MOVE_PATH: Metadata(media_file),
                               SIGNATURE: MetadataSignature(media_file),
-                              FACES: MetadataFaces(media_file)}
+                              FACES: MetadataFaces(media_file.id, media_file.path,
+                                                   media_file.parent_set.face_rec.knn_clf)}
 
-    def __getitem__(self, item):
-        return self.metadata_list[item]
+    def __getitem__(self, key):
+        return self.metadata_list[key]
+
+    def __setitem__(self, key, value):
+        self.metadata_list[key] = value
 
     def set_value(self, name, value):
         self[name].value = value
@@ -89,22 +93,22 @@ class MetadataList:
         return result
 
     def load_binary_from_dict(self, media_file_dict):
-        for md_name, md_value in self.metadata_list.items():
+        for md_name, md in self.metadata_list.items():
             if md_name in media_file_dict:
-                md_value.binary_value = media_file_dict[md_name]
+                md.set_binary_value(media_file_dict[md_name])
 
     def load_from_dict(self, media_file_dict):
-        for md_name, md_value in self.metadata_list.items():
+        for md_name, md in self.metadata_list.items():
 
             # For compatibility with old versions
             old_set = False
-            if isinstance(md_value, MetadataCameraModel):
+            if isinstance(md, MetadataCameraModel):
                 if md_name in media_file_dict and isinstance(media_file_dict[md_name], str):
-                    md_value.set_value_read(media_file_dict[md_name])
+                    md.set_value_read(media_file_dict[md_name])
                     old_set = True
 
             if MetadataList.COMPUTE_PREFIX + md_name in media_file_dict:
-                md_value.set_value_computed(media_file_dict[MetadataList.COMPUTE_PREFIX + md_name])
+                md.set_value_computed(media_file_dict[MetadataList.COMPUTE_PREFIX + md_name])
 
             if not old_set and md_name in media_file_dict:
-                md_value.set_value(media_file_dict[md_name])
+                md.set_value(media_file_dict[md_name])

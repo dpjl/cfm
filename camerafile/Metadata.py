@@ -36,8 +36,11 @@ class Metadata:
     def set_value(self, value):
         self.value = value
 
+    def set_binary_value(self, value):
+        self.binary_value = value
+
     def reset_value(self):
-        return self.value
+        self.value = None
 
     # Deprecated: kept only for compatibility
     def get_value_read(self):

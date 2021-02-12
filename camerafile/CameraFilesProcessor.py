@@ -1,11 +1,14 @@
 import logging
+from pathlib import Path
 
 from camerafile.BatchTool import with_progression, with_progression_thread
 from camerafile.ConsoleTable import ConsoleTable
 from camerafile.Constants import IMAGE_TYPE
 from camerafile.MediaSet import MediaSet
+from camerafile.MediaSetDatabase import MediaSetDatabase
 from camerafile.Metadata import CAMERA_MODEL, SIGNATURE, FACES, ORIENTATION
 from camerafile.MetadataFaces import MetadataFaces
+from camerafile.OutputDirectory import OutputDirectory
 
 LOGGER = logging.getLogger(__name__)
 
@@ -181,24 +184,18 @@ class CameraFilesProcessor:
     def batch_detect_faces2(media_set):
 
         def task():
-            return MetadataFaces.compute_face_boxes
+            return MetadataFaces.compute_face_boxes_task
 
         def arguments():
-            n = 0
-            result = []
+            face_metadata_list = []
             for media_file in media_set:
                 if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].binary_value is None:
-                    result.append((n, media_file.path, media_file.metadata.get_value(ORIENTATION)))
-                n = n + 1
-            return result
+                    face_metadata_list.append(media_file.metadata[FACES])
+            return face_metadata_list
 
-        def post_task(result, progress_bar):
-            n, faces = result
-            media_set.media_file_list[n].metadata[FACES].value = faces["locations"]
-            media_set.media_file_list[n].metadata[FACES].binary_value = faces["encodings"]
+        def post_task(result_face_metadata, progress_bar):
+            media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
             progress_bar.increment()
-            if n % 1000 == 0:
-                media_set.save_database()
 
         return task, arguments, post_task
 
@@ -209,6 +206,38 @@ class CameraFilesProcessor:
                     .format(l1=len(media_set)))
 
         CameraFilesProcessor.batch_detect_faces2(media_set)
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    Recognize faces
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    @with_progression_thread(batch_title="Recognize faces", threads=7)
+    def batch_reco_faces(media_set):
+
+        def task():
+            return MetadataFaces.recognize_faces_task
+
+        def arguments():
+            face_metadata_list = []
+            for media_file in media_set:
+                if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].binary_value is not None:
+                    face_metadata_list.append(media_file.metadata[FACES])
+            return face_metadata_list
+
+        def post_task(result_face_metadata, progress_bar):
+            media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
+            progress_bar.increment()
+
+        return task, arguments, post_task
+
+    @staticmethod
+    def reco_faces(dir_path):
+        media_set = MediaSet(dir_path)
+        LOGGER.info("{l1} files detected as media file"
+                    .format(l1=len(media_set)))
+
+        CameraFilesProcessor.batch_reco_faces(media_set)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Train faces
@@ -279,6 +308,16 @@ class CameraFilesProcessor:
         tab.print_line('+ %s distinct (%s files)' % (len(only_in_dir1), sum(map(len, only_in_dir1.values()))), '')
         tab.print_line('', '+ %s distinct (%s files)' % (len(only_in_dir2), sum(map(len, only_in_dir2.values()))))
         tab.print_line('%s distinct' % len(in_the_two_dirs))
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #    DB
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    @staticmethod
+    def db_cmp(dir_1_path, dir_2_path):
+        db1 = MediaSetDatabase(OutputDirectory(Path(dir_1_path).resolve()))
+        db2 = MediaSetDatabase(OutputDirectory(Path(dir_2_path).resolve()))
+        db1.compare(db2)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Reset camera models

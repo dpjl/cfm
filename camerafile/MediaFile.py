@@ -31,7 +31,6 @@ class MediaFile:
         self.name = Path(self.path).name.lower()
         self.original_filename = self.get_original_filename()
         self.extension = os.path.splitext(self.name)[1].lower()
-        # TODO: still useful ??
         self.id = hashlib.md5(self.path.encode()).hexdigest()
         self.metadata = MetadataList(self)
         self.loaded_from_database = False
