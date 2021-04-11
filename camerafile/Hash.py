@@ -1,5 +1,6 @@
 import hashlib
 import os
+from pathlib import Path
 
 import imagehash
 
@@ -11,7 +12,7 @@ class Hash:
 
     def __init__(self, path):
         self.path = path
-        self.extension = self.extension = os.path.splitext(path.name)[1].lower()
+        self.extension = self.extension = os.path.splitext(Path(path).name)[1].lower()
 
     def get(self):
         if self.extension in IMAGE_TYPE:
@@ -35,7 +36,7 @@ class Hash:
             # file_hash = hashlib.md5()
             # file_hash.update(img.tobytes())
             # result = file_hash.hexdigest()
-        except OSError:
+        except:
             result = self.md5_hash()
         return result
 

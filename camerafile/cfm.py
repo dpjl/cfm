@@ -1,30 +1,15 @@
 import argparse
-import logging
 import logging.config
+import signal
+from multiprocessing.spawn import freeze_support
 from pathlib import Path
 
-from camerafile.AviMetaEdit import AviMetaEdit
+from camerafile import Constants
 from camerafile.CameraFilesProcessor import CameraFilesProcessor
-from camerafile.ExifTool import ExifTool
-from camerafile.OutputDirectory import OutputDirectory
+from camerafile.Logging import init_logging
 from camerafile.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
-
-
-def init_logging():
-    logging_handlers = Resource.logging_configuration["handlers"]
-    info_file = logging_handlers["info_file_handler"]["filename"]
-    error_file = logging_handlers["error_file_handler"]["filename"]
-    logging_handlers["info_file_handler"]["filename"] = str(OutputDirectory.base_path / info_file)
-    logging_handlers["error_file_handler"]["filename"] = str(OutputDirectory.base_path / error_file)
-    logging.config.dictConfig(Resource.logging_configuration)
-
-    ExifTool.init(stdout_file_path=OutputDirectory.base_path / "exif-stdout.txt",
-                  stderr_file_path=OutputDirectory.base_path / "exif-stderr.txt")
-
-    AviMetaEdit.init(stdout_file_path=OutputDirectory.base_path / "avimetaedit-stdout.txt",
-                     stderr_file_path=OutputDirectory.base_path / "avimetaedit-stderr.txt")
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -183,9 +168,8 @@ def create_main_args_parser():
 
 
 def init_program(base_dir):
-    OutputDirectory.init(Path(base_dir))
     Resource.init()
-    init_logging()
+    init_logging(Path(base_dir))
 
 
 def main():
@@ -202,4 +186,6 @@ def main():
 
 
 if __name__ == '__main__':
+    freeze_support()
+    signal.signal(signal.SIGINT, Constants.original_sigint_handler)
     main()

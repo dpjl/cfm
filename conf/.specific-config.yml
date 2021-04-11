@@ -1,0 +1,55 @@
+---
+
+#
+# <destination>, <tag> and <condition> can contain following generic content identifiers:
+#
+# @file(<file-metadata>), with <file-metadata> can be:
+#		- file-creation:
+#
+# @exif(<exif-metadata>), with <exif-metadata> can be:
+#		- camera-model:
+#		- file-creation:
+#
+# @cfm(<cfm-metadata>), with <cfm-metadata> can be:
+#		- is-edited: 
+#		- (camera-model, x%, <default>): @exif(camera-model) if found, otherwise use (folder-camera-model, x%, default)
+#		- (folder-camera-model, x%, <default>): 
+#				> if more than x% of the parent folder files have the same camera-model, use this value
+#				> otherwise if grand-parent folder has a folder-camera-mode, use its value
+#				> otherwise use <default>
+#
+
+folder-rules:
+
+	- regexp: */WhatsApp Images
+	  rank: 1
+	  destination: WhatsApp
+
+	- regexp: */WhatsApp Video
+	  rank: 2
+	  destination: WhatsApp
+
+	- regexp: */WhatsApp*/Sent
+	  rank: 3
+	  destination: WhatsApp/sent
+
+	- regexp: */WhatsApp*
+	  rank: 4
+	  destination: WhatsApp/other
+
+	- regexp: *
+	  rank: 5
+	  condition: 	@cfm(is-edited)
+	  destination: 	@cfm(file-creation).year/@cfm(file-creation).month/@cfm(camera-model, 50%, Unknown)-edited
+
+	- regexp: *
+	  rank: 6
+	  destination: 	@cfm(file-creation).year/@cfm(file-creation).month/@cfm(camera-model, 50%, Unknown)
+
+tag-rules:
+
+	- regexp: *WhatsApp*
+	  tag: WhatsApp
+
+	- regexp: *sel*|*selection*
+	  tag: favoris

@@ -1,7 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 
-from PIL import Image as PilImage, ImageDraw
+from PIL import Image as PilImage, ImageDraw, ImageOps
+from PIL.ExifTags import TAGS
 
 
 class Image:
@@ -17,9 +18,12 @@ class Image:
         self.read_image()
 
     def read_image(self):
-        self.image_data = PilImage.open(self.path)
-        self.width, self.height = self.image_data.size
-        self.get_metadata_with_pil()
+        try:
+            self.image_data = PilImage.open(self.path)
+            self.width, self.height = self.image_data.size
+            self.get_metadata_with_pil()
+        except:
+            self.image_data = None
 
     def get_metadata_with_pil(self):
         if self.image_data.getexif() is not None:
@@ -35,13 +39,15 @@ class Image:
             if 0x0112 in exif:
                 self.orientation = exif[0x0112]
 
-        if self.orientation is not None:
-            if self.orientation == 3:
-                self.image_data = self.image_data.rotate(180, expand=True)
-            if self.orientation == 6:
-                self.image_data = self.image_data.rotate(270, expand=True)
-            if self.orientation == 8:
-                self.image_data = self.image_data.rotate(90, expand=True)
+        # ImageOps.exif_transpose(image)
+
+        # if self.orientation is not None:
+        #    if self.orientation == 3:
+        #        self.image_data = self.image_data.rotate(180, expand=True)
+        #    if self.orientation == 6:
+        #        self.image_data = self.image_data.rotate(270, expand=True)
+        #    if self.orientation == 8:
+        #        self.image_data = self.image_data.rotate(90, expand=True)
 
     def display_face(self, face):
         img_copy = self.image_data.copy()

@@ -4,10 +4,10 @@ import os
 import pickle
 from pathlib import Path
 
-from sklearn import neighbors
+
 
 from camerafile.Image import Image
-from camerafile.Metadata import FACES
+from camerafile.Constants import FACES
 from camerafile.OutputDirectory import OutputDirectory
 
 INDEX = "index"
@@ -17,9 +17,9 @@ IMAGES = "images"
 
 class FaceRecognition:
 
-    def __init__(self, media_set):
+    def __init__(self, media_set, output_directory):
         self.media_set = media_set
-        self.training_path = OutputDirectory.base_path / "training_examples"
+        self.training_path = output_directory.path / "training_examples"
         self.all_encoding_ids = {}
         self.training_data = {}
         self.load_training_data()
@@ -100,6 +100,7 @@ class FaceRecognition:
                     n_face = n_face + 1
 
     def train(self):
+        from sklearn import neighbors
         X = []
         y = []
         for name in self.training_data:

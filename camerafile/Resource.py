@@ -6,18 +6,21 @@ from pathlib import Path
 
 class Resource:
 
-    avimetaedit_executable = None
     exiftool_executable = None
     program_path = None
     logging_configuration = None
     cfm_configuration = None
 
     @staticmethod
-    def init():
+    def get_main_path():
         try:
-            Resource.program_path = Path(sys._MEIPASS)
+            return Path(sys._MEIPASS) / ".."
         except AttributeError:
-            Resource.program_path = Path(os.getcwd())
+            return Path(os.path.dirname(__file__)) / ".."
+
+    @staticmethod
+    def init():
+        Resource.program_path = Resource.get_main_path()
         logging_configuration_file = Resource.program_path / "conf" / "logging.json"
         cfm_configuration_file = Resource.program_path / "conf" / "cfm.json"
         with open(logging_configuration_file, 'r') as f:
@@ -26,4 +29,3 @@ class Resource:
             Resource.cfm_configuration = json.load(f)
 
         Resource.exiftool_executable = Resource.program_path / Path(Resource.cfm_configuration["exiftool"])
-        Resource.avimetaedit_executable = Resource.program_path / Path(Resource.cfm_configuration["avimetaedit"])

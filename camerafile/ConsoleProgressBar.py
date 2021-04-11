@@ -1,86 +1,14 @@
-import logging
-import os
 import shutil
 import threading
 import time
 import sys
 
+from camerafile.StandardOutputWrapper import StdoutWrapper, StderrWrapper
+
 REFRESH_DELAY = 0.1
 SPACE = ' '
-BAR_CHAR = '#'
+BAR_CHAR = '█'
 DEFIL_CHARACTERS = ["/", "-", "\\", "|"]
-
-
-class StdWrapper(object):
-
-    def __init__(self, std_stream, console_width):
-        self.console_width = console_width
-        self.stream = std_stream
-
-    def write(self, data):
-        if data != os.linesep and data != "\n":
-            self.fill_line(SPACE)
-        self.stream.write(data)
-        self.stream.flush()
-
-    def writelines(self, datas):
-        self.fill_line(SPACE)
-        self.stream.writelines(datas)
-        self.stream.flush()
-
-    def flush(self):
-        self.stream.flush()
-
-    def wrap_log(self):
-        for handler in logging.root.handlers:
-            if handler.stream == self.stream:
-                handler.stream = self
-
-    def unwrap_log(self):
-        for handler in logging.root.handlers:
-            if handler.stream == self:
-                handler.stream = self.stream
-
-    def fill_line(self, char, end='', content=''):
-        blanks = '\r{text:{fill}{align}{width}}\r'.format(
-            text=content,
-            fill=char,
-            align='<',
-            width=self.console_width,
-        )
-        self.stream.write(blanks + end)
-        self.stream.flush()
-
-    def __getattr__(self, attr):
-        return getattr(self.stream, attr)
-
-
-class StdoutWrapper(StdWrapper):
-
-    def __init__(self, console_width):
-        super(StdoutWrapper, self).__init__(sys.stdout, console_width)
-
-    def wrap(self):
-        sys.stdout = self
-        self.wrap_log()
-
-    def unwrap(self):
-        sys.stdout = self.stream
-        self.unwrap_log()
-
-
-class StderrWrapper(StdWrapper):
-
-    def __init__(self, console_width):
-        super(StderrWrapper, self).__init__(sys.stderr, console_width)
-
-    def wrap(self):
-        sys.stderr = self
-        self.wrap_log()
-
-    def unwrap(self):
-        sys.stderr = self.stream
-        self.unwrap_log()
 
 
 class ConsoleProgressBar:
@@ -95,6 +23,7 @@ class ConsoleProgressBar:
         self.run = True
         self.start_time = time.time()
         self.remaining_time = ""
+        self.processing_time = ""
         self.item_text = None
         self.clear_screen = clear_screen
         self.lock_increment = threading.Lock()
@@ -106,22 +35,37 @@ class ConsoleProgressBar:
         thread = threading.Thread(None, self.auto_refresh, None, [], {})
         thread.start()
 
-    def compute_remaining_time(self):
+    def get_short_duration_string(self, duration):
+        hours = int(duration / 3600)
+        minutes = int((duration - hours * 3600) / 60)
+        seconds = int((duration - hours * 3600) % 60)
 
+        if hours != 0:
+            return "{num: >4}h".format(num=hours)
+        elif minutes != 0:
+            return "{num: >4}m".format(num=minutes)
+        else:
+            return "{num: >4}s".format(num=seconds)
+
+    def get_duration_string(self, duration):
+        result = ""
+        hours = int(duration / 3600)
+        minutes = int((duration - hours * 3600) / 60)
+        seconds = int((duration - hours * 3600) % 60)
+
+        if hours != 0:
+            result += "{num}h".format(num=hours)
+        if minutes != 0:
+            result += "{num}m".format(num=minutes)
+        if seconds != 0 or result == "":
+            result += "{num}s".format(num=seconds)
+        return result
+
+    def compute_remaining_time(self):
         if self.position > 0:
             current_time = time.time()
             rem_time = ((current_time - self.start_time) / self.position) * (self.max - self.position)
-
-            hours = int(rem_time / 3600)
-            minutes = int((rem_time - hours * 3600) / 60)
-            seconds = int((rem_time - hours * 3600) % 60)
-
-            if hours != 0:
-                self.remaining_time = "{num: >4}h".format(num=hours)
-            elif minutes != 0:
-                self.remaining_time = "{num: >4}m".format(num=minutes)
-            else:
-                self.remaining_time = "{num: >4}s".format(num=seconds)
+            self.remaining_time = self.get_duration_string(rem_time)
 
     def set_item_text(self, item_text):
         with self.lock_increment:
@@ -144,7 +88,7 @@ class ConsoleProgressBar:
         self.refresh()
 
         if self.clear_screen:
-            print("")
+            print("\r", end='')
 
         self.stdout.unwrap()
         self.stderr.unwrap()
@@ -154,6 +98,7 @@ class ConsoleProgressBar:
 
     def stop(self):
         self.run = False
+        self.processing_time = self.get_duration_string(time.time() - self.start_time)
         time.sleep(2 * REFRESH_DELAY)
 
     def refresh(self):
@@ -170,15 +115,16 @@ class ConsoleProgressBar:
 
         if self.item_text is None:
 
-            before_bar = "{title} [".format(title=self.title)
+            before_bar = "{title}|".format(title=self.title)
 
-            after_bar = "] {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} ".format(
+            after_bar = "| {position:{position_len}}/{max} | {percent: >3}% | ~ {remaining}".format(
                 position=self.position, position_len=len(str(self.max)),
                 max=self.max,
                 percent=str(int(position_100))[:3],
                 remaining=self.remaining_time[:5])
 
-            progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
+            #progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
+            progress_bar_size = 32
             current_position_progress_bar = int(position_100 * progress_bar_size / 100) + 1
             past_size = current_position_progress_bar - 1
             future_size = progress_bar_size - past_size - 1
@@ -196,7 +142,7 @@ class ConsoleProgressBar:
             sys.stdout.write("{before}{progress_bar}{after}"
                              .format(before=before_bar, progress_bar=bar, after=after_bar))
         else:
-            stats = "{title} | {position:{position_len}}/{max} | {percent: >3}% {remaining: >4} - ".format(
+            stats = "{title} | {position:{position_len}}/{max} | {percent: >3}% {remaining} - ".format(
                 title=self.title,
                 position=self.position, position_len=len(str(self.max)),
                 max=self.max,

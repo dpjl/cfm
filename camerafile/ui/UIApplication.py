@@ -9,7 +9,7 @@ from camerafile.OutputDirectory import OutputDirectory
 from camerafile.Resource import Resource
 from camerafile.ui.UIMainWindow import UIMainWindow
 from camerafile.ui.UIMediaSet import UIMediaSetTab
-from camerafile.cfm import init_logging
+from camerafile.Logging import init_logging
 
 
 class UIApplication:

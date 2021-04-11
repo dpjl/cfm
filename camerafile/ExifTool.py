@@ -35,7 +35,8 @@ class NonBlockingStreamReader:
     def enqueue_output(self):
         for line in iter(self.stream.readline, b''):
             self.queue.put(line)
-            self.redirected_file.write(line)
+            if self.redirected_file is not None:
+                self.redirected_file.write(line)
         if self.redirected_file is not None:
             self.redirected_file.write("--\nExifTool stopped\n--\n")
             self.redirected_file.flush()
@@ -65,8 +66,12 @@ class ExifTool(object):
     WIDTH_METADATA = "ImageWidth"
     HEIGHT_METADATA = "ImageHeight"
     ORIENTATION_METADATA = "Orientation"
+    SUB_SEC_CREATE_DATE = "SubSecCreateDate"
+    SUB_SEC_DATE_TIME_ORIGINAL = "SubSecDateTimeOriginal"
+    SUB_SEC_MODIFY_DATE = "SubSecModifyDate"
     CREATE_DATE_METADATA = "CreateDate"
     MODIFY_DATE_METADATA = "FileModifyDate"
+    THUMBNAIL_METADATA = "ThumbnailImage"
     SENTINEL = "{ready}\n"
 
     executable = None
@@ -83,7 +88,7 @@ class ExifTool(object):
     def start(cls):
         if cls.process is None:
             cls.executable = Resource.exiftool_executable
-            LOGGER.info("Starting %s", cls.executable)
+            LOGGER.info("|    |___Starting %s", cls.executable)
             cls.process = subprocess.Popen(
                 [cls.executable, "-stay_open", "True", "-@", "-"],
                 universal_newlines=True, bufsize=1,
@@ -94,7 +99,7 @@ class ExifTool(object):
     @classmethod
     def stop(cls):
         if cls.process is not None:
-            LOGGER.info("Stopping %s", cls.executable)
+            LOGGER.info("|    |___Stopping %s", cls.executable)
             cls.process.stdin.write("-stay_open\nFalse\n")
             cls.process.stdin.flush()
             cls.process = None
@@ -126,8 +131,30 @@ class ExifTool(object):
         return output[:-len(cls.SENTINEL)], err
 
     @classmethod
+    def parse_date(cls, exif_tool_result, field, date_format):
+        if field in exif_tool_result[0]:
+            str_date = exif_tool_result[0][field]
+            try:
+                return datetime.strptime(str_date.split("+")[0], date_format)
+            except ValueError:
+                return None
+
+    @classmethod
+    def read_date(cls, exif_tool_result):
+        date = cls.parse_date(exif_tool_result, cls.SUB_SEC_DATE_TIME_ORIGINAL, '%Y:%m:%d %H:%M:%S.%f')
+        if date is None:
+            date = cls.parse_date(exif_tool_result, cls.SUB_SEC_CREATE_DATE, '%Y:%m:%d %H:%M:%S.%f')
+        if date is None:
+            date = cls.parse_date(exif_tool_result, cls.SUB_SEC_MODIFY_DATE, '%Y:%m:%d %H:%M:%S.%f')
+        if date is None:
+            date = cls.parse_date(exif_tool_result, cls.CREATE_DATE_METADATA, '%Y:%m:%d %H:%M:%S')
+        if date is None:
+            date = cls.parse_date(exif_tool_result, cls.MODIFY_DATE_METADATA, '%Y:%m:%d %H:%M:%S')
+        return date
+
+    @classmethod
     def get_metadata(cls, filename):
-        stdout, stderr = cls.execute("-j", "-n",
+        stdout, stderr = cls.execute("-b", "-j", "-n",
                                      "-" + cls.MODEL_METADATA,
                                      "-" + cls.SOURCE_METADATA,
                                      "-" + cls.CREATE_DATE_METADATA,
@@ -135,10 +162,18 @@ class ExifTool(object):
                                      "-" + cls.WIDTH_METADATA,
                                      "-" + cls.HEIGHT_METADATA,
                                      "-" + cls.ORIENTATION_METADATA,
+                                     "-" + cls.THUMBNAIL_METADATA,
+                                     "-" + cls.SUB_SEC_CREATE_DATE,
+                                     "-" + cls.SUB_SEC_DATE_TIME_ORIGINAL,
+                                     "-" + cls.SUB_SEC_MODIFY_DATE,
                                      filename)
         result = json.loads(stdout)
         if len(result) == 0:
             return None, None
+
+        thumbnail = None
+        if cls.THUMBNAIL_METADATA in result[0]:
+            thumbnail = result[0][cls.THUMBNAIL_METADATA]
 
         model = None
         if cls.MODEL_METADATA in result[0]:
@@ -146,24 +181,7 @@ class ExifTool(object):
         elif cls.SOURCE_METADATA in result[0]:
             model = result[0][cls.SOURCE_METADATA]
 
-        date = None
-
-        if cls.CREATE_DATE_METADATA in result[0]:
-            str_date = result[0][cls.CREATE_DATE_METADATA]
-            try:
-                date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
-            except ValueError:
-                date = None
-
-        if date is None and cls.MODIFY_DATE_METADATA in result[0]:
-            str_date = result[0][cls.MODIFY_DATE_METADATA]
-            try:
-                date = datetime.strptime(str_date.split("+")[0], '%Y:%m:%d %H:%M:%S')
-            except ValueError:
-                date = None
-
-        if date is None:
-            date = datetime.min
+        date = cls.read_date(result)
 
         width = None
         if cls.WIDTH_METADATA in result[0]:
@@ -177,7 +195,7 @@ class ExifTool(object):
         if cls.ORIENTATION_METADATA in result[0]:
             orientation = result[0][cls.ORIENTATION_METADATA]
 
-        return model, date, width, height, orientation
+        return model, date, width, height, orientation, thumbnail
 
     @classmethod
     def update_model(cls, filename, new_model):

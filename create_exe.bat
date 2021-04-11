@@ -1,2 +1,0 @@
-pyinstaller vivicfm/cfm.py --add-data vivicfm\conf\logging.json;conf --add-data vivicfm\bin\avimetaedit-1.0.2.exe;vivicfm\bin --add-data vivicfm\bin\exiftool-11.94.exe;vivicfm\bin -n cfm --onefile
-pause

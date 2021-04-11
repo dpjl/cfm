@@ -1,4 +1,4 @@
-name: Create Windows Application (python 3.8)
+name: Create Linux Application (python 3.8)
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 jobs:
   build:
 
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: [3.8]
@@ -25,22 +25,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install -r requirements.txt
-        pip install -r requirements_win.txt
     - name: Build with pyinstaller
-      shell: cmd
       run: |
-        pyinstaller cfm.spec
-    - name: Create cfm package
-      shell: bash
-      run: |
-        sh create_package.sh
-    - name: Archive Release
-      uses: thedoctor0/zip-release@master
-      with:
-        filename: 'cfm.zip'
-        directory: ./dist
-    - name: Upload generated executable
+        tar xzf camerafile/bin/Image-ExifTool-11.97.tar.gz -C camerafile/bin
+        mv camerafile/conf/cfm-linux.json camerafile/conf/cfm.json
+        pyinstaller camerafile/cfm.py --add-data camerafile/conf/cfm.json:conf --add-data camerafile/conf/logging.json:conf --add-binary camerafile/bin/Image-ExifTool-11.97:bin/Image-ExifTool-11.97 --add-binary camerafile/bin/avimetaedit-1.0.2:bin -n cfm --onefile
+    - name: Upload generate executable
       uses: actions/upload-artifact@v1
       with:
-        name: cfm.zip
-        path: cfm.zip
+        name: cfm
+        path: dist/cfm

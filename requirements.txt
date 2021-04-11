@@ -1,8 +1,10 @@
 ImageHash
-Pillow
-pyqt5
+Pillow==8.2.0
 jellyfish
 numpy==1.19.3
 sklearn
 face_recognition
 dill
+moviepy
+reportlab==3.5.66
+git+https://github.com/dpjl/pyinstaller

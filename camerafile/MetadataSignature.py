@@ -4,17 +4,21 @@ from camerafile.Metadata import Metadata
 
 class MetadataSignature(Metadata):
 
-    def __init__(self, media_file):
-        super().__init__(media_file)
-        self.thumbnail = None
+    def __init__(self, media_id, media_path, extension):
+        super().__init__(None)
+        self.media_id = media_id
+        self.media_path = media_path
+        self.extension = extension
 
-    def set_value_computed(self, value):
-        self.value = value
-        self.media_file.parent_set.update_date_and_sig_map(self.media_file)
+    @staticmethod
+    def compute_signature_task(signature_metadata):
+        try:
+            signature_metadata.compute_value()
+            return signature_metadata
+        except:
+            print("Error during compute_signature_task execution for " + str(signature_metadata.media_path))
+            return signature_metadata
 
     def compute_value(self):
         if self.value is None:
-            self.value = Hash(self.media_file.path).get()
-            self.media_file.parent_set.update_date_and_sig_map(self.media_file)
-
-
+            self.value = Hash(self.media_path).get()

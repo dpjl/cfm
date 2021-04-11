@@ -6,13 +6,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 class OutputDirectory:
-    base_path = None
-    FILE_WITH_INPUT_PATH = "input_path.txt"
-
-    @staticmethod
-    def init(base_output_path):
-        OutputDirectory.base_path = Path(base_output_path) / ".cfm"
-        os.makedirs(OutputDirectory.base_path, exist_ok=True)
 
     def __init__(self, media_set_root_path):
         self.path = Path(media_set_root_path) / ".cfm"
@@ -24,4 +17,5 @@ class OutputDirectory:
             with open(file_path, 'w') as f:
                 for element in list_of_elements:
                     f.write(str(element) + "\n")
-            LOGGER.info("File saved (%s elements): %s" % (str(len(list_of_elements)), str(file_path.resolve())))
+            return "File saved ({nb_elements} elements): {path}".format(nb_elements=str(len(list_of_elements)),
+                                                                        path=str(file_path.resolve()))

@@ -7,14 +7,12 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from camerafile.Constants import IMAGE_TYPE
-from camerafile.ExifTool import ExifTool
-from camerafile.Image import Image
-from camerafile.Metadata import CAMERA_MODEL, DATE, SIGNATURE, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
-    ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, WIDTH, HEIGHT, Metadata
+from camerafile import Constants
+from camerafile.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
+    DESTINATION_COPY_PATH, ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, CFM_CAMERA_MODEL
 from camerafile.MetadataList import MetadataList
 
-CFM_COPY = "cfm-copy"
+CFM_COPY = ".tmp-cfm-copy"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -35,6 +33,7 @@ class MediaFile:
         self.metadata = MetadataList(self)
         self.loaded_from_database = False
         self.db_id = None
+        self.date_identifier = None
 
     def reinit(self):
         self.relative_path = Path(self.path).relative_to(self.parent_set.root_path)
@@ -64,17 +63,31 @@ class MediaFile:
             return m.group(1)
         return self.name
 
+    def get_date(self):
+        date = self.metadata[INTERNAL].get_date()
+        if date is not None:
+            return datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f')
+        return None
+
+    def get_str_date(self):
+        date = self.metadata[INTERNAL].get_date()
+        if date is not None:
+            date = datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f')
+            new_date_format = date.strftime("%Y/%m/%d")
+            return new_date_format
+        return ""
+
     def get_cfm_filename(self):
         m = re.search(".*~{(.*)}~.*", self.name)
         if m is None:
-            date = self.metadata[DATE].value
-            width = self.metadata[WIDTH].value
-            height = self.metadata[HEIGHT].value
-            if date is not None and width is not None and height is not None:
-                date = datetime.strptime(date, '%Y/%m/%d %H:%M:%S')
-                new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%S")
+            date = self.metadata[INTERNAL].get_date()
+            width = self.metadata[INTERNAL].get_width()
+            height = self.metadata[INTERNAL].get_height()
+            if date is not None:
+                date = datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f')
+                new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%S.%f")
                 cfm_filename = new_date_format + "~{" + self.name + "}~"
-                if width != Metadata.UNKNOWN and height != Metadata.UNKNOWN:
+                if width is not None and height is not None:
                     cfm_filename += str(width) + "x" + str(height)
                 cfm_filename += self.extension
                 return cfm_filename
@@ -83,13 +96,28 @@ class MediaFile:
         else:
             return self.name
 
-    def get_date_identifier(self):
-        date = self.metadata[DATE].value
-        width = self.metadata[WIDTH].value
-        height = self.metadata[HEIGHT].value
-        if date is not None and width is not None and height is not None:
-            date = date + "-" + str(width) + "x" + str(height)
-        return date
+    def get_exif_date(self):
+        return self.metadata[INTERNAL].get_date()
+
+    def get_camera_model(self):
+        return self.metadata[CFM_CAMERA_MODEL].value
+
+    def get_dimensions(self):
+        width = self.metadata[INTERNAL].get_width()
+        height = self.metadata[INTERNAL].get_height()
+        if width is not None and height is not None:
+            return str(width) + "x" + str(height)
+        return None
+
+    def update_date_identifier(self):
+        if self.date_identifier is None:
+            date = self.metadata[INTERNAL].get_date()
+            width = self.metadata[INTERNAL].get_width()
+            height = self.metadata[INTERNAL].get_height()
+            if date is not None and width is not None and height is not None:
+                self.date_identifier = date + "-" + str(width) + "x" + str(height)
+            elif date is not None:
+                self.date_identifier = date
 
     def is_copied_file(self):
         copied_path = Path(self.parent_set.root_path) / CFM_COPY
@@ -97,30 +125,32 @@ class MediaFile:
             return True
         return False
 
-    def copy(self, new_media_set):
-
+    def get_destination_path(self, new_media_set):
         relative_path = self.relative_path.parent
         new_dir_path = Path(new_media_set.root_path) / CFM_COPY / relative_path
-        os.makedirs(new_dir_path, exist_ok=True)
         new_file_path = new_dir_path / self.get_cfm_filename()
+        return new_file_path
 
-        # lock.acquire(True) + lock.release à ajouter (si utilisation du multi-threading)
-        if new_media_set.contains(self):
-            return "Image already exists"
-        if os.path.exists(new_file_path):
-            return "Filename already exists"
+    @staticmethod
+    def copy_file(copy_task_arg):
+        file_id, old_file_path, new_file_path = copy_task_arg
+        try:
+            if os.path.exists(new_file_path):
+                return False, file_id, None
+            os.makedirs(Path(new_file_path).parent, exist_ok=True)
+            #shutil.copy2(old_file_path, new_file_path)
+            os.symlink(old_file_path, new_file_path)
+            return True, file_id, new_file_path
+        except:
+            return False, file_id, None
+
+    def copy_metadata(self, new_media_set, new_file_path):
         new_media_file = MediaFile(str(new_file_path), None, new_media_set)
         new_media_file.metadata = self.metadata
         new_media_file.metadata.set_value(ORIGINAL_COPY_PATH, str(self.path))
         new_media_file.metadata.set_value(DESTINATION_COPY_PATH, str(new_file_path))
         new_media_set.add_file(new_media_file)
-
-        shutil.copy2(self.path, new_file_path)
-        # Try to use faster method (doesn't work)
-        # subprocess.Popen(["copy", str(self.path), str(new_file_path)], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        # subprocess.Popen(["cp", str(self.path), str(new_file_path)])
-
-        return "Copied"
+        return True
 
     def add_suffix_to_filename(self, suffix):
         splitext = os.path.splitext(self.name)
@@ -141,10 +171,12 @@ class MediaFile:
         return "[.]" + result
 
     def organize(self):
-        camera_model = self.metadata.get_value(CAMERA_MODEL).replace(" ", "-")
-        if camera_model == Metadata.UNKNOWN:
-            camera_model = Metadata.UNKNOWN + "~{" + self.relative_path_to_filename() + "}~"
-        date = datetime.strptime(self.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
+        camera_model = self.metadata[CFM_CAMERA_MODEL].value
+        if camera_model is not None:
+            camera_model = camera_model.replace(" ", "-")
+        if camera_model is None:
+            camera_model = Constants.UNKNOWN  # + "~{" + self.relative_path_to_filename() + "}~"
+        date = datetime.strptime(self.metadata[INTERNAL].get_date(), '%Y/%m/%d %H:%M:%S.%f')
         year = date.strftime("%Y")
         month = date.strftime("%m[%B]")
         new_dir_path = self.parent_set.root_path / year / month / camera_model
@@ -177,40 +209,3 @@ class MediaFile:
         self.reinit()
 
         return result
-
-    def backup(self):
-        original_renamed = self.path + ".original"
-        if not os.path.exists(original_renamed):
-            os.rename(self.path, original_renamed)
-            shutil.copy2(original_renamed, self.path)
-            return True
-        return False
-
-    def restore(self):
-        original_file = self.path + ".original"
-        if os.path.exists(original_file):
-            os.remove(self.path)
-            os.rename(original_file, self.path)
-            return True
-        return False
-
-    def get_metadata(self):
-        model, date, width, height, orientation = None, None, None, None, None
-
-        if self.extension in IMAGE_TYPE:
-            img = Image(self.path)
-            model, date, width, height, orientation = img.model, img.date, img.width, img.height, img.orientation
-
-        if date is None:
-            model, date, width, height, orientation = ExifTool.get_metadata(self.path)
-
-        # TOTO: can this be done in Image class directly ?
-        if orientation is not None and (orientation == 6 or orientation == 8):
-            old_width = width
-            width = height
-            height = old_width
-
-        if date is not None:
-            date = date.strftime("%Y/%m/%d %H:%M:%S")
-
-        return model, date, width, height, orientation

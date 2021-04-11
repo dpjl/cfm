@@ -1,15 +1,17 @@
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 
-from camerafile.Constants import TYPE
+from camerafile.BatchTool import StatusLine
+from camerafile.Constants import TYPE, INTERNAL, SIGNATURE, DATE, WIDTH, HEIGHT, CFM_CAMERA_MODEL, THUMBNAIL
 from camerafile.FaceRecognition import FaceRecognition
 from camerafile.MediaDirectory import MediaDirectory
 from camerafile.MediaFile import MediaFile
 from camerafile.MediaSetDatabase import MediaSetDatabase
-from camerafile.Metadata import CAMERA_MODEL, WIDTH, HEIGHT, DATE, SIGNATURE
-from camerafile.Metadata import Metadata
 from camerafile.OutputDirectory import OutputDirectory
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MediaSet:
@@ -18,11 +20,12 @@ class MediaSet:
         self.root_path = Path(path).resolve()
         self.name = self.root_path.name
         self.output_directory = OutputDirectory(self.root_path)
-        self.face_rec = FaceRecognition(self)
+        self.face_rec = FaceRecognition(self, self.output_directory)
         self.media_file_list = []
         self.media_dir_list = {}
-        self.date_and_sig_map = {}
-        self.date_and_name_map = {}
+        self.date_size_name_map = {}
+        self.date_size_sig_map = {}
+        self.date_model_size_map = {}
         self.id_map = {}
         self.database = MediaSetDatabase(self.output_directory)
         self.initialize_file_and_dir_list(progress_signal)
@@ -31,13 +34,19 @@ class MediaSet:
         self.save_database()
         self.close_database()
 
-    def __enter__(self):
-        pass
+    def __str__(self):
+        return self.root_path
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # self.save_database()
-        # pourquoi est-ce plus lent en utilisant un enter/exit plutôt qu'un init/del ??
-        pass
+    def __len__(self):
+        return len(self.media_file_list)
+
+    def __iter__(self):
+        for media_file in self.media_file_list:
+            yield media_file
+
+    def get_date_sorted_media_list(self):
+        self.media_file_list.sort(key=MediaFile.get_date)
+        return self.media_file_list
 
     def train(self):
         self.face_rec.add_training_data()
@@ -57,99 +66,110 @@ class MediaSet:
 
     def add_date_to_filename(self, file_path):
         media_file = self.get_file_from_path(file_path)
-        date = datetime.strptime(media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
+        date = datetime.strptime(media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S.%f')
         new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%Ss")
         media_file.add_suffix_to_filename("[" + new_date_format + "]")
 
     def save_database(self):
-        print("Saving database...")
-        for media_file in self.media_file_list:
-            self.database.save_media_file(media_file)
-        self.database.file_connection.commit()
-        print("End saving database.")
+        if self.database is not None:
+            self.database.save(self)
 
     def close_database(self):
-        self.database.file_connection.close()
-
-    def __str__(self):
-        return self.root_path
-
-    def __len__(self):
-        return len(self.media_file_list)
-
-    def __iter__(self):
-        for media_file in self.media_file_list:
-            yield media_file
+        if self.database is not None:
+            self.database.close()
+            self.database = None
 
     def add_file(self, media_file):
         self.media_file_list.append(media_file)
         self.id_map[media_file.id] = media_file
-        self.update_date_and_sig_map(media_file)
-        self.update_date_and_name_map(media_file)
+        self.update_date_size_name_map(media_file)
+        self.update_date_size_sig_map(media_file)
+        self.update_date_model_size_map(media_file)
 
     def get_media(self, media_id):
         return self.id_map[media_id]
 
-    def update_date_and_name_map(self, media_file):
-        date_id = media_file.get_date_identifier()
-        if date_id is not None:
-            if date_id not in self.date_and_name_map:
-                self.date_and_name_map[date_id] = {}
-            if media_file.original_filename not in self.date_and_name_map[date_id]:
-                self.date_and_name_map[date_id][media_file.original_filename] = []
-            if media_file not in self.date_and_name_map[date_id][media_file.original_filename]:
-                self.date_and_name_map[date_id][media_file.original_filename].append(media_file)
+    @staticmethod
+    def update_x_y_z_map(map_to_update, x, y, z, media_file):
+        if x not in map_to_update:
+            map_to_update[x] = {}
+        if y not in map_to_update[x]:
+            map_to_update[x][y] = {}
+        if z not in map_to_update[x][y]:
+            map_to_update[x][y][z] = []
+        if media_file not in map_to_update[x][y][z]:
+            map_to_update[x][y][z].append(media_file)
 
-    def update_date_and_sig_map(self, media_file):
-        date_id = media_file.get_date_identifier()
+    @staticmethod
+    def exist_in_x_y_z_map(map_to_inspect, x, y, z):
+        if x is not None and x in map_to_inspect:
+            if y in map_to_inspect[x]:
+                if z in map_to_inspect[x][y]:
+                    return True
+
+    def update_date_size_name_map(self, media_file):
+        date = media_file.get_exif_date()
+        dim = media_file.get_dimensions()
+        filename = media_file.original_filename
+        if date is not None:
+            self.update_x_y_z_map(self.date_size_name_map, date, dim, filename, media_file)
+
+    def update_date_size_sig_map(self, media_file):
+        date = media_file.get_exif_date()
+        dim = media_file.get_dimensions()
         sig = media_file.get_signature()
-        if date_id is not None and sig is not None:
-            if date_id not in self.date_and_sig_map:
-                self.date_and_sig_map[date_id] = {}
-            if sig not in self.date_and_sig_map[date_id]:
-                self.date_and_sig_map[date_id][sig] = []
-            if media_file not in self.date_and_sig_map[date_id][sig]:
-                self.date_and_sig_map[date_id][sig].append(media_file)
+        if date is not None and sig is not None:
+            self.update_x_y_z_map(self.date_size_sig_map, date, dim, sig, media_file)
+
+    def update_date_model_size_map(self, media_file):
+        date = media_file.get_exif_date()
+        model = media_file.get_camera_model()
+        dim = media_file.get_dimensions()
+        if date is not None:
+            self.update_x_y_z_map(self.date_model_size_map, date, model, dim, media_file)
 
     def contains(self, item):
-        date_id = item.get_date_identifier()
-        if date_id is not None:
-            if date_id in self.date_and_name_map:
-                if item.original_filename in self.date_and_name_map[date_id]:
-                    return True
-                if item.get_signature() is None:
-                    print("Warning: signature is not already computed. Should never happened.")
-                    item.metadata.compute_value(SIGNATURE)
-                if date_id in self.date_and_sig_map:
-                    if item.get_signature() in self.date_and_sig_map[date_id]:
-                        return True
+        date = item.get_exif_date()
+        dimensions = item.get_dimensions()
+        if self.exist_in_x_y_z_map(self.date_size_name_map, date, dimensions, item.original_filename):
+            return True
+        # vérifier si la signature devrait être calculée (possibly already exist)
+        if item.get_signature() is not None:
+            if self.exist_in_x_y_z_map(self.date_size_sig_map, date, dimensions, item.get_signature()):
+                return True
         return False
 
     def get_possibly_duplicates(self):
         result = []
-        for date_id in self.date_and_name_map:
-            if len(self.date_and_name_map[date_id]) > 1:
-                for filename in self.date_and_name_map[date_id]:
-                    result.append(self.date_and_name_map[date_id][filename][0])
+        for date in self.date_size_name_map:
+            microseconds = 0
+            if date is not None:
+                microseconds = datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f').microsecond
+            if microseconds == 0:
+                for size in self.date_size_name_map[date]:
+                    if len(self.date_size_name_map[date][size]) > 1:
+                        for filename in self.date_size_name_map[date][size]:
+                            result.append(self.date_size_name_map[date][size][filename][0])
         return result
 
     @staticmethod
-    def get_one_key(dictionary):
-        for key in dictionary:
-            return key
+    def get_first_element(dictionary):
+        for key, value in dictionary.items():
+            return key, value
 
     def get_possibly_already_exists(self, media_set2):
         result = []
-        for date_id in self.date_and_name_map:
-            if date_id in media_set2.date_and_name_map:
-                if len(self.date_and_name_map[date_id]) == 1:
-                    filename1 = self.get_one_key(self.date_and_name_map[date_id])
-                    if filename1 not in media_set2.date_and_name_map[date_id]:
-                        result.append(self.date_and_name_map[date_id][filename1][0])
-                if len(media_set2.date_and_name_map[date_id]) == 1:
-                    filename1 = self.get_one_key(media_set2.date_and_name_map[date_id])
-                    if filename1 not in self.date_and_name_map[date_id]:
-                        result.append(media_set2.date_and_name_map[date_id][filename1][0])
+        for date in self.date_size_name_map:
+            for size in self.date_size_name_map[date]:
+                if date in media_set2.date_size_name_map and size in media_set2.date_size_name_map[date]:
+                    if len(self.date_size_name_map[date][size]) == 1:
+                        filename1, _ = self.get_first_element(self.date_size_name_map[date][size])
+                        if filename1 not in media_set2.date_size_name_map[date][size]:
+                            result.append(self.date_size_name_map[date][size][filename1][0])
+                    if len(media_set2.date_size_name_map[date][size]) == 1:
+                        filename1, _ = self.get_first_element(media_set2.date_size_name_map[date][size])
+                        if filename1 not in self.date_size_name_map[date][size]:
+                            result.append(media_set2.date_size_name_map[date][size][filename1][0])
         return result
 
     def get_copied_files(self):
@@ -159,81 +179,111 @@ class MediaSet:
                 result.append(media_file)
         return result
 
-    ## TO CHANGE
-    def get_files_in(self, other):
-        result = {}
-        sig_map_1 = self.date_and_sig_map
-        sig_map_2 = other.date_and_sig_map
-        for sig in sig_map_1:
-            if sig in sig_map_2:
-                result[sig] = sig_map_1[sig]
-        return result
+    def cmp(self, other_media_set):
+        in_both = []
+        only_in_self = []
+        for date in self.date_size_name_map:
+            if self.get_microseconds(date) != 0:
+                for size in self.date_size_name_map[date]:
+                    media_list = self.get_media_list_from_date_and_size(date, size)
+                    if other_media_set.contains(media_list[0]):
+                        in_both.append(media_list)
+                    else:
+                        only_in_self.append(media_list)
+            else:
+                for size in self.date_size_name_map[date]:
+                    if len(self.date_size_name_map[date][size]) == 1:
+                        _, unique_media_list = self.get_first_element(self.date_size_name_map[date][size])
+                        if other_media_set.contains(unique_media_list[0]):
+                            in_both.append(unique_media_list)
+                        else:
+                            only_in_self.append(unique_media_list)
+                    else:
+                        for sig in self.date_size_sig_map[date][size]:
+                            media_list = self.date_size_sig_map[date][size][sig]
+                            if other_media_set.contains(media_list[0]):
+                                in_both.append(media_list)
+                            else:
+                                only_in_self.append(media_list)
+        return in_both, only_in_self
 
-    ## TO CHANGE
-    def get_files_not_in(self, other):
-        result = {}
-        sig_map_1 = self.date_and_sig_map
-        sig_map_2 = other.date_and_sig_map
-        for sig in sig_map_1:
-            if sig not in sig_map_2:
-                result[sig] = sig_map_1[sig]
-        return result
+    def duplicates(self):
+        n_copy = {}
+        for date in self.date_size_name_map:
+            if self.get_microseconds(date) != 0:
+                for size in self.date_size_name_map[date]:
+                    media_list = self.get_media_list_from_date_and_size(date, size)
+                    self.add_duplicates_to_n_copy(n_copy, media_list)
+            else:
+                for size, filename_map in self.date_size_name_map[date].items():
+                    if len(filename_map) == 1:
+                        _, media_list = self.get_first_element(filename_map)
+                        self.add_duplicates_to_n_copy(n_copy, media_list)
+                    else:
+                        for media_list in self.date_size_sig_map[date][size].values():
+                            self.add_duplicates_to_n_copy(n_copy, media_list)
+        return n_copy
 
     @staticmethod
-    def propagate_metadata_computed_value(metadata_name, media_file_list):
+    def propagate_metadata_value(metadata_name, media_file_list):
         if len(media_file_list) > 1:
-            not_empty_metadata_value = Metadata.UNKNOWN
+            not_empty_metadata_value = None
             for media_file in media_file_list:
-                current_metadata_value = media_file.metadata.get_value(metadata_name)
-                if current_metadata_value is not None and current_metadata_value != Metadata.UNKNOWN:
+                current_metadata_value = media_file.metadata[metadata_name].value
+                if current_metadata_value is not None:
                     not_empty_metadata_value = current_metadata_value
-            if not_empty_metadata_value != Metadata.UNKNOWN:
+            if not_empty_metadata_value is not None:
                 for media_file in media_file_list:
-                    current_metadata_value = media_file.metadata.get_value(metadata_name)
-                    if current_metadata_value is None or current_metadata_value == Metadata.UNKNOWN:
-                        media_file.metadata[metadata_name].set_value_computed(not_empty_metadata_value)
+                    current_metadata_value = media_file.metadata[metadata_name].value
+                    if current_metadata_value is None:
+                        media_file.metadata[metadata_name].value = not_empty_metadata_value
 
     def propagate_sig_to_duplicates(self):
-        for date_id in self.date_and_name_map:
-            for filename in self.date_and_name_map[date_id]:
-                self.propagate_metadata_computed_value(SIGNATURE,
-                                                       self.date_and_name_map[date_id][filename])
+        for date in self.date_size_name_map:
+            for size in self.date_size_name_map[date]:
+                for filename in self.date_size_name_map[date][size]:
+                    self.propagate_metadata_value(SIGNATURE, self.date_size_name_map[date][size][filename])
 
     def propagate_cm_to_duplicates(self):
-        for date_id in self.date_and_name_map:
-            for filename in self.date_and_name_map[date_id]:
-                self.propagate_metadata_computed_value(CAMERA_MODEL,
-                                                       self.date_and_name_map[date_id][filename])
-        for date_id in self.date_and_sig_map:
-            for sig in self.date_and_sig_map[date_id]:
-                self.propagate_metadata_computed_value(CAMERA_MODEL,
-                                                       self.date_and_sig_map[date_id][sig])
+        for date in self.date_size_name_map:
+            for size in self.date_size_name_map[date]:
+                for filename in self.date_size_name_map[date][size]:
+                    self.propagate_metadata_value(CFM_CAMERA_MODEL, self.date_size_name_map[date][size][filename])
 
-    def analyze_duplicates(self):
-        str_list = ["All media files: " + str(len(self.media_file_list)),
-                    "Distinct elements: {distinct}".format(distinct=str(len(self.date_and_sig_map)))]
+        for date in self.date_size_sig_map:
+            for size in self.date_size_sig_map[date]:
+                for sig in self.date_size_sig_map[date][size]:
+                    self.propagate_metadata_value(CFM_CAMERA_MODEL, self.date_size_sig_map[date][size][sig])
 
-        number_of_n_copied = {}
-        for n_copied in map(len, self.date_and_sig_map.values()):
-            if n_copied != 1:
-                if n_copied not in number_of_n_copied:
-                    number_of_n_copied[n_copied] = 0
-                number_of_n_copied[n_copied] += 1
+    @staticmethod
+    def get_microseconds(date):
+        if date is not None:
+            return datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f').microsecond
+        return 0
 
-        for n_copied, number_of_n_copied in sorted(number_of_n_copied.items()):
-            str_list.append("%s elem. found %s-times" % (number_of_n_copied, n_copied))
+    def get_media_list_from_date_and_size(self, date, size):
+        media_list = []
+        for filename in self.date_size_name_map[date][size]:
+            media_list += self.date_size_name_map[date][size][filename]
+        return media_list
 
-        return str_list
+    @staticmethod
+    def add_duplicates_to_n_copy(n_copy, media_list):
+        nb_copy = len(media_list)
+        if nb_copy not in n_copy:
+            n_copy[nb_copy] = []
+        n_copy[nb_copy] += [media_list]
 
-    def analyze_duplicates_2(self):
-        number_of_n_copied = {}
-        for signature in self.date_and_sig_map:
-            n_copied = len(self.date_and_sig_map[signature])
-            if n_copied not in number_of_n_copied:
-                number_of_n_copied[n_copied] = {}
-            number_of_n_copied[n_copied][signature] = self.date_and_sig_map[signature]
-
-        return number_of_n_copied
+    def unique_files_not_in_destination(self, new_media_set):
+        result = []
+        n_copy_list = self.duplicates()
+        for n_copy in n_copy_list.values():
+            for media_list in n_copy:
+                for media_file in media_list:
+                    if not new_media_set.contains(media_file):
+                        result.append((media_file.id, media_file.path, media_file.get_destination_path(new_media_set)))
+                    break
+        return result
 
     def get_file_list(self, ext=None, cm=None):
         result = []
@@ -248,18 +298,19 @@ class MediaSet:
             if media_file.extension not in ext_filter:
                 return False
 
-        camera_model = media_file.metadata[CAMERA_MODEL]
+        cfm_camera_model = media_file.metadata[CFM_CAMERA_MODEL]
+        internal_md = media_file.metadata[INTERNAL]
 
         if cm_filter == "known":
-            if camera_model.get_value_read() == Metadata.UNKNOWN:
+            if internal_md.get_cm() is None:
                 return False
 
         elif cm_filter == "unknown":
-            if camera_model.get_value_read() != Metadata.UNKNOWN or camera_model.get_value_computed() is not None:
+            if internal_md.get_cm() is not None or cfm_camera_model.value is not None:
                 return False
 
         elif cm_filter == "recovered":
-            if camera_model.get_value_computed() is None:
+            if internal_md.get_cm() is not None or cfm_camera_model.value is None:
                 return False
 
         return True
@@ -271,19 +322,57 @@ class MediaSet:
             self.media_dir_list[parent] = new_media_dir
         return self.media_dir_list[parent]
 
-    def initialize_file_and_dir_list2(self, progress_signal=None):
-        print(self.root_path)
-        number_of_files = 0
+    def initialize_file_and_dir_list(self, progress_signal=None):
+        LOGGER.info(">>>> Opening media directory " + str(self.root_path))
+        file_map, ignored_files = self.list_all_files()
+        LOGGER.info("|___ {l1} files ignored [{saved}]".format(l1=len(ignored_files),
+                                                              saved=self.output_directory.save_list(ignored_files,
+                                                                                                    "ignored-files.json")))
+        LOGGER.info("|___ {l1} files detected as media file".format(l1=len(file_map)))
         root_dir = MediaDirectory(str(self.root_path), None, self)
         self.media_dir_list[str(self.root_path)] = root_dir
-        self.database.load_all_media_files(self, progress_signal)
+        self.database.load_all_media_files(self, file_map)
+        self.database.load_all_thumbnails(self)
+        self.init_new_files(file_map)
 
-    def initialize_file_and_dir_list(self, progress_signal=None):
-        print(self.root_path)
+    def init_new_files(self, found_file_map):
+        status = StatusLine("     |___ {nb_file} files are not in cache", 1000)
+        number_of_files = 0
+        status.update(nb_file=number_of_files)
+        for file_path, loaded in found_file_map.items():
+            if not loaded:
+                new_media_file = MediaFile(file_path, self.create_media_dir_parent(file_path), self)
+                self.add_file(new_media_file)
+                number_of_files += 1
+                status.update(nb_file=number_of_files)
+        status.end(nb_file=number_of_files)
+
+    def list_all_files(self):
+        # Récupérer la liste complète des fichiers avec des commandes spécifiques windows genre dir /a-D /S /B D:\data\photos-all ?
+        number_of_files = 0
+        status = StatusLine("{nb_file} files found in directory and subdirectories")
+        status.update(nb_file=number_of_files)
+        file_map = {}
+        ignored_files = []
+        for p, d, f in os.walk(self.root_path, topdown=True):
+            for file in f:
+                number_of_files += 1
+                extension = os.path.splitext(file)[1].lower()
+                if extension in TYPE:
+                    file_map[(str(Path(p + "/" + file)))] = False
+                else:
+                    ignored_files.append(str(Path(p + "/" + file)))
+            status.update(nb_file=number_of_files)
+        status.end(nb_file=number_of_files)
+        return file_map, ignored_files
+
+    def initialize_file_and_dir_list_old(self, progress_signal=None):
+        LOGGER.info(">>>> Opening media directory " + str(self.root_path))
         number_of_files = 0
         ignored_files = []
         root_dir = MediaDirectory(str(self.root_path), None, self)
         self.media_dir_list[str(self.root_path)] = root_dir
+        starting_time = datetime.now().strftime('%H:%M:%S')
 
         for (parent_media_dir_path, folder_names, file_names) in os.walk(self.root_path, topdown=True):
 
@@ -312,6 +401,14 @@ class MediaSet:
 
             if progress_signal is not None:
                 progress_signal.emit(number_of_files)
-            print("\r{number: >15} files found".format(number=number_of_files), end='')
+            print("\r[" + starting_time + "] " + str(number_of_files) + " files found", end='')
         print("")
+        LOGGER.info("{l1} files detected as media file".format(l1=len(self)))
         self.output_directory.save_list(ignored_files, "ignored-files.json")
+
+    def get_files_with_thumbnail_errors(self):
+        error_files = []
+        for media_file in self:
+            if media_file.metadata[THUMBNAIL].error:
+                error_files.append(media_file.path)
+        return error_files
