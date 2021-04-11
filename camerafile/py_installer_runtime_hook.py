@@ -12,3 +12,5 @@ from camerafile.Resource import Resource
 for file in glob.glob(str(Resource.get_main_path() / "bin/*ffmpeg*")):
     os.environ['IMAGEIO_FFMPEG_EXE'] = file
     break
+
+os.environ['PAR_GLOBAL_TEMP'] = str(Resource.get_main_path() / "bin/exiftool/")

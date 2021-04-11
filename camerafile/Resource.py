@@ -16,7 +16,7 @@ class Resource:
         try:
             return Path(sys._MEIPASS) / ".."
         except AttributeError:
-            return Path(os.path.dirname(__file__)) / ".."
+            return Path(os.path.dirname(__file__))
 
     @staticmethod
     def init():
