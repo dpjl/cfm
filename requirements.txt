@@ -6,5 +6,5 @@ sklearn
 face_recognition
 dill
 moviepy
-reportlab==3.5.66
+reportlab==3.5.67
 git+https://github.com/dpjl/pyinstaller

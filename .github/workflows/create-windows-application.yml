@@ -23,22 +23,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
         pip install -r requirements.txt
-        pip install -r requirements_win.txt
     - name: Build with pyinstaller
-      shell: cmd
       run: |
-        pyinstaller cfm.spec
-    - name: Create cfm package
-      shell: bash
-      run: |
-        sh create_package.sh
-    - name: Archive Release
-      uses: thedoctor0/zip-release@master
-      with:
-        filename: 'cfm.zip'
-        directory: ./dist
+        python setup.py create_package --exiftool exiftool-11.94.exe --format zip
     - name: Upload generated executable
       uses: actions/upload-artifact@v1
       with:

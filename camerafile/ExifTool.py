@@ -88,7 +88,7 @@ class ExifTool(object):
     def start(cls):
         if cls.process is None:
             cls.executable = Resource.exiftool_executable
-            LOGGER.info("|    |___Starting %s", cls.executable)
+            LOGGER.debug("Starting %s", cls.executable)
             cls.process = subprocess.Popen(
                 [cls.executable, "-stay_open", "True", "-@", "-"],
                 universal_newlines=True, bufsize=1,
@@ -99,7 +99,7 @@ class ExifTool(object):
     @classmethod
     def stop(cls):
         if cls.process is not None:
-            LOGGER.info("|    |___Stopping %s", cls.executable)
+            LOGGER.debug("Stopping %s", cls.executable)
             cls.process.stdin.write("-stay_open\nFalse\n")
             cls.process.stdin.flush()
             cls.process = None

@@ -173,6 +173,7 @@ def init_program(base_dir):
 
 
 def main():
+    freeze_support()
     parser = create_main_args_parser()
     args = parser.parse_args()
 
@@ -186,6 +187,4 @@ def main():
 
 
 if __name__ == '__main__':
-    freeze_support()
-    signal.signal(signal.SIGINT, Constants.original_sigint_handler)
     main()

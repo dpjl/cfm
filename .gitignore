@@ -12,3 +12,7 @@ test-data-org-sav
 .cfm
 env
 tests
+camerafile/bin/exiftool/*tmp*
+*.dat
+cfm.tar.gz
+cfm.zip

@@ -1,4 +1,4 @@
-name: Create Linux Application (python 3.8)
+name: Create Mac Application (python 3.8)
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         python-version: [3.8]
@@ -23,15 +23,14 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
         pip install -r requirements.txt
     - name: Build with pyinstaller
       run: |
-        tar xzf camerafile/bin/Image-ExifTool-11.97.tar.gz -C camerafile/bin
+        tar xzf camerafile/bin/exiftool/Image-ExifTool-11.97.tar.gz -C camerafile/bin/exiftool
         mv camerafile/conf/cfm-linux.json camerafile/conf/cfm.json
-        pyinstaller camerafile/cfm.py --add-data camerafile/conf/cfm.json:conf --add-data camerafile/conf/logging.json:conf --add-binary camerafile/bin/Image-ExifTool-11.97:bin/Image-ExifTool-11.97 --add-binary camerafile/bin/avimetaedit-1.0.2:bin -n cfm --onefile
-    - name: Upload generate executable
+        python setup.py create_package --exiftool Image-ExifTool-11.97 --format tar.gz
+    - name: Upload generated executable
       uses: actions/upload-artifact@v1
       with:
-        name: cfm
-        path: dist/cfm
+        name: cfm.tar.gz
+        path: cfm.tar.gz

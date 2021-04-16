@@ -92,7 +92,7 @@ class CameraFilesProcessor:
             if progress_bar is not None:
                 progress_bar.increment()
 
-        LOGGER.info("|___ No thb : " + str(pdf_file.no_thb))
+        LOGGER.info("No thumbnail found for " + str(pdf_file.no_thb) + " files")
         pdf_file.save()
 
     @staticmethod

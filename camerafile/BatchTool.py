@@ -1,14 +1,12 @@
 import atexit
 import logging
 import multiprocessing
+import os
 import shutil
-import signal
 from datetime import datetime
 from functools import wraps
 from multiprocessing import Pool
 from multiprocessing import cpu_count
-
-from camerafile import Constants
 from camerafile.ConsoleProgressBar import ConsoleProgressBar
 from camerafile.ExifTool import ExifTool
 from camerafile.Logging import init_only_console_logging
@@ -31,8 +29,9 @@ def with_progression(title="", short_title=""):
             finally:
                 progress_bar.stop()
                 ExifTool.stop()
-                LOGGER.info("|___ {nb_elements} files processed in {duration}".format(nb_elements=progress_bar.position,
-                                                                                      duration=progress_bar.processing_time))
+                LOGGER.info("{nb_elements} files processed in {duration}"
+                            .format(nb_elements=progress_bar.position,
+                                    duration=progress_bar.processing_time))
             return ret
 
         return with_progression_inner
@@ -41,29 +40,23 @@ def with_progression(title="", short_title=""):
 
 
 def on_worker_start(task):
-    print("Start init worker")
-    #multiprocessing.set_start_method("spawn")
-    #multiprocessing.set_forkserver_preload()
-    #multiprocessing.spawn.is_forking()
-    #import _winapi
-    #_winapi.CreateProcess
-    #pathos.multiprocessing.freeze_support()
     atexit.register(on_worker_end)
-    Constants.task = task
     Resource.init()
+    Resource.current_multiprocess_task = task
     init_only_console_logging()
-    signal.signal(signal.SIGINT, Constants.original_sigint_handler)
-    print("End init worker")
-
+    LOGGER.debug("Start sub-process : " + str(os.getpid()))
 
 
 def on_worker_end():
     ExifTool.stop()
+    LOGGER.debug("Stop sub-process : " + str(os.getpid()))
 
 
 def execute_task(*args):
     stdout_recorder = StdoutRecorder().start()
-    result = Constants.task(*args)
+    if Resource.current_multiprocess_task is None:
+        print("Multi-processing: no task defined in sub-process.")
+    result = Resource.current_multiprocess_task(*args)
     return result, stdout_recorder.stop()
 
 
@@ -74,22 +67,16 @@ def with_progression_multi_process(batch_title="", nb_process=cpu_count()):
             display_starting_line()
             task, arguments, post_task = f(input_list, *args)
             args = arguments()
-            LOGGER.info(">>>> {title} ({nb_process} sub-processes)".format(title=batch_title, nb_process=nb_process))
+            LOGGER.info(">>>> {title} (max. {nb_process} sub-processes)"
+                        .format(title=batch_title, nb_process=nb_process))
             if len(args) != 0:
                 progress_bar = ConsoleProgressBar(len(args), "", False)
-                pool = None
-                sigint_stopper = signal.signal(signal.SIGINT, signal.SIG_IGN)
-                try:
-                    pool = Pool(nb_process, on_worker_start, (task(),))
-                except:
-                    LOGGER.info("Interrupted by user (Ctrl-C) 0")
+                pool = Pool(nb_process, on_worker_start, (task(),))
                 try:
                     res_list = pool.imap_unordered(execute_task, args)
-                    print("End create multiprocesses tasks")
-                    signal.signal(signal.SIGINT, Constants.original_sigint_handler)
                     # TODO : use a queue to know when processes are started correctly
                     # Before that, we should perform a non blocking wait, otherwise a Ctrl-C is badly managed
-                    multiprocessing.Event().wait(10)
+                    # multiprocessing.Event().wait(10)
                     for res in res_list:
                         result, stdout = res
                         if stdout.strip() != "":
@@ -108,12 +95,12 @@ def with_progression_multi_process(batch_title="", nb_process=cpu_count()):
                         progress_bar.stop()
                         ExifTool.stop()
                         LOGGER.info(
-                            "|___ {nb_elements} files processed in {duration}".format(nb_elements=progress_bar.position,
-                                                                                      duration=progress_bar.processing_time))
+                            "{nb_elements} files processed in {duration}".format(nb_elements=progress_bar.position,
+                                                                                 duration=progress_bar.processing_time))
                     except:
                         LOGGER.info("Interrupted by user (Ctrl-C) 3")
             else:
-                LOGGER.info("|___ Nothing to do")
+                LOGGER.info("Nothing to do")
             return None
 
         return with_progression_inner

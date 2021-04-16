@@ -10,6 +10,8 @@ class Resource:
     program_path = None
     logging_configuration = None
     cfm_configuration = None
+    current_multiprocess_task = None
+    original_sigint_handler = None
 
     @staticmethod
     def get_main_path():
@@ -21,6 +23,7 @@ class Resource:
     @staticmethod
     def init():
         Resource.program_path = Resource.get_main_path()
+        os.environ['PAR_GLOBAL_TEMP'] = str(Resource.get_main_path() / "bin/exiftool/tmp_cache")
         logging_configuration_file = Resource.program_path / "conf" / "logging.json"
         cfm_configuration_file = Resource.program_path / "conf" / "cfm.json"
         with open(logging_configuration_file, 'r') as f:

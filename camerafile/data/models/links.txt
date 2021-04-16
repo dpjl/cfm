@@ -1,0 +1,4 @@
+https://github.com/ageitgey/face_recognition_models/raw/master/face_recognition_models/models/dlib_face_recognition_resnet_model_v1.dat
+https://github.com/ageitgey/face_recognition_models/raw/master/face_recognition_models/models/mmod_human_face_detector.dat
+https://github.com/ageitgey/face_recognition_models/raw/master/face_recognition_models/models/shape_predictor_5_face_landmarks.dat
+https://github.com/ageitgey/face_recognition_models/raw/master/face_recognition_models/models/shape_predictor_68_face_landmarks.dat
