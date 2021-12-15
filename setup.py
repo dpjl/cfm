@@ -20,8 +20,6 @@ class CreatePackage(Command):
     def finalize_options(self):
         if self.exiftool is None:
             raise Exception("Parameter --exifttool is missing")
-        if self.format is None:
-            raise Exception("Parameter --format is missing")
 
     @staticmethod
     def on_rm_error(func, path, exc_info):

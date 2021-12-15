@@ -1,19 +1,16 @@
 import atexit
-import logging
-import multiprocessing
 import os
 import shutil
-from datetime import datetime
 from functools import wraps
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 from camerafile.ConsoleProgressBar import ConsoleProgressBar
 from camerafile.ExifTool import ExifTool
-from camerafile.Logging import init_only_console_logging
+from camerafile.Logging import init_only_console_logging, Logger
 from camerafile.Resource import Resource
 from camerafile.StandardOutputWrapper import StdoutRecorder
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = Logger(__name__)
 
 
 def with_progression(title="", short_title=""):
@@ -39,6 +36,15 @@ def with_progression(title="", short_title=""):
     return with_progression_outer
 
 
+def execute_batch(task, args, post_task, progress_bar):
+    try:
+        for arg in args:
+            post_task(task(arg), progress_bar, replace=False)
+    finally:
+        progress_bar.stop()
+        ExifTool.stop()
+
+
 def on_worker_start(task):
     atexit.register(on_worker_end)
     Resource.init()
@@ -60,81 +66,76 @@ def execute_task(*args):
     return result, stdout_recorder.stop()
 
 
-def with_progression_multi_process(batch_title="", nb_process=cpu_count()):
-    def with_progression_outer(f):
-        @wraps(f)
-        def with_progression_inner(input_list, *args):
-            display_starting_line()
-            task, arguments, post_task = f(input_list, *args)
-            args = arguments()
-            LOGGER.info(">>>> {title} (max. {nb_process} sub-processes)"
-                        .format(title=batch_title, nb_process=nb_process))
-            if len(args) != 0:
-                progress_bar = ConsoleProgressBar(len(args), "", False)
-                pool = Pool(nb_process, on_worker_start, (task(),))
-                try:
-                    res_list = pool.imap_unordered(execute_task, args)
-                    # TODO : use a queue to know when processes are started correctly
-                    # Before that, we should perform a non blocking wait, otherwise a Ctrl-C is badly managed
-                    # multiprocessing.Event().wait(10)
-                    for res in res_list:
-                        result, stdout = res
-                        if stdout.strip() != "":
-                            print(stdout.strip())
-                        post_task(result, progress_bar)
-                except KeyboardInterrupt:
-                    try:
-                        LOGGER.info("Interrupted by user (Ctrl-C)")
-                        pool.terminate()
-                    except:
-                        LOGGER.info("Interrupted by user (Ctrl-C) 2")
-                finally:
-                    try:
-                        pool.close()
-                        pool.join()
-                        progress_bar.stop()
-                        ExifTool.stop()
-                        LOGGER.info(
-                            "{nb_elements} files processed in {duration}".format(nb_elements=progress_bar.position,
-                                                                                 duration=progress_bar.processing_time))
-                    except:
-                        LOGGER.info("Interrupted by user (Ctrl-C) 3")
+def execute_multiprocess_batch(nb_process, task, args, post_task, progress_bar):
+    pool = Pool(nb_process, on_worker_start, (task,))
+    try:
+        res_list = pool.imap_unordered(execute_task, args)
+        for res in res_list:
+            result, stdout = res
+            if stdout.strip() != "":
+                print(stdout.strip())
+            post_task(result, progress_bar, replace=True)
+    except KeyboardInterrupt:
+        try:
+            LOGGER.info("Interrupted by user (Ctrl-C)")
+            pool.terminate()
+        except KeyboardInterrupt:
+            LOGGER.info("Interrupted by user (Ctrl-C) 2")
+    finally:
+        try:
+            pool.close()
+            pool.join()
+            progress_bar.stop()
+            ExifTool.stop()
+        except KeyboardInterrupt:
+            LOGGER.info("Interrupted by user (Ctrl-C) 3")
+
+
+class TaskWithProgression:
+
+    def __init__(self, batch_title="", nb_sub_process=cpu_count()):
+        self.batch_title = batch_title
+        self.nb_sub_process = nb_sub_process
+
+    def update_title(self, ):
+        if self.nb_sub_process != 0:
+            self.batch_title += " (max. {nb_sub_process} sub-processes)".format(nb_sub_process=self.nb_sub_process)
+        return self.batch_title
+
+    def initialize(self):
+        pass
+
+    def task_getter(self):
+        def empty_task():
+            pass
+
+        return empty_task
+
+    def post_task(self, **args):
+        pass
+
+    def arguments(self):
+        return ()
+
+    def finalize(self):
+        pass
+
+    def execute(self):
+        self.initialize()
+        task = self.task_getter()
+        args = self.arguments()
+        if len(args) != 0:
+            progress_bar = ConsoleProgressBar(len(args), "", False)
+            if self.nb_sub_process != 0:
+                execute_multiprocess_batch(self.nb_sub_process, task, args, self.post_task, progress_bar)
             else:
-                LOGGER.info("Nothing to do")
-            return None
+                execute_batch(task, args, self.post_task, progress_bar)
 
-        return with_progression_inner
+            self.finalize()
 
-    return with_progression_outer
-
-
-def display_starting_line():
-    console_width = shutil.get_terminal_size((80, 20)).columns - 1
-    line = '{text:{fill}{align}{width}}'.format(
-        text='', fill='-', align='<', width=console_width,
-    )
-    print(line)
-
-
-def display_ending_line():
-    console_width = shutil.get_terminal_size((80, 20)).columns - 1
-    line = '{text:{fill}{align}{width}}\n'.format(
-        text='', fill='-', align='<', width=console_width,
-    )
-    print(line)
-
-
-class StatusLine:
-    def __init__(self, message, update_freq=1):
-        self.starting_time = datetime.now().strftime('%H:%M:%S')
-        self.message = message
-        self.nb_update = 0
-        self.update_freq = update_freq
-
-    def update(self, **args):
-        if self.nb_update % self.update_freq == 0:
-            print("\r[" + self.starting_time + "] " + self.message.format(**args), end='')
-        self.nb_update += 1
-
-    def end(self, **args):
-        print("\r[" + self.starting_time + "] " + self.message.format(**args))
+            LOGGER.info("{nb_elements} files processed in {duration}"
+                        .format(nb_elements=progress_bar.position,
+                                duration=progress_bar.processing_time))
+        else:
+            LOGGER.info("Nothing to do")
+        return None

@@ -24,7 +24,7 @@ class MetadataCameraModel(Metadata):
                     parent_dir_cm.compute_value()
                     self.value = parent_dir_cm.value
 
-    def set_value_read(self, new_model):
+    def set_value(self, new_model):
         if new_model is not None:
             if self.value is None:
                 self.value = new_model
@@ -33,4 +33,4 @@ class MetadataCameraModel(Metadata):
             if self.value is not None:
                 if self.media_file.parent_dir is not None:
                     parent_dir_cm = self.media_file.parent_dir.metadata[CFM_CAMERA_MODEL]
-                    parent_dir_cm.set_value_read(self.value)
+                    parent_dir_cm.set_value(self.value)

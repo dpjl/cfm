@@ -26,9 +26,9 @@ jobs:
         pip install -r requirements.txt
     - name: Build with pyinstaller
       run: |
-        python setup.py create_package --exiftool exiftool-11.94.exe --format zip
+        python setup.py create_package --exiftool exiftool-11.94.exe
     - name: Upload generated executable
       uses: actions/upload-artifact@v1
       with:
-        name: cfm.zip
-        path: cfm.zip
+        name: cfm.windows-amd64
+        path: dist/cfm

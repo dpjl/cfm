@@ -75,7 +75,7 @@ class MetadataInternal(Metadata):
             if thumbnail is not None:
                 self.thumbnail = base64.b64decode(thumbnail[7:])
                 thb = Image.open(io.BytesIO(self.thumbnail))
-                thb.thumbnail((100, 100), resample=NEAREST)
+                thb.thumbnail((100, 100))
                 bytes_output = io.BytesIO()
                 thb.save(bytes_output, format='JPEG')
                 self.thumbnail = bytes_output.getvalue()

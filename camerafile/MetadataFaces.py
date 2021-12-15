@@ -1,11 +1,9 @@
-
 import numpy
 from camerafile.Image import Image
 from camerafile.Metadata import Metadata
 
 
 class MetadataFaces(Metadata):
-
     face_rec = None
 
     def __init__(self, media_id, media_path, knn_clf):
@@ -23,20 +21,24 @@ class MetadataFaces(Metadata):
 
     @staticmethod
     def compute_face_boxes_task(metadata_face):
-        metadata_face.compute_face_boxes()
-        return metadata_face
+        try:
+            metadata_face.compute_face_boxes()
+            return metadata_face
+        except:
+            print("Error " + metadata_face.media_path)
+            return metadata_face
 
     def compute_face_boxes(self):
 
-        if self.face_rec is None:
+        if MetadataFaces.face_rec is None:
             import face_recognition
-            self.face_rec = face_recognition
+            MetadataFaces.face_rec = face_recognition
 
         if self.value is None:
             image = Image(self.media_path)
             img = numpy.array(image.image_data)
-            self.value = {"locations": self.face_rec.face_locations(img), "names": []}
-            self.binary_value = self.face_rec.face_encodings(img, known_face_locations=self.value["locations"])
+            self.value = {"locations": MetadataFaces.face_rec.face_locations(img), "names": []}
+            self.binary_value = MetadataFaces.face_rec.face_encodings(img, known_face_locations=self.value["locations"])
 
     @staticmethod
     def recognize_faces_task(metadata_face):

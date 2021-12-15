@@ -1,10 +1,8 @@
 import argparse
 import logging.config
-import signal
 from multiprocessing.spawn import freeze_support
 from pathlib import Path
 
-from camerafile import Constants
 from camerafile.CameraFilesProcessor import CameraFilesProcessor
 from camerafile.Logging import init_logging
 from camerafile.Resource import Resource
@@ -12,178 +10,133 @@ from camerafile.Resource import Resource
 LOGGER = logging.getLogger(__name__)
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#    CM (Camera Model) sub-menu
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-def create_cm_find_sub_parser(sp_list):
-    p = sp_list.add_parser('find', help='Search for camera models and try to recover missing ones')
-    p.set_defaults(command=CameraFilesProcessor.find_cm)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_cm_reset_sub_parser(sp_list):
-    p = sp_list.add_parser('reset', help='Remove all found camera models from database')
-    p.set_defaults(command=CameraFilesProcessor.reset_cm)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_cm_sub_parser(sp_list):
-    p = sp_list.add_parser('cm', help='Manage camera models')
-    sp_list = p.add_subparsers()
-    create_cm_find_sub_parser(sp_list)
-    create_cm_reset_sub_parser(sp_list)
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#     SIG (Signature) sub-menu
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-def create_sig_compute_sub_parser(sp_list):
-    p = sp_list.add_parser('compute', help='Compute all signatures')
-    p.set_defaults(command=CameraFilesProcessor.compute_signature)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_sig_reset_sub_parser(sp_list):
-    p = sp_list.add_parser('reset', help='Remove all computed signatures from database')
-    p.set_defaults(command=CameraFilesProcessor.reset_signature)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_sig_sub_parser(sp_list):
-    p = sp_list.add_parser('sig', help='Manage signatures')
-    sp_list = p.add_subparsers()
-    create_sig_compute_sub_parser(sp_list)
-    create_sig_reset_sub_parser(sp_list)
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#    Media sub-menu
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-def create_media_sub_parser(sp_list):
-    p = sp_list.add_parser('media', help='Manage media files')
-    sp_list = p.add_subparsers()
-    create_media_cp_sub_parser(sp_list)
-    create_media_org_sub_parser(sp_list)
-    create_media_cmp_sub_parser(sp_list)
-    create_media_dup_sub_parser(sp_list)
-
-
-def create_media_cp_sub_parser(sp_list):
-    p = sp_list.add_parser('cp', help='Copy media files from first directory to second directory, '
-                                      'if they are not already present')
-    p.set_defaults(command=CameraFilesProcessor.copy_media)
-    p.add_argument('dir1', metavar='directory1', type=str, help='First media directory path')
-    p.add_argument('dir2', metavar='directory2', type=str, help='Second media directory path')
-
-
-def create_media_org_sub_parser(sp_list):
-    p = sp_list.add_parser('org', help='Organize new copied media files of media directory')
-    p.set_defaults(command=CameraFilesProcessor.organize_media)
-    p.add_argument('dir1', metavar='directory', type=str, help='Media directory path')
-
-
-def create_media_cmp_sub_parser(sp_list):
-    p = sp_list.add_parser('cmp', help='Compare files of two media directories.')
-    p.set_defaults(command=CameraFilesProcessor.cmp)
-    p.add_argument('dir1', metavar='directory1', type=str, help='First media directory path')
-    p.add_argument('dir2', metavar='directory2', type=str, help='Second media directory path')
-
-
-def create_media_dup_sub_parser(sp_list):
-    p = sp_list.add_parser('dup', help='Find and display duplicated media files of one directory')
-    p.set_defaults(command=CameraFilesProcessor.dup)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#    Face sub-menu
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-def create_face_sub_parser(sp_list):
-    p = sp_list.add_parser('face', help='Manage faces in images')
-    sp_list = p.add_subparsers()
-    create_face_detect_sub_parser(sp_list)
-    create_face_train_sub_parser(sp_list)
-    create_face_reset_sub_parser(sp_list)
-    create_face_rec_sub_parser(sp_list)
-
-
-def create_face_detect_sub_parser(sp_list):
-    p = sp_list.add_parser('detect', help='Detect faces of images')
-    p.set_defaults(command=CameraFilesProcessor.detect_faces)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_face_train_sub_parser(sp_list):
-    p = sp_list.add_parser('train', help='Train face recognition model')
-    p.set_defaults(command=CameraFilesProcessor.train_faces)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_face_rec_sub_parser(sp_list):
-    p = sp_list.add_parser('reco', help='Recognize face of images')
-    p.set_defaults(command=CameraFilesProcessor.reco_faces)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-def create_face_reset_sub_parser(sp_list):
-    p = sp_list.add_parser('reset', help='Reset faces of images')
-    p.set_defaults(command=CameraFilesProcessor.reset_faces)
-    p.add_argument('dir1', metavar='directory', type=str, help='Root media directory')
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#    DB sub-menu
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-def create_db_sub_parser(sp_list):
-    p = sp_list.add_parser('db', help='Manage database')
-    sp_list = p.add_subparsers()
-    create_db_cmp_sub_parser(sp_list)
-
-
-def create_db_cmp_sub_parser(sp_list):
-    p = sp_list.add_parser('cmp', help='Compare two cfm databases content.')
-    p.set_defaults(command=CameraFilesProcessor.db_cmp)
-    p.add_argument('dir1', metavar='directory1', type=str, help='First media directory path')
-    p.add_argument('dir2', metavar='directory2', type=str, help='Second media directory path')
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#    Menu - top level
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 def create_main_args_parser():
-    parser = argparse.ArgumentParser(description='Performs various actions on media files')
-    sp_list = parser.add_subparsers()
-    create_media_sub_parser(sp_list)
-    create_cm_sub_parser(sp_list)
-    create_sig_sub_parser(sp_list)
-    create_face_sub_parser(sp_list)
-    create_db_sub_parser(sp_list)
+    parser = argparse.ArgumentParser(description='''Command line tool that can be used to easily execute some actions 
+                                                 on batch of media files. Options are applied to one or 
+                                                 two directories. CFM includes and calls automatically three 
+                                                 (magical) tools: exiftool, ffmpeg and dlib.''')
+
+    parser.add_argument('-a', '--analyse', action='store_true',
+                        help='check for duplicates/differences')
+
+    parser.add_argument('-g', '--generate-album', action='store_true',
+                        help='generate a pdf file with all thumbnails')
+
+    parser.add_argument('-e', '--extract-faces', action='store_true',
+                        help='extract the faces from the images')
+
+    parser.add_argument('-l', '--learn-faces', action='store_true',
+                        help='learn to recognize the extracted faces')
+
+    parser.add_argument('-i', '--identify-faces', action='store_true',
+                        help='identity the persons of the extracted faces')
+
+    parser.add_argument('-c', '--copy-files', action='store_true',
+                        help='copy files from directory1 to directory2')
+
+    parser.add_argument('-S', '--sym-links', action='store_true',
+                        help='copy will create symbolic links instead of file duplication')
+
+    parser.add_argument('-H', '--hard-links', action='store_true',
+                        help='copy will create hard links instead of file duplication')
+
+    parser.add_argument('-M', '--copy-metadata', action='store_true',
+                        help='force copy of CFM metadata with -S and -H')
+
+    parser.add_argument('-o', '--organize', action='store_true',
+                        help='organize media according to a specific format')
+
+    parser.add_argument('-f', '--org-format',
+                        help='format to use for organization')
+
+    parser.add_argument('-r', '--rm-duplicates', action='store_true',
+                        help='remove duplicates')
+
+    parser.add_argument('-w', '--workers',
+                        help='maximum number of CFM workers that can be run simultaneously')
+
+    parser.add_argument('-v', '--version', action='store_true',
+                        help='print version number')
+
+    parser.add_argument('dir1', metavar='directory1', type=str, help='first media directory path')
+    parser.add_argument('dir2', metavar='directory2', nargs='?', type=str,
+                        help='second media directory path, required only with options -c, optional otherwise')
+
     return parser
 
 
-def init_program(base_dir):
-    Resource.init()
-    init_logging(Path(base_dir))
+def execute(args):
+    media_set1 = CameraFilesProcessor.load_media_set(args.dir1)
+    media_set2 = None
+    if args.dir2:
+        media_set2 = CameraFilesProcessor.load_media_set(args.dir2)
+
+    CameraFilesProcessor.BatchReadInternalMd(media_set1).execute()
+    CameraFilesProcessor.BatchComputeCm(media_set1).execute()
+
+    if media_set2:
+        CameraFilesProcessor.BatchReadInternalMd(media_set2).execute()
+        CameraFilesProcessor.BatchComputeCm(media_set2).execute()
+
+    if args.analyse:
+        CameraFilesProcessor.analyse_duplicates(media_set1)
+
+        if media_set2:
+            CameraFilesProcessor.analyse_duplicates(media_set2)
+            CameraFilesProcessor.cmp(media_set1, media_set2)
+
+    if args.generate_album:
+        CameraFilesProcessor.BatchComputeMissingThumbnails(media_set1).execute()
+        CameraFilesProcessor.BatchCreatePdf(media_set1).execute()
+
+    if args.extract_faces:
+        CameraFilesProcessor.BatchDetectFaces(media_set1).execute()
+
+    if args.learn_faces:
+        pass
+
+    if args.identify_faces:
+        CameraFilesProcessor.BatchRecoFaces(media_set1).execute()
+
+    if args.copy_files:
+        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
+        CameraFilesProcessor.BatchCopy(media_set1, media_set2).execute()
+
+    if args.sym_links:
+        pass
+
+    if args.hard_links:
+        pass
+
+    if args.copy_metadata:
+        pass
+
+    if args.organize:
+        pass
+
+    if args.org_format:
+        pass
+
+    if args.rm_duplicates:
+        pass
+
+    media_set1.save_database()
+    media_set1.close_database()
+
+    if media_set2:
+        media_set2.save_database()
+        media_set2.close_database()
 
 
 def main():
     freeze_support()
     parser = create_main_args_parser()
     args = parser.parse_args()
+    Resource.init()
+    init_logging(Path(args.dir1))
 
-    params = ()
-    for param_name in ['dir1', 'dir2']:
-        if param_name in args:
-            params += (args.__getattribute__(param_name),)
-
-    init_program(params[0])
-    args.command(*params)
+    LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL")
+    execute(args)
 
 
 if __name__ == '__main__':

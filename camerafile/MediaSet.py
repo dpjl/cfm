@@ -3,20 +3,20 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from camerafile.BatchTool import StatusLine
 from camerafile.Constants import TYPE, INTERNAL, SIGNATURE, DATE, WIDTH, HEIGHT, CFM_CAMERA_MODEL, THUMBNAIL
 from camerafile.FaceRecognition import FaceRecognition
+from camerafile.Logging import Logger
 from camerafile.MediaDirectory import MediaDirectory
 from camerafile.MediaFile import MediaFile
 from camerafile.MediaSetDatabase import MediaSetDatabase
 from camerafile.OutputDirectory import OutputDirectory
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = Logger(__name__)
 
 
 class MediaSet:
 
-    def __init__(self, path, progress_signal=None):
+    def __init__(self, path):
         self.root_path = Path(path).resolve()
         self.name = self.root_path.name
         self.output_directory = OutputDirectory(self.root_path)
@@ -28,7 +28,7 @@ class MediaSet:
         self.date_model_size_map = {}
         self.id_map = {}
         self.database = MediaSetDatabase(self.output_directory)
-        self.initialize_file_and_dir_list(progress_signal)
+        self.initialize_file_and_dir_list()
 
     def __del__(self):
         self.save_database()
@@ -322,13 +322,11 @@ class MediaSet:
             self.media_dir_list[parent] = new_media_dir
         return self.media_dir_list[parent]
 
-    def initialize_file_and_dir_list(self, progress_signal=None):
-        LOGGER.info(">>>> Opening media directory " + str(self.root_path))
+    def initialize_file_and_dir_list(self):
         file_map, ignored_files = self.list_all_files()
-        LOGGER.info("|___ {l1} files ignored [{saved}]".format(l1=len(ignored_files),
-                                                              saved=self.output_directory.save_list(ignored_files,
-                                                                                                    "ignored-files.json")))
-        LOGGER.info("|___ {l1} files detected as media file".format(l1=len(file_map)))
+        saved_file = self.output_directory.save_list(ignored_files, "ignored-files.json")
+        LOGGER.info_indent("{l1} files ignored [{saved}]".format(l1=len(ignored_files), saved=saved_file))
+        LOGGER.info_indent("{l1} files detected as media file".format(l1=len(file_map)))
         root_dir = MediaDirectory(str(self.root_path), None, self)
         self.media_dir_list[str(self.root_path)] = root_dir
         self.database.load_all_media_files(self, file_map)
@@ -336,22 +334,22 @@ class MediaSet:
         self.init_new_files(file_map)
 
     def init_new_files(self, found_file_map):
-        status = StatusLine("     |___ {nb_file} files are not in cache", 1000)
+        LOGGER.start_status_line("{nb_file} files are not in cache", 1000, prof=2)
         number_of_files = 0
-        status.update(nb_file=number_of_files)
+        LOGGER.update_status_line(nb_file=number_of_files)
         for file_path, loaded in found_file_map.items():
             if not loaded:
                 new_media_file = MediaFile(file_path, self.create_media_dir_parent(file_path), self)
                 self.add_file(new_media_file)
                 number_of_files += 1
-                status.update(nb_file=number_of_files)
-        status.end(nb_file=number_of_files)
+                LOGGER.update_status_line(nb_file=number_of_files)
+        LOGGER.end_status_line(nb_file=number_of_files)
 
     def list_all_files(self):
         # Récupérer la liste complète des fichiers avec des commandes spécifiques windows genre dir /a-D /S /B D:\data\photos-all ?
         number_of_files = 0
-        status = StatusLine("{nb_file} files found in directory and subdirectories")
-        status.update(nb_file=number_of_files)
+        LOGGER.start_status_line("{nb_file} files found in directory and subdirectories")
+        LOGGER.update_status_line(nb_file=number_of_files)
         file_map = {}
         ignored_files = []
         for p, d, f in os.walk(self.root_path, topdown=True):
@@ -362,8 +360,8 @@ class MediaSet:
                     file_map[(str(Path(p + "/" + file)))] = False
                 else:
                     ignored_files.append(str(Path(p + "/" + file)))
-            status.update(nb_file=number_of_files)
-        status.end(nb_file=number_of_files)
+            LOGGER.update_status_line(nb_file=number_of_files)
+        LOGGER.end_status_line(nb_file=number_of_files)
         return file_map, ignored_files
 
     def initialize_file_and_dir_list_old(self, progress_signal=None):

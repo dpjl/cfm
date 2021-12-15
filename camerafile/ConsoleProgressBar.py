@@ -7,7 +7,7 @@ from camerafile.StandardOutputWrapper import StdoutWrapper, StderrWrapper
 
 REFRESH_DELAY = 0.1
 SPACE = ' '
-BAR_CHAR = '█'
+BAR_CHAR = '#'
 DEFIL_CHARACTERS = ["/", "-", "\\", "|"]
 
 
@@ -139,8 +139,8 @@ class ConsoleProgressBar:
                 now=defil_char,
                 future='', c3=SPACE, l3=future_size)
 
-            sys.stdout.write("{before}{progress_bar}{after}"
-                             .format(before=before_bar, progress_bar=bar, after=after_bar))
+            line = "{before}{progress_bar}{after}".format(before=before_bar, progress_bar=bar, after=after_bar)
+            sys.stdout.write(line[0:self.console_width])
         else:
             stats = "{title} | {position:{position_len}}/{max} | {percent: >3}% {remaining} - ".format(
                 title=self.title,
@@ -154,7 +154,7 @@ class ConsoleProgressBar:
                 decal = line_size - self.console_width
             line = stats + "{item}".format(
                 item=self.item_text[decal:])
-            sys.stdout.write(line)
+            sys.stdout.write(line[0:self.console_width])
 
 
 if __name__ == "__main__":

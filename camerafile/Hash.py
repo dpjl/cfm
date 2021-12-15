@@ -43,6 +43,13 @@ class Hash:
     def md5_hash(self):
         with open(self.path, "rb") as f:
             file_hash = hashlib.md5()
+            while chunk := f.read(8192):
+                file_hash.update(chunk)
+        return file_hash.hexdigest()
+
+    def md5_hash_old(self):
+        with open(self.path, "rb") as f:
+            file_hash = hashlib.md5()
             while chunk := f.read(65536):
                 file_hash.update(chunk)
         return file_hash.hexdigest()

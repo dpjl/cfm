@@ -1,9 +1,9 @@
-import logging
 from pathlib import Path
 
-from camerafile.BatchTool import with_progression, with_progression_multi_process
+from camerafile.BatchTool import with_progression, TaskWithProgression
 from camerafile.ConsoleTable import ConsoleTable
 from camerafile.Constants import IMAGE_TYPE, INTERNAL, SIGNATURE, FACES, CFM_CAMERA_MODEL, THUMBNAIL
+from camerafile.Logging import Logger
 from camerafile.MediaFile import MediaFile
 from camerafile.MediaSet import MediaSet
 from camerafile.MediaSetDatabase import MediaSetDatabase
@@ -14,130 +14,147 @@ from camerafile.MetadataThumbnail import MetadataThumbnail
 from camerafile.OutputDirectory import OutputDirectory
 from camerafile.PdfFile import PdfFile
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = Logger(__name__)
 
 
 class CameraFilesProcessor:
+
+    @staticmethod
+    def load_media_set(media_set_path):
+        LOGGER.write_title_2(str(media_set_path), "Opening media directory")
+        return MediaSet(media_set_path)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Internal metadata and camera models
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    @staticmethod
-    @with_progression_multi_process(batch_title="Compute missing thumbnails")
-    def batch_missing_thumbnails_multi_process(media_set):
+    class BatchComputeMissingThumbnails(TaskWithProgression):
 
-        def task():
+        def __init__(self, media_set):
+            self.media_set = media_set
+            TaskWithProgression.__init__(self, "Generate missing thumbnails")
+
+        def initialize(self):
+            LOGGER.write_title(self.media_set, self.update_title())
+
+        def task_getter(self):
             return MetadataThumbnail.compute_thumbnail_task
 
-        def arguments():
+        def arguments(self):
             thumbnail_metadata_list = []
-            for media_file in media_set:
+            for media_file in self.media_set:
                 if media_file.metadata[THUMBNAIL].thumbnail is None:
                     thumbnail_metadata_list.append(media_file.metadata[THUMBNAIL])
             return thumbnail_metadata_list
 
-        def post_task(result_thumbnail_metadata, progress_bar):
-            original_media = media_set.get_media(result_thumbnail_metadata.media_id)
-            original_media.metadata[THUMBNAIL] = result_thumbnail_metadata
+        def post_task(self, result_thumbnail_metadata, progress_bar, replace=False):
+            if replace:
+                original_media = self.media_set.get_media(result_thumbnail_metadata.media_id)
+                original_media.metadata[THUMBNAIL] = result_thumbnail_metadata
             progress_bar.increment()
 
-        return task, arguments, post_task
+        def finalize(self):
+            thb_errors = self.media_set.get_files_with_thumbnail_errors()
+            LOGGER.info(self.media_set.output_directory.save_list(thb_errors, "thumbnails_errors.json"))
 
-    @staticmethod
-    @with_progression_multi_process(batch_title="Read media internal metadata")
-    def batch_read_internal_md_multi_process(media_set):
+    class BatchReadInternalMd(TaskWithProgression):
 
-        def task():
+        def __init__(self, media_set):
+            self.media_set = media_set
+            TaskWithProgression.__init__(self, "Read media exif metadata")
+
+        def initialize(self):
+            LOGGER.write_title(self.media_set, self.update_title())
+
+        def task_getter(self):
             return MetadataInternal.load_internal_metadata_task
 
-        def arguments():
+        def arguments(self):
             internal_metadata_list = []
-            for media_file in media_set:
+            for media_file in self.media_set:
                 if media_file.metadata[INTERNAL].value is None:
                     internal_metadata_list.append(media_file.metadata[INTERNAL])
             return internal_metadata_list
 
-        def post_task(result_internal_metadata, progress_bar):
-            original_media = media_set.get_media(result_internal_metadata.media_id)
-            original_media.metadata[INTERNAL] = result_internal_metadata
+        def post_task(self, result_internal_metadata, progress_bar, replace=False):
+            original_media = self.media_set.get_media(result_internal_metadata.media_id)
+            if replace:
+                original_media.metadata[INTERNAL] = result_internal_metadata
             original_media.metadata[THUMBNAIL].thumbnail = original_media.metadata[INTERNAL].thumbnail
             original_media.metadata[INTERNAL].thumbnail = None
-            original_media.metadata[CFM_CAMERA_MODEL].set_value_read(original_media.metadata[INTERNAL].get_cm())
+            original_media.metadata[CFM_CAMERA_MODEL].set_value(original_media.metadata[INTERNAL].get_cm())
             original_media.parent_set.update_date_size_name_map(original_media)
             progress_bar.increment()
 
-        return task, arguments, post_task
+    # Not compatible with multi sub-processes
+    class BatchCreatePdf(TaskWithProgression):
 
-    @staticmethod
-    @with_progression(title="Read media internal metadata",
-                      short_title="Read metadata")
-    def batch_read_internal_md(media_set, progress_bar=None):
-        for media_file in media_set:
-            media_file.metadata[INTERNAL].load_internal_metadata()
-            media_file.metadata[CFM_CAMERA_MODEL].set_value_read(media_file.metadata[INTERNAL].get_cm())
-            media_file.parent_set.update_date_size_name_map(media_file)
-            if progress_bar is not None:
-                progress_bar.increment()
+        def __init__(self, media_set):
+            self.media_set = media_set
+            self.pdf_file = PdfFile(str(media_set.output_directory.path / "index-all.pdf"))
+            TaskWithProgression.__init__(self, batch_title="Generate a pdf file with all thumbnails", nb_sub_process=0)
 
-    @staticmethod
-    @with_progression(title="Add all images to pdf file",
-                      short_title="Create index-all.pdf")
-    def batch_create_pdf(media_set, progress_bar=None):
+        def initialize(self):
+            LOGGER.write_title(self.media_set, self.update_title())
 
-        pdf_file = PdfFile(str(media_set.output_directory.path / "index-all.pdf"))
+        def task_getter(self):
+            return self.task
 
-        for media in media_set.get_date_sorted_media_list():
-            pdf_file.add_media_image(media)
-            if progress_bar is not None:
-                progress_bar.increment()
+        def task(self, current_media):
+            self.pdf_file.add_media_image(current_media)
 
-        LOGGER.info("No thumbnail found for " + str(pdf_file.no_thb) + " files")
-        pdf_file.save()
+        def arguments(self):
+            return self.media_set.get_date_sorted_media_list()
 
-    @staticmethod
-    @with_progression(title="Try to recover missing camera models",
-                      short_title="Recover camera models")
-    def batch_compute_cm(media_file_list, media_set, progress_bar=None):
+        def post_task(self, result, progress_bar, replace=False):
+            progress_bar.increment()
 
-        CameraFilesProcessor.status(media_set)
+        def finalize(self):
+            LOGGER.info("No thumbnail found for " + str(self.pdf_file.no_thb) + " files")
+            self.pdf_file.save()
 
-        for media_file in media_file_list:
-            media_file.metadata[CFM_CAMERA_MODEL].compute_value()
-            media_file.parent_set.update_date_model_size_map(media_file)
-            if progress_bar is not None:
-                progress_bar.increment()
+    # Not compatible with multi sub-processes
+    class BatchComputeCm(TaskWithProgression):
 
-        media_set.propagate_cm_to_duplicates()
-        CameraFilesProcessor.status(media_set)
+        def __init__(self, media_set):
+            self.media_set = media_set
+            TaskWithProgression.__init__(self, batch_title="Try to recover missing camera models", nb_sub_process=0)
 
-        unknown_cm = media_set.get_file_list(cm="unknown")
-        recovered_cm = media_set.get_file_list(cm="recovered")
-        media_set.output_directory.save_list(unknown_cm, "unknown-camera-model-of-files.json")
-        media_set.output_directory.save_list(recovered_cm, "recovered-camera-model-of-files.json")
+        def initialize(self):
+            LOGGER.write_title(self.media_set, self.update_title())
 
-    @staticmethod
-    def find_cm(dir_path):
-        media_set = MediaSet(dir_path)
+        def task_getter(self):
+            return self.task
 
-        # CameraFilesProcessor.batch_compute_cm(media_set.get_file_list(cm="unknown"), media_set)
+        def task(self, current_media):
+            current_media.metadata[CFM_CAMERA_MODEL].compute_value()
+            return current_media
 
-        CameraFilesProcessor.batch_read_internal_md_multi_process(media_set)
-        CameraFilesProcessor.batch_missing_thumbnails_multi_process(media_set)
-        media_set.output_directory.save_list(media_set.get_files_with_thumbnail_errors(), "thumbnails_errors.json")
-        CameraFilesProcessor.batch_create_pdf(media_set)
+        def arguments(self):
+            self.status(self.media_set)
+            return self.media_set.get_file_list(cm="unknown")
 
-        media_set.save_database()
-        media_set.close_database()
+        def post_task(self, current_media, progress_bar, replace=False):
+            current_media.parent_set.update_date_model_size_map(current_media)
+            progress_bar.increment()
 
-    @staticmethod
-    def status(media_set):
-        LOGGER.info("{l1} files have a camera model, "
-                    "{l2} have a recovered one, "
-                    "{l3} do not have one".
-                    format(l1=len(media_set.get_file_list(cm="known")),
-                           l2=len(media_set.get_file_list(cm="recovered")),
-                           l3=len(media_set.get_file_list(cm="unknown"))))
+        def finalize(self):
+            self.media_set.propagate_cm_to_duplicates()
+            self.status(self.media_set)
+
+            unknown_cm = self.media_set.get_file_list(cm="unknown")
+            recovered_cm = self.media_set.get_file_list(cm="recovered")
+            LOGGER.info(self.media_set.output_directory.save_list(unknown_cm, "unknown-camera-model.json"))
+            LOGGER.info(self.media_set.output_directory.save_list(recovered_cm, "recovered-camera-model.json"))
+
+        @staticmethod
+        def status(media_set):
+            LOGGER.info("{l1} files have a camera model, "
+                        "{l2} have a recovered one, "
+                        "{l3} do not have one".
+                        format(l1=len(media_set.get_file_list(cm="known")),
+                               l2=len(media_set.get_file_list(cm="recovered")),
+                               l3=len(media_set.get_file_list(cm="unknown"))))
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Organize files
@@ -175,112 +192,87 @@ class CameraFilesProcessor:
     #    Copy files
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    @staticmethod
-    @with_progression(title="Copy media files",
-                      short_title="Copy files")
-    def batch_copy(old_media_set, new_media_set, progress_bar=None):
-        result = {}
-        not_copied_files = []
-        for media_file in old_media_set:
-            if progress_bar is not None:
-                progress_bar.set_item_text(str(media_file.relative_path))
-            status = media_file.copy(new_media_set)
-            if status not in result:
-                result[status] = 0
-            result[status] += 1
-            if status != "Copied":
-                not_copied_files.append(media_file)
-            if progress_bar is not None:
-                progress_bar.increment()
-        print("")
-        tab = ConsoleTable()
-        tab.print_header("Status", "Number")
-        for status in result:
-            tab.print_line(status, str(result[status]))
-        print("")
+    class BatchCopy(TaskWithProgression):
 
-        old_media_set.output_directory.save_list(not_copied_files, "not-copied-files.json")
+        def __init__(self, old_media_set, new_media_set):
+            self.old_media_set = old_media_set
+            self.new_media_set = new_media_set
+            TaskWithProgression.__init__(self, batch_title="Copy files")
+            self.result = {"Copied": 0, "Error": 0}
+            self.not_copied_files = []
 
-    @staticmethod
-    @with_progression_multi_process(batch_title="Copy files")
-    def batch_copy_multi_process(old_media_set, new_media_set):
-
-        def task():
+        def task_getter(self):
             return MediaFile.copy_file
 
-        def arguments():
-            return old_media_set.unique_files_not_in_destination(new_media_set)
+        def arguments(self):
+            return self.old_media_set.unique_files_not_in_destination(self.new_media_set)
 
-        def post_task(result_copy, progress_bar):
+        def post_task(self, result_copy, progress_bar, replace=False):
             status, file_id, new_file_path = result_copy
+            original_media = self.old_media_set.get_media(file_id)
             if status:
-                original_media = old_media_set.get_media(file_id)
-                original_media.copy_metadata(new_media_set, new_file_path)
+                original_media.copy_metadata(self.new_media_set, new_file_path)
+                self.result["Copied"] += 1
+            else:
+                self.not_copied_files.append(original_media)
+                self.result["Error"] += 1
+
             progress_bar.increment()
 
-        return task, arguments, post_task
+        def finalize(self):
+            LOGGER.info(self.old_media_set.output_directory.save_list(self.not_copied_files, "not-copied-files.json"))
+            print("")
+            tab = ConsoleTable()
+            tab.print_header("Status", "Number")
+            for status in self.result:
+                tab.print_line(status, str(self.result[status]))
+            print("")
 
-    @staticmethod
-    @with_progression_multi_process(batch_title="Compute necessary signatures in order to detect duplicates")
-    def batch_compute_necessary_signatures_multi_process(media_set, media_list):
+    class BatchComputeNecessarySignaturesMultiProcess(TaskWithProgression):
 
-        def task():
+        def __init__(self, media_set, media_set2=None):
+            self.media_set = media_set
+            self.media_set2 = media_set2
+            TaskWithProgression.__init__(self, batch_title="Compute necessary signatures in order to detect duplicates")
+
+        def initialize(self):
+            LOGGER.write_title(self.media_set, self.update_title())
+
+        def task_getter(self):
             return MetadataSignature.compute_signature_task
 
-        def arguments():
+        def arguments(self):
             signature_metadata_list = []
-            for media_file in media_list:
+            file_list_1 = self.media_set.get_possibly_duplicates()
+            file_list_2 = []
+            file_list_3 = []
+            if self.media_set2 is not None:
+                file_list_2 = self.media_set2.get_possibly_duplicates()
+                file_list_3 = self.media_set.get_possibly_already_exists(self.media_set2)
+
+            # Optimization: in file_list_2, inutile d'ajouter les dupliqués potentiels dont
+            # le nom de fichier est déjà dans dans file_list_1 ?
+
+            for media_file in file_list_1 + file_list_2 + file_list_3:
                 if media_file.metadata[SIGNATURE].value is None:
                     signature_metadata_list.append(media_file.metadata[SIGNATURE])
             return signature_metadata_list
 
-        def post_task(result_signature_metadata, progress_bar):
-            original_media = media_set.get_media(result_signature_metadata.media_id)
+        def post_task(self, result_signature_metadata, progress_bar, replace=False):
+            original_media = self.media_set.get_media(result_signature_metadata.media_id)
             original_media.metadata[SIGNATURE] = result_signature_metadata
             original_media.parent_set.update_date_size_sig_map(original_media)
             progress_bar.increment()
 
-        return task, arguments, post_task
+        def finalize(self):
+            self.media_set.propagate_sig_to_duplicates()
+            if self.media_set2 is not None:
+                self.media_set2.propagate_sig_to_duplicates()
 
-    @staticmethod
-    @with_progression(title="Compute necessary signatures in order to detect duplicates",
-                      short_title="Compute signatures")
-    def batch_compute_necessary_signatures(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            CameraFilesProcessor.compute_one_signature(media_file, progress_bar)
-            media_file.parent_set.update_date_size_sig_map(media_file)
-
-    @staticmethod
-    def compute_necessary_signatures(media_set, media_set2, progress_bar=None):
-        file_list_1 = media_set.get_possibly_duplicates()
-        file_list_2 = media_set2.get_possibly_duplicates()
-        file_list_3 = media_set.get_possibly_already_exists(media_set2)
-
-        # Optimization: in file_list_2, inutile d'ajouter les dupliqués potentiels dont
-        # le nom de fichier est déjà dans dans file_list_1 ?
-
-        CameraFilesProcessor.batch_compute_necessary_signatures(file_list_1 + file_list_2 + file_list_3)
-
-        media_set.propagate_sig_to_duplicates()
-        media_set2.propagate_sig_to_duplicates()
-
-        # in case new duplicates have been found because of new computed signatures
-        media_set.propagate_cm_to_duplicates()
-        media_set2.propagate_cm_to_duplicates()
-
-    @staticmethod
-    def copy_media(input_dir_path, output_directory):
-        media_set = MediaSet(input_dir_path)
-        media_set2 = MediaSet(output_directory)
-
-        CameraFilesProcessor.compute_necessary_signatures(media_set, media_set2)
-        CameraFilesProcessor.batch_copy_multi_process(media_set, media_set2)
-
-        media_set.save_database()
-        media_set.close_database()
-
-        media_set2.save_database()
-        media_set2.close_database()
+            # in case new duplicates have been found because of new computed signatures
+            self.media_set.propagate_cm_to_duplicates()
+            if self.media_set2 is not None:
+                self.media_set2.propagate_cm_to_duplicates()
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Compute signature
@@ -302,80 +294,58 @@ class CameraFilesProcessor:
     @staticmethod
     def compute_signature(dir_path):
         media_set = MediaSet(dir_path)
-        CameraFilesProcessor.batch_compute_necessary_signatures_multi_process(media_set)
+        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Compute faces
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    @staticmethod
-    def detect_faces_in_one_image(media_file, progress_bar):
-        media_file.metadata.compute_value(FACES)
-        if progress_bar is not None:
-            progress_bar.increment()
+    class BatchDetectFaces(TaskWithProgression):
 
-    @staticmethod
-    @with_progression(title="Detect faces",
-                      short_title="Detect faces")
-    def batch_detect_faces(media_file_list, progress_bar=None):
-        for media_file in media_file_list:
-            CameraFilesProcessor.detect_faces_in_one_image(media_file, progress_bar)
+        def __init__(self, media_set):
+            self.media_set = media_set
+            TaskWithProgression.__init__(self, batch_title="Detect faces")
 
-    @staticmethod
-    @with_progression_multi_process(batch_title="Detect faces")
-    def batch_detect_faces2(media_set):
+        def initialize(self):
+            LOGGER.write_title(self.media_set, self.update_title())
 
-        def task():
+        def task_getter(self):
             return MetadataFaces.compute_face_boxes_task
 
-        def arguments():
+        def arguments(self):
             face_metadata_list = []
-            for media_file in media_set:
+            for media_file in self.media_set:
                 if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].binary_value is None:
                     face_metadata_list.append(media_file.metadata[FACES])
             return face_metadata_list
 
-        def post_task(result_face_metadata, progress_bar):
-            media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
+        def post_task(self, result_face_metadata, progress_bar, replace=True):
+            self.media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
             progress_bar.increment()
-
-        return task, arguments, post_task
-
-    @staticmethod
-    def detect_faces(dir_path):
-        media_set = MediaSet(dir_path)
-
-        CameraFilesProcessor.batch_detect_faces2(media_set)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Recognize faces
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    @staticmethod
-    @with_progression_multi_process(batch_title="Recognize faces")
-    def batch_reco_faces(media_set):
+    class BatchRecoFaces(TaskWithProgression):
 
-        def task():
+        def __init__(self, media_set):
+            self.media_set = media_set
+            TaskWithProgression.__init__(batch_title="Recognize faces")
+
+        def task(self):
             return MetadataFaces.recognize_faces_task
 
-        def arguments():
+        def arguments(self):
             face_metadata_list = []
-            for media_file in media_set:
+            for media_file in self.media_set:
                 if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].binary_value is not None:
                     face_metadata_list.append(media_file.metadata[FACES])
             return face_metadata_list
 
-        def post_task(result_face_metadata, progress_bar):
-            media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
+        def post_task(self, result_face_metadata, progress_bar):
+            self.media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
             progress_bar.increment()
-
-        return task, arguments, post_task
-
-    @staticmethod
-    def reco_faces(dir_path):
-        media_set = MediaSet(dir_path)
-
-        CameraFilesProcessor.batch_reco_faces(media_set)
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    Train faces
@@ -429,19 +399,23 @@ class CameraFilesProcessor:
     @staticmethod
     def dup(dir_1_path):
         media_set = MediaSet(dir_1_path)
+        CameraFilesProcessor.analyse_duplicates(media_set)
+        media_set.save_database()
+        media_set.close_database()
 
-        file_list_1 = media_set.get_possibly_duplicates()
-        CameraFilesProcessor.batch_compute_necessary_signatures_multi_process(media_set, file_list_1)
-        media_set.propagate_sig_to_duplicates()
-        media_set.propagate_cm_to_duplicates()
+    @staticmethod
+    def analyse_duplicates(media_set):
+
+        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set).execute()
 
         duplicates = media_set.duplicates()
         duplicates_report = CameraFilesProcessor.get_duplicates_report(duplicates, media_set)
 
+        LOGGER.display_starting_line()
+        print("█ Found duplicates:")
         tab = ConsoleTable()
         tab.print_header(str(media_set.root_path))
         tab.print_multi_line(duplicates_report)
-        print("")
 
         if True:
             pdf_file = PdfFile(str(media_set.output_directory.path / "duplicates.pdf"))
@@ -468,15 +442,9 @@ class CameraFilesProcessor:
 
         pdf_file.save()
 
-        media_set.save_database()
-        media_set.close_database()
-
     @staticmethod
-    def cmp(dir_1_path, dir_2_path):
-        media_set1 = MediaSet(dir_1_path)
-        media_set2 = MediaSet(dir_2_path)
-
-        CameraFilesProcessor.compute_necessary_signatures(media_set1, media_set2)
+    def cmp(media_set1, media_set2):
+        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2)
 
         duplicates_1 = media_set1.duplicates()
         duplicates_2 = media_set2.duplicates()
@@ -487,6 +455,8 @@ class CameraFilesProcessor:
         in_the_two_dirs_1, only_in_dir1 = media_set1.cmp(media_set2)
         in_the_two_dirs_2, only_in_dir2 = media_set2.cmp(media_set1)
 
+        LOGGER.display_starting_line()
+        print("█ Comparison result ")
         tab = ConsoleTable()
         tab.print_header(str(media_set1.root_path), str(media_set2.root_path))
         tab.print_multi_line(duplicates_1_report, duplicates_2_report)

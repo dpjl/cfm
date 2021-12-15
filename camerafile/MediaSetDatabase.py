@@ -11,11 +11,11 @@ from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
 
-from camerafile.BatchTool import StatusLine
 from camerafile.Constants import THUMBNAIL
+from camerafile.Logging import Logger
 from camerafile.MediaFile import MediaFile
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = Logger(__name__)
 
 
 class DBConnection:
@@ -101,9 +101,9 @@ class MediaSetDatabase:
     def load_all_media_files(self, media_set, found_file_map):
         try:
             number_of_files = 0
-            status = StatusLine(
-                "     |___ {nb_file} files are already in cache " + str(self.cache_db_connection.db_path))
-            status.update(nb_file=number_of_files)
+            log_content = "{nb_file} files are already in cache " + str(self.cache_db_connection.db_path)
+            LOGGER.start_status_line(log_content, prof=2)
+            LOGGER.update_status_line(nb_file=number_of_files)
             self.cache_db_connection.cursor.execute('select * from metadata')
             result_list = self.cache_db_connection.cursor.fetchall()
             text_fields, other_fields = self.get_columns_ids(self.cache_db_connection.cursor.description)
@@ -128,18 +128,17 @@ class MediaSetDatabase:
                             number_of_files += 1
                         except JSONDecodeError:
                             print("Invalid json in database: %s" % file_path)
-                status.update(nb_file=number_of_files)
+                LOGGER.update_status_line(nb_file=number_of_files)
         except:
             print("can't load database")
             raise
-        status.end(nb_file=number_of_files)
+        LOGGER.end_status_line(nb_file=number_of_files)
 
     def load_all_thumbnails(self, media_set):
         try:
             number_of_files = 0
-            status = StatusLine(
-                "     |___ {nb_file} thumbnails found in cache " + str(self.thb_db_connection.db_path))
-            status.update(nb_file=number_of_files)
+            LOGGER.start_status_line("{nb_file} thumbnails found in cache " + str(self.thb_db_connection.db_path), prof=2)
+            LOGGER.update_status_line(nb_file=number_of_files)
             self.thb_db_connection.cursor.execute('select file_id, thb from thb')
             result_list = self.thb_db_connection.cursor.fetchall()
             for result in result_list:
@@ -153,11 +152,11 @@ class MediaSetDatabase:
                             number_of_files += 1
                     except JSONDecodeError:
                         print("Invalid json in database for id: %s" % file_id)
-                status.update(nb_file=number_of_files)
+                LOGGER.update_status_line(nb_file=number_of_files)
         except:
             print("can't load database")
             raise
-        status.end(nb_file=number_of_files)
+        LOGGER.end_status_line(nb_file=number_of_files)
 
     def save_media_file(self, media_file):
         media_file_dict = media_file.metadata.save_to_dict()

@@ -40,13 +40,13 @@ class MetadataThumbnail(Metadata):
             if thumbnail is not None:
                 self.thumbnail = base64.b64decode(thumbnail[7:])
                 thb = Image.open(io.BytesIO(self.thumbnail))
-                thb.thumbnail((100, 100), resample=NEAREST)
+                thb.thumbnail((100, 100))
                 bytes_output = io.BytesIO()
                 thb.save(bytes_output, format='JPEG')
                 self.thumbnail = bytes_output.getvalue()
             elif self.extension in IMAGE_TYPE:
                 image = Image.open(self.media_path)
-                image.thumbnail((100, 100), resample=NEAREST)
+                image.thumbnail((100, 100))
                 bytes_output = io.BytesIO()
                 if image.mode in ("RGBA", "P"):
                     image = image.convert("RGB")
@@ -59,7 +59,7 @@ class MetadataThumbnail(Metadata):
                     frame_at_second = 0
                     frame = clip.get_frame(frame_at_second)
                     new_image = Image.fromarray(frame)
-                    new_image.thumbnail((100, 100), resample=NEAREST)
+                    new_image.thumbnail((100, 100))
                     bytes_output = io.BytesIO()
                     new_image.save(bytes_output, format='JPEG')
                     self.thumbnail = bytes_output.getvalue()
