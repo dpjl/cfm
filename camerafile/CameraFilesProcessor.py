@@ -464,6 +464,29 @@ class CameraFilesProcessor:
         tab.print_line('', '+ %s distinct (%s files)' % (len(only_in_dir2), sum(map(len, only_in_dir2))))
         tab.print_line('%s distinct' % len(in_the_two_dirs_1))
 
+        pdf_file = PdfFile(str(media_set1.output_directory.path / "only_left.pdf"))
+
+        for media_list in only_in_dir1:
+            for media in media_list:
+                pdf_file.add_media_image(media)
+            pdf_file.new_line()
+
+        pdf_file.save()
+
+        pdf_file2 = PdfFile(str(media_set1.output_directory.path / "only_right.pdf"))
+
+        for media_list in only_in_dir2:
+            for media in media_list:
+                pdf_file2.add_media_image(media)
+            pdf_file2.new_line()
+
+        pdf_file2.save()
+
+        LOGGER.info(media_set1.output_directory.save_list([item for sublist in only_in_dir1 for item in sublist],
+                                                          "only-left.json"))
+        LOGGER.info(media_set1.output_directory.save_list([item for sublist in only_in_dir2 for item in sublist],
+                                                          "only-right.json"))
+
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #    DB
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

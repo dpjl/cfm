@@ -69,8 +69,9 @@ class ExifTool(object):
     SUB_SEC_CREATE_DATE = "SubSecCreateDate"
     SUB_SEC_DATE_TIME_ORIGINAL = "SubSecDateTimeOriginal"
     SUB_SEC_MODIFY_DATE = "SubSecModifyDate"
-    CREATE_DATE_METADATA = "CreateDate"
-    MODIFY_DATE_METADATA = "FileModifyDate"
+    DATE_TIME_ORIGINAL = "DateTimeOriginal"  # use it or not ? Currently: no.
+    CREATE_DATE_METADATA = "CreateDate"  # not used anymore in ExifTool because of differences between fat and ntfs
+    MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
     THUMBNAIL_METADATA = "ThumbnailImage"
     SENTINEL = "{ready}\n"
 
@@ -146,10 +147,6 @@ class ExifTool(object):
             date = cls.parse_date(exif_tool_result, cls.SUB_SEC_CREATE_DATE, '%Y:%m:%d %H:%M:%S.%f')
         if date is None:
             date = cls.parse_date(exif_tool_result, cls.SUB_SEC_MODIFY_DATE, '%Y:%m:%d %H:%M:%S.%f')
-        if date is None:
-            date = cls.parse_date(exif_tool_result, cls.CREATE_DATE_METADATA, '%Y:%m:%d %H:%M:%S')
-        if date is None:
-            date = cls.parse_date(exif_tool_result, cls.MODIFY_DATE_METADATA, '%Y:%m:%d %H:%M:%S')
         return date
 
     @classmethod
@@ -157,8 +154,6 @@ class ExifTool(object):
         stdout, stderr = cls.execute("-b", "-j", "-n",
                                      "-" + cls.MODEL_METADATA,
                                      "-" + cls.SOURCE_METADATA,
-                                     "-" + cls.CREATE_DATE_METADATA,
-                                     "-" + cls.MODIFY_DATE_METADATA,
                                      "-" + cls.WIDTH_METADATA,
                                      "-" + cls.HEIGHT_METADATA,
                                      "-" + cls.ORIENTATION_METADATA,

@@ -1,7 +1,7 @@
 import base64
 import io
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from PIL import Image
@@ -50,13 +50,28 @@ class MetadataInternal(Metadata):
             print("Error during load_internal_metadata_task execution for " + str(internal_metadata.media_path))
             return internal_metadata
 
+    @staticmethod
+    def even_round(date):
+        microseconds = date.microsecond
+        date = date.replace(microsecond=0)
+        if microseconds >= 500:
+            date += timedelta(seconds=1)
+            if date.second % 2 != 0:
+                date -= timedelta(seconds=1)
+        else:
+            if date.second % 2 != 0:
+                date += timedelta(seconds=1)
+        return date
+
     def load_internal_metadata(self):
+
         if self.value is None:
 
             model, date, width, height, orientation, thumbnail = ExifTool.get_metadata(self.media_path)
 
             if date is None:
-                date = datetime.fromtimestamp(Path(self.media_path).stat().st_mtime)
+                # round to the nearest even second because of differences between ntfs en fat
+                date = self.even_round(datetime.fromtimestamp(Path(self.media_path).stat().st_mtime))
 
             if orientation is not None and (orientation == 6 or orientation == 8):
                 old_width = width
