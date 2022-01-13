@@ -1,5 +1,5 @@
 ImageHash
-Pillow==8.2.0
+Pillow==9.0.0
 jellyfish
 numpy==1.19.3
 sklearn
