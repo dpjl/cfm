@@ -58,18 +58,6 @@ class MediaSet:
             if str(media_file.path).lower() == str(file_path).lower():
                 return media_file
 
-    def add_size_to_filename(self, file_path):
-        media_file = self.get_file_from_path(file_path)
-        width = media_file.metadata.get_value(WIDTH)
-        height = media_file.metadata.get_value(HEIGHT)
-        media_file.add_suffix_to_filename("[" + str(width) + "x" + str(height) + "]")
-
-    def add_date_to_filename(self, file_path):
-        media_file = self.get_file_from_path(file_path)
-        date = datetime.strptime(media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S.%f')
-        new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%Ss")
-        media_file.add_suffix_to_filename("[" + new_date_format + "]")
-
     def save_database(self):
         if self.database is not None:
             self.database.save(self)
@@ -87,7 +75,9 @@ class MediaSet:
         self.update_date_model_size_map(media_file)
 
     def get_media(self, media_id):
-        return self.id_map[media_id]
+        if media_id in self.id_map:
+            return self.id_map[media_id]
+        return None
 
     @staticmethod
     def update_x_y_z_map(map_to_update, x, y, z, media_file):
@@ -110,7 +100,7 @@ class MediaSet:
     def update_date_size_name_map(self, media_file):
         date = media_file.get_exif_date()
         dim = media_file.get_dimensions()
-        filename = media_file.original_filename
+        filename = media_file.name
         if date is not None:
             self.update_x_y_z_map(self.date_size_name_map, date, dim, filename, media_file)
 
@@ -131,7 +121,7 @@ class MediaSet:
     def contains(self, item):
         date = item.get_exif_date()
         dimensions = item.get_dimensions()
-        if self.exist_in_x_y_z_map(self.date_size_name_map, date, dimensions, item.original_filename):
+        if self.exist_in_x_y_z_map(self.date_size_name_map, date, dimensions, item.name):
             return True
         # vérifier si la signature devrait être calculée (possibly already exist)
         if item.get_signature() is not None:
@@ -274,15 +264,29 @@ class MediaSet:
             n_copy[nb_copy] = []
         n_copy[nb_copy] += [media_list]
 
-    def unique_files_not_in_destination(self, new_media_set):
+    @staticmethod
+    def get_oldest_modified_file(media_list):
+        date = None
+        media_result = None
+        for media_file in media_list:
+            media_date = datetime.strptime(media_file.metadata[INTERNAL].get_last_modification_date(), '%Y/%m/%d %H:%M:%S.%f')
+            if date is None or media_date < date:
+                date = media_date
+                media_result = media_file
+        return media_result
+
+    def unique_files_not_in_destination(self, new_media_set, copy_mode):
         result = []
         n_copy_list = self.duplicates()
+        new_path_map = {}
         for n_copy in n_copy_list.values():
             for media_list in n_copy:
-                for media_file in media_list:
-                    if not new_media_set.contains(media_file):
-                        result.append((media_file.id, media_file.path, media_file.get_destination_path(new_media_set)))
-                    break
+                media_file = self.get_oldest_modified_file(media_list)
+                if not new_media_set.contains(media_file):
+                    #_, new_path = media_file.get_destination_path(new_media_set)
+                    _, new_path = media_file.get_organization_path(new_media_set, new_path_map)
+                    new_path_map[new_path] = 0
+                    result.append((media_file.id, media_file.path, new_path, copy_mode))
         return result
 
     def get_file_list(self, ext=None, cm=None):

@@ -194,9 +194,10 @@ class CameraFilesProcessor:
 
     class BatchCopy(TaskWithProgression):
 
-        def __init__(self, old_media_set, new_media_set):
+        def __init__(self, old_media_set, new_media_set, copy_mode):
             self.old_media_set = old_media_set
             self.new_media_set = new_media_set
+            self.copy_mode = copy_mode
             TaskWithProgression.__init__(self, batch_title="Copy files")
             self.result = {"Copied": 0, "Error": 0}
             self.not_copied_files = []
@@ -205,7 +206,7 @@ class CameraFilesProcessor:
             return MediaFile.copy_file
 
         def arguments(self):
-            return self.old_media_set.unique_files_not_in_destination(self.new_media_set)
+            return self.old_media_set.unique_files_not_in_destination(self.new_media_set, self.copy_mode)
 
         def post_task(self, result_copy, progress_bar, replace=False):
             status, file_id, new_file_path = result_copy
@@ -233,7 +234,12 @@ class CameraFilesProcessor:
         def __init__(self, media_set, media_set2=None):
             self.media_set = media_set
             self.media_set2 = media_set2
-            TaskWithProgression.__init__(self, batch_title="Compute necessary signatures in order to detect duplicates")
+            if media_set2 is None:
+                TaskWithProgression.__init__(self,
+                                             batch_title="Compute necessary signatures in order to detect duplicates")
+            else:
+                TaskWithProgression.__init__(self,
+                                             batch_title="Compute necessary signatures in order to compare 2 mediasets")
 
         def initialize(self):
             LOGGER.write_title(self.media_set, self.update_title())
@@ -260,6 +266,8 @@ class CameraFilesProcessor:
 
         def post_task(self, result_signature_metadata, progress_bar, replace=False):
             original_media = self.media_set.get_media(result_signature_metadata.media_id)
+            if original_media is None:
+                original_media = self.media_set2.get_media(result_signature_metadata.media_id)
             original_media.metadata[SIGNATURE] = result_signature_metadata
             original_media.parent_set.update_date_size_sig_map(original_media)
             progress_bar.increment()
@@ -444,7 +452,7 @@ class CameraFilesProcessor:
 
     @staticmethod
     def cmp(media_set1, media_set2):
-        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2)
+        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
 
         duplicates_1 = media_set1.duplicates()
         duplicates_2 = media_set2.duplicates()
@@ -473,14 +481,14 @@ class CameraFilesProcessor:
 
         pdf_file.save()
 
-        pdf_file2 = PdfFile(str(media_set1.output_directory.path / "only_right.pdf"))
+        # pdf_file2 = PdfFile(str(media_set1.output_directory.path / "only_right.pdf"))
 
-        for media_list in only_in_dir2:
-            for media in media_list:
-                pdf_file2.add_media_image(media)
-            pdf_file2.new_line()
+        # for media_list in only_in_dir2:
+        #    for media in media_list:
+        #        pdf_file2.add_media_image(media)
+        #    pdf_file2.new_line()
 
-        pdf_file2.save()
+        # pdf_file2.save()
 
         LOGGER.info(media_set1.output_directory.save_list([item for sublist in only_in_dir1 for item in sublist],
                                                           "only-left.json"))

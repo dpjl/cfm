@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image
 from PIL.Image import NEAREST
 
-from camerafile.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION
+from camerafile.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
 from camerafile.ExifTool import ExifTool
 from camerafile.Metadata import Metadata
 
@@ -34,6 +34,9 @@ class MetadataInternal(Metadata):
 
     def get_date(self):
         return self.get_md_value(DATE)
+
+    def get_last_modification_date(self):
+        return self.get_md_value(DATE_LAST_MODIFICATION)
 
     def get_width(self):
         return self.get_md_value(WIDTH)
@@ -69,9 +72,10 @@ class MetadataInternal(Metadata):
 
             model, date, width, height, orientation, thumbnail = ExifTool.get_metadata(self.media_path)
 
+            last_modified_date = self.even_round(datetime.fromtimestamp(Path(self.media_path).stat().st_mtime))
             if date is None:
                 # round to the nearest even second because of differences between ntfs en fat
-                date = self.even_round(datetime.fromtimestamp(Path(self.media_path).stat().st_mtime))
+                date = last_modified_date
 
             if orientation is not None and (orientation == 6 or orientation == 8):
                 old_width = width
@@ -81,8 +85,12 @@ class MetadataInternal(Metadata):
             if date is not None:
                 date = date.strftime("%Y/%m/%d %H:%M:%S.%f")
 
+            if last_modified_date is not None:
+                last_modified_date = last_modified_date.strftime("%Y/%m/%d %H:%M:%S.%f")
+
             self.value = {CAMERA_MODEL: model,
                           DATE: date,
+                          DATE_LAST_MODIFICATION: last_modified_date,
                           WIDTH: width,
                           HEIGHT: height,
                           ORIENTATION: orientation}

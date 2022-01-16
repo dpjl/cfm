@@ -69,8 +69,8 @@ class ExifTool(object):
     SUB_SEC_CREATE_DATE = "SubSecCreateDate"
     SUB_SEC_DATE_TIME_ORIGINAL = "SubSecDateTimeOriginal"
     SUB_SEC_MODIFY_DATE = "SubSecModifyDate"
-    DATE_TIME_ORIGINAL = "DateTimeOriginal"  # use it or not ? Currently: no.
-    CREATE_DATE_METADATA = "CreateDate"  # not used anymore in ExifTool because of differences between fat and ntfs
+    DATE_TIME_ORIGINAL = "DateTimeOriginal"  # Attention to timezone ?
+    CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: no. If yes, attention to timezone
     MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
     THUMBNAIL_METADATA = "ThumbnailImage"
     SENTINEL = "{ready}\n"
@@ -147,6 +147,8 @@ class ExifTool(object):
             date = cls.parse_date(exif_tool_result, cls.SUB_SEC_CREATE_DATE, '%Y:%m:%d %H:%M:%S.%f')
         if date is None:
             date = cls.parse_date(exif_tool_result, cls.SUB_SEC_MODIFY_DATE, '%Y:%m:%d %H:%M:%S.%f')
+        if date is None:
+            date = cls.parse_date(exif_tool_result, cls.DATE_TIME_ORIGINAL, '%Y:%m:%d %H:%M:%S')
         return date
 
     @classmethod
@@ -161,6 +163,7 @@ class ExifTool(object):
                                      "-" + cls.SUB_SEC_CREATE_DATE,
                                      "-" + cls.SUB_SEC_DATE_TIME_ORIGINAL,
                                      "-" + cls.SUB_SEC_MODIFY_DATE,
+                                     "-" + cls.DATE_TIME_ORIGINAL,
                                      filename)
         result = json.loads(stdout)
         if len(result) == 0:

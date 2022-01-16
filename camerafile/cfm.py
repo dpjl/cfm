@@ -4,6 +4,7 @@ from multiprocessing.spawn import freeze_support
 from pathlib import Path
 
 from camerafile.CameraFilesProcessor import CameraFilesProcessor
+from camerafile.Constants import HARD_LINKS, SYM_LINKS, FULL_COPY
 from camerafile.Logging import init_logging
 from camerafile.Resource import Resource
 
@@ -98,15 +99,17 @@ def execute(args):
     if args.identify_faces:
         CameraFilesProcessor.BatchRecoFaces(media_set1).execute()
 
-    if args.copy_files:
-        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
-        CameraFilesProcessor.BatchCopy(media_set1, media_set2).execute()
+    copy_mode = FULL_COPY
 
     if args.sym_links:
-        pass
+        copy_mode = SYM_LINKS
 
     if args.hard_links:
-        pass
+        copy_mode = HARD_LINKS
+
+    if args.copy_files:
+        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
+        CameraFilesProcessor.BatchCopy(media_set1, media_set2, copy_mode).execute()
 
     if args.copy_metadata:
         pass

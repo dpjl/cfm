@@ -11,6 +11,7 @@ SIGNATURE = "hash"
 THUMBNAIL = "thumbnail"
 FACES = "faces"
 DATE = "date"
+DATE_LAST_MODIFICATION = "date-lm"
 WIDTH = "width"
 HEIGHT = "height"
 ORIENTATION = "orient"
@@ -19,4 +20,9 @@ DESTINATION_COPY_PATH = "dest-cp-path"
 ORIGINAL_MOVE_PATH = "ori-mv-path"
 DESTINATION_MOVE_PATH = "dest-mv-path"
 UNKNOWN = "Unknown"
+
+HARD_LINKS = "HARD_LINKS"
+SYM_LINKS = "SYM_LINKS"
+FULL_COPY = "FULL_COPY"
+
 original_sigint_handler = None
