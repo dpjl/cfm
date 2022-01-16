@@ -1,5 +1,4 @@
 import difflib
-import logging
 import os
 
 import sys
@@ -11,9 +10,9 @@ from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
 
-from camerafile.Constants import THUMBNAIL
-from camerafile.Logging import Logger
-from camerafile.MediaFile import MediaFile
+from camerafile.core.Constants import THUMBNAIL
+from camerafile.core.Logging import Logger
+from camerafile.core.MediaFile import MediaFile
 
 LOGGER = Logger(__name__)
 

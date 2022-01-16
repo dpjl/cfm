@@ -4,7 +4,7 @@ __author__ = """Adam Geitgey"""
 __email__ = 'ageitgey@gmail.com'
 __version__ = '0.1.0'
 
-from camerafile.Resource import Resource
+from camerafile.core.Resource import Resource
 
 
 def pose_predictor_model_location():

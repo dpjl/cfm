@@ -1,5 +1,5 @@
-from camerafile.Hash import Hash
-from camerafile.Metadata import Metadata
+from camerafile.tools.Hash import Hash
+from camerafile.metadata.Metadata import Metadata
 
 
 class MetadataSignature(Metadata):

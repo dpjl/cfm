@@ -1,6 +1,6 @@
 import numpy
-from camerafile.Image import Image
-from camerafile.Metadata import Metadata
+from camerafile.tools.Image import Image
+from camerafile.metadata.Metadata import Metadata
 
 
 class MetadataFaces(Metadata):

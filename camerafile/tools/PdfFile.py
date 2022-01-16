@@ -7,7 +7,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import Frame, Paragraph
 
-from camerafile.Constants import INTERNAL, THUMBNAIL
+from camerafile.core.Constants import THUMBNAIL
 
 
 class PdfFile:

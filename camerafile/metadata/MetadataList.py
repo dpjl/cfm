@@ -2,14 +2,14 @@ import logging
 
 from typing import Dict
 
-from camerafile.Constants import INTERNAL, SIGNATURE, FACES, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
+from camerafile.core.Constants import INTERNAL, SIGNATURE, FACES, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
     ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, CFM_CAMERA_MODEL, THUMBNAIL
-from camerafile.Metadata import Metadata
-from camerafile.MetadataCameraModel import MetadataCameraModel
-from camerafile.MetadataFaces import MetadataFaces
-from camerafile.MetadataInternal import MetadataInternal
-from camerafile.MetadataSignature import MetadataSignature
-from camerafile.MetadataThumbnail import MetadataThumbnail
+from camerafile.metadata.Metadata import Metadata
+from camerafile.metadata.MetadataCameraModel import MetadataCameraModel
+from camerafile.metadata.MetadataFaces import MetadataFaces
+from camerafile.metadata.MetadataInternal import MetadataInternal
+from camerafile.metadata.MetadataSignature import MetadataSignature
+from camerafile.metadata.MetadataThumbnail import MetadataThumbnail
 
 LOGGER = logging.getLogger(__name__)
 

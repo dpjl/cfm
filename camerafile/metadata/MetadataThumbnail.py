@@ -2,13 +2,12 @@ import base64
 import io
 
 from PIL import Image
-from PIL.Image import NEAREST
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from camerafile.Constants import IMAGE_TYPE
-from camerafile.ExifTool import ExifTool
-from camerafile.Metadata import Metadata
-from camerafile.Resource import Resource
+from camerafile.core.Constants import IMAGE_TYPE
+from camerafile.tools.ExifTool import ExifTool
+from camerafile.metadata.Metadata import Metadata
+from camerafile.core.Resource import Resource
 
 
 class MetadataThumbnail(Metadata):

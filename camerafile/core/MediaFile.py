@@ -5,10 +5,10 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from camerafile import Constants
-from camerafile.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
+from camerafile.core import Constants
+from camerafile.core.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
     DESTINATION_COPY_PATH, CFM_CAMERA_MODEL, FULL_COPY, SYM_LINKS, HARD_LINKS
-from camerafile.MetadataList import MetadataList
+from camerafile.metadata.MetadataList import MetadataList
 
 LOGGER = logging.getLogger(__name__)
 

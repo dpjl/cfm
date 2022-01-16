@@ -6,9 +6,8 @@ from pathlib import Path
 
 
 
-from camerafile.Image import Image
-from camerafile.Constants import FACES
-from camerafile.OutputDirectory import OutputDirectory
+from camerafile.tools.Image import Image
+from camerafile.core.Constants import FACES
 
 INDEX = "index"
 ENCODINGS = "encodings"

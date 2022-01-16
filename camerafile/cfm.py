@@ -3,10 +3,10 @@ import logging.config
 from multiprocessing.spawn import freeze_support
 from pathlib import Path
 
-from camerafile.CameraFilesProcessor import CameraFilesProcessor
-from camerafile.Constants import HARD_LINKS, SYM_LINKS, FULL_COPY
-from camerafile.Logging import init_logging
-from camerafile.Resource import Resource
+from camerafile.core.CameraFilesProcessor import CameraFilesProcessor
+from camerafile.core.Constants import HARD_LINKS, SYM_LINKS, FULL_COPY
+from camerafile.core.Logging import init_logging
+from camerafile.core.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
 

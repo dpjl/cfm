@@ -5,7 +5,7 @@ import subprocess
 from datetime import datetime
 from threading import Thread
 from queue import Queue, Empty
-from camerafile.Resource import Resource
+from camerafile.core.Resource import Resource
 
 LOGGER = logging.getLogger(__name__)
 

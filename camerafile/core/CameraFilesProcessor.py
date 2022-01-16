@@ -1,18 +1,18 @@
 from pathlib import Path
 
-from camerafile.BatchTool import with_progression, TaskWithProgression
-from camerafile.ConsoleTable import ConsoleTable
-from camerafile.Constants import IMAGE_TYPE, INTERNAL, SIGNATURE, FACES, CFM_CAMERA_MODEL, THUMBNAIL
-from camerafile.Logging import Logger
-from camerafile.MediaFile import MediaFile
-from camerafile.MediaSet import MediaSet
-from camerafile.MediaSetDatabase import MediaSetDatabase
-from camerafile.MetadataFaces import MetadataFaces
-from camerafile.MetadataInternal import MetadataInternal
-from camerafile.MetadataSignature import MetadataSignature
-from camerafile.MetadataThumbnail import MetadataThumbnail
-from camerafile.OutputDirectory import OutputDirectory
-from camerafile.PdfFile import PdfFile
+from camerafile.core.BatchTool import with_progression, TaskWithProgression
+from camerafile.console.ConsoleTable import ConsoleTable
+from camerafile.core.Constants import IMAGE_TYPE, INTERNAL, SIGNATURE, FACES, CFM_CAMERA_MODEL, THUMBNAIL
+from camerafile.core.Logging import Logger
+from camerafile.core.MediaFile import MediaFile
+from camerafile.core.MediaSet import MediaSet
+from camerafile.metadata.MediaSetDatabase import MediaSetDatabase
+from camerafile.metadata.MetadataFaces import MetadataFaces
+from camerafile.metadata.MetadataInternal import MetadataInternal
+from camerafile.metadata.MetadataSignature import MetadataSignature
+from camerafile.metadata.MetadataThumbnail import MetadataThumbnail
+from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.tools.PdfFile import PdfFile
 
 LOGGER = Logger(__name__)
 

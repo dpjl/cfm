@@ -1,14 +1,13 @@
 import atexit
 import os
-import shutil
 from functools import wraps
 from multiprocessing import Pool
 from multiprocessing import cpu_count
-from camerafile.ConsoleProgressBar import ConsoleProgressBar
-from camerafile.ExifTool import ExifTool
-from camerafile.Logging import init_only_console_logging, Logger
-from camerafile.Resource import Resource
-from camerafile.StandardOutputWrapper import StdoutRecorder
+from camerafile.console.ConsoleProgressBar import ConsoleProgressBar
+from camerafile.tools.ExifTool import ExifTool
+from camerafile.core.Logging import init_only_console_logging, Logger
+from camerafile.core.Resource import Resource
+from camerafile.console.StandardOutputWrapper import StdoutRecorder
 
 LOGGER = Logger(__name__)
 

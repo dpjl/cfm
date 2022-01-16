@@ -2,7 +2,6 @@ import sys
 import traceback
 
 from PyQt5.QtCore import *
-from camerafile.MediaFile import MediaFile
 
 
 class WorkerSignals(QObject):

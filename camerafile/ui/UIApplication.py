@@ -5,11 +5,11 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import QThreadPool, QFile, QTextStream
 from PyQt5.QtWidgets import QFileDialog
 
-from camerafile.OutputDirectory import OutputDirectory
-from camerafile.Resource import Resource
+from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.core.Resource import Resource
 from camerafile.ui.UIMainWindow import UIMainWindow
 from camerafile.ui.UIMediaSet import UIMediaSetTab
-from camerafile.Logging import init_logging
+from camerafile.core.Logging import init_logging
 
 
 class UIApplication:

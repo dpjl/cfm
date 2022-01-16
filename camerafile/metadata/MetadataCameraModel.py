@@ -1,7 +1,7 @@
 import logging
 
-from camerafile.Constants import CFM_CAMERA_MODEL
-from camerafile.Metadata import Metadata
+from camerafile.core.Constants import CFM_CAMERA_MODEL
+from camerafile.metadata.Metadata import Metadata
 
 LOGGER = logging.getLogger(__name__)
 

@@ -1,15 +1,14 @@
-import logging
 import os
 from datetime import datetime
 from pathlib import Path
 
-from camerafile.Constants import TYPE, INTERNAL, SIGNATURE, DATE, WIDTH, HEIGHT, CFM_CAMERA_MODEL, THUMBNAIL
-from camerafile.FaceRecognition import FaceRecognition
-from camerafile.Logging import Logger
-from camerafile.MediaDirectory import MediaDirectory
-from camerafile.MediaFile import MediaFile
-from camerafile.MediaSetDatabase import MediaSetDatabase
-from camerafile.OutputDirectory import OutputDirectory
+from camerafile.core.Constants import TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, THUMBNAIL
+from camerafile.tools.FaceRecognition import FaceRecognition
+from camerafile.core.Logging import Logger
+from camerafile.core.MediaDirectory import MediaDirectory
+from camerafile.core.MediaFile import MediaFile
+from camerafile.metadata.MediaSetDatabase import MediaSetDatabase
+from camerafile.core.OutputDirectory import OutputDirectory
 
 LOGGER = Logger(__name__)
 

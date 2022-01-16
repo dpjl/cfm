@@ -4,8 +4,8 @@ from pathlib import Path
 
 import imagehash
 
-from camerafile.Constants import IMAGE_TYPE
-from camerafile.Image import Image
+from camerafile.core.Constants import IMAGE_TYPE
+from camerafile.tools.Image import Image
 
 
 class Hash:

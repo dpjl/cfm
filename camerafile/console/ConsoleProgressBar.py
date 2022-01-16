@@ -3,7 +3,7 @@ import threading
 import time
 import sys
 
-from camerafile.StandardOutputWrapper import StdoutWrapper, StderrWrapper
+from camerafile.console.StandardOutputWrapper import StdoutWrapper, StderrWrapper
 
 REFRESH_DELAY = 0.1
 SPACE = ' '

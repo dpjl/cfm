@@ -5,11 +5,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from PIL import Image
-from PIL.Image import NEAREST
 
-from camerafile.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
-from camerafile.ExifTool import ExifTool
-from camerafile.Metadata import Metadata
+from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
+from camerafile.tools.ExifTool import ExifTool
+from camerafile.metadata.Metadata import Metadata
 
 LOGGER = logging.getLogger(__name__)
 

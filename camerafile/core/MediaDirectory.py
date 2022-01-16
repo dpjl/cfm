@@ -1,6 +1,6 @@
 import hashlib
 from pathlib import Path
-from camerafile.MetadataList import MetadataList
+from camerafile.metadata.MetadataList import MetadataList
 
 
 class MediaDirectory:

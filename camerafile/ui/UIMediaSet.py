@@ -1,11 +1,11 @@
 from functools import partial
 
-from PyQt5 import QtWidgets, QtCore, QtGui, Qt
+from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QGroupBox, QListWidgetItem
 
-from camerafile.MediaSet import MediaSet
-from camerafile.Constants import SIGNATURE
+from camerafile.core.MediaSet import MediaSet
+from camerafile.core.Constants import SIGNATURE
 from camerafile.ui.UIFlowLayout import FlowLayout
 from camerafile.ui.Worker import Worker
 from camerafile.ui.load_dialog import Ui_load_dialog

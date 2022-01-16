@@ -2,9 +2,9 @@ import logging
 import shutil
 from datetime import datetime
 
-from camerafile.ExifTool import ExifTool
-from camerafile.OutputDirectory import OutputDirectory
-from camerafile.Resource import Resource
+from camerafile.tools.ExifTool import ExifTool
+from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.core.Resource import Resource
 
 
 def init_logging(base_path):

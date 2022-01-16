@@ -1,7 +1,7 @@
 import glob
 import os
 import signal
-from camerafile.Resource import Resource
+from camerafile.core.Resource import Resource
 
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
