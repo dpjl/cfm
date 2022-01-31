@@ -3,10 +3,20 @@ import logging.config
 from multiprocessing.spawn import freeze_support
 from pathlib import Path
 
-from camerafile.core.CameraFilesProcessor import CameraFilesProcessor
-from camerafile.core.Constants import HARD_LINKS, SYM_LINKS, FULL_COPY
+from camerafile.core import Constants, Configuration
+from camerafile.processor.CameraFilesProcessor import CameraFilesProcessor
 from camerafile.core.Logging import init_logging
 from camerafile.core.Resource import Resource
+from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.processor.BatchComputeCm import BatchComputeCm
+from camerafile.processor.BatchComputeMissingThumbnails import BatchComputeMissingThumbnails
+from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import BatchComputeNecessarySignaturesMultiProcess
+from camerafile.processor.BatchCopy import BatchCopy
+from camerafile.processor.BatchCreatePdf import BatchCreatePdf
+from camerafile.processor.BatchDelete import BatchDelete
+from camerafile.processor.BatchDetectFaces import BatchDetectFaces
+from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
+from camerafile.processor.BatchRecoFaces import BatchRecoFaces
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +43,10 @@ def create_main_args_parser():
                         help='identity the persons of the extracted faces')
 
     parser.add_argument('-c', '--copy-files', action='store_true',
-                        help='copy files from directory1 to directory2')
+                        help='copy all files of directory1 into directory2')
+
+    parser.add_argument('-d', '--delete-files', action='store_true',
+                        help='delete duplicates or all files not in directory1 from directory2')
 
     parser.add_argument('-S', '--sym-links', action='store_true',
                         help='copy will create symbolic links instead of file duplication')
@@ -41,20 +54,17 @@ def create_main_args_parser():
     parser.add_argument('-H', '--hard-links', action='store_true',
                         help='copy will create hard links instead of file duplication')
 
-    parser.add_argument('-M', '--copy-metadata', action='store_true',
-                        help='force copy of CFM metadata with -S and -H')
-
-    parser.add_argument('-o', '--organize', action='store_true',
-                        help='organize media according to a specific format')
-
-    parser.add_argument('-f', '--org-format',
-                        help='format to use for organization')
-
     parser.add_argument('-r', '--rm-duplicates', action='store_true',
                         help='remove duplicates')
 
-    parser.add_argument('-w', '--workers',
+    parser.add_argument('-w', '--workers', type=int,
                         help='maximum number of CFM workers that can be run simultaneously')
+
+    parser.add_argument('-f', '--org-format', type=str,
+                        help='format to use for organization')
+
+    parser.add_argument('-p', '--password', type=str,
+                        help='password of the cfm zip sync file (contains deleted and unknown files)')
 
     parser.add_argument('-v', '--version', action='store_true',
                         help='print version number')
@@ -66,18 +76,31 @@ def create_main_args_parser():
     return parser
 
 
+def configure(args):
+    if args.workers is not None:
+        Constants.NB_SUB_PROCESS = args.workers
+
+    if args.password:
+        Configuration.CFM_SYNC_PASSWORD = args.password.encode()
+
+    Configuration.initialized = True
+
+
 def execute(args):
+    if args.org_format:
+        pass
+
     media_set1 = CameraFilesProcessor.load_media_set(args.dir1)
     media_set2 = None
     if args.dir2:
         media_set2 = CameraFilesProcessor.load_media_set(args.dir2)
 
-    CameraFilesProcessor.BatchReadInternalMd(media_set1).execute()
-    CameraFilesProcessor.BatchComputeCm(media_set1).execute()
+    BatchReadInternalMd(media_set1).execute()
+    BatchComputeCm(media_set1).execute()
 
     if media_set2:
-        CameraFilesProcessor.BatchReadInternalMd(media_set2).execute()
-        CameraFilesProcessor.BatchComputeCm(media_set2).execute()
+        BatchReadInternalMd(media_set2).execute()
+        BatchComputeCm(media_set2).execute()
 
     if args.analyse:
         CameraFilesProcessor.analyse_duplicates(media_set1)
@@ -87,41 +110,35 @@ def execute(args):
             CameraFilesProcessor.cmp(media_set1, media_set2)
 
     if args.generate_album:
-        CameraFilesProcessor.BatchComputeMissingThumbnails(media_set1).execute()
-        CameraFilesProcessor.BatchCreatePdf(media_set1).execute()
+        BatchComputeMissingThumbnails(media_set1).execute()
+        BatchCreatePdf(media_set1).execute()
 
     if args.extract_faces:
-        CameraFilesProcessor.BatchDetectFaces(media_set1).execute()
+        BatchDetectFaces(media_set1).execute()
 
     if args.learn_faces:
         pass
 
     if args.identify_faces:
-        CameraFilesProcessor.BatchRecoFaces(media_set1).execute()
+        BatchRecoFaces(media_set1).execute()
 
-    copy_mode = FULL_COPY
+    copy_mode = FileAccess.FULL_COPY
 
     if args.sym_links:
-        copy_mode = SYM_LINKS
+        copy_mode = FileAccess.SYM_LINKS
 
     if args.hard_links:
-        copy_mode = HARD_LINKS
+        copy_mode = FileAccess.HARD_LINKS
+
+    if args.copy_files or args.delete_files:
+        BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
 
     if args.copy_files:
-        CameraFilesProcessor.BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
-        CameraFilesProcessor.BatchCopy(media_set1, media_set2, copy_mode).execute()
+        BatchCopy(media_set1, media_set2, copy_mode).execute()
 
-    if args.copy_metadata:
-        pass
-
-    if args.organize:
-        pass
-
-    if args.org_format:
-        pass
-
-    if args.rm_duplicates:
-        pass
+    if args.delete_files:
+        if media_set2:
+            BatchDelete(media_set1, media_set2, copy_mode).execute()
 
     media_set1.save_database()
     media_set1.close_database()
@@ -139,6 +156,7 @@ def main():
     init_logging(Path(args.dir1))
 
     LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL")
+    configure(args)
     execute(args)
 
 

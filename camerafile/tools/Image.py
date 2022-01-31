@@ -1,14 +1,12 @@
 from datetime import datetime
-from pathlib import Path
 
-from PIL import Image as PilImage, ImageDraw, ImageOps
-from PIL.ExifTags import TAGS
+from PIL import Image as PilImage, ImageDraw
 
 
 class Image:
 
-    def __init__(self, path):
-        self.path = Path(path)
+    def __init__(self, file):
+        self.file = file
         self.image_data = None
         self.model = None
         self.date = None
@@ -19,7 +17,7 @@ class Image:
 
     def read_image(self):
         try:
-            self.image_data = PilImage.open(self.path)
+            self.image_data = PilImage.open(self.file)
             self.width, self.height = self.image_data.size
             self.get_metadata_with_pil()
         except:

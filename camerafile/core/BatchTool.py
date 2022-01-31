@@ -2,8 +2,8 @@ import atexit
 import os
 from functools import wraps
 from multiprocessing import Pool
-from multiprocessing import cpu_count
 from camerafile.console.ConsoleProgressBar import ConsoleProgressBar
+from camerafile.core import Constants
 from camerafile.tools.ExifTool import ExifTool
 from camerafile.core.Logging import init_only_console_logging, Logger
 from camerafile.core.Resource import Resource
@@ -92,9 +92,11 @@ def execute_multiprocess_batch(nb_process, task, args, post_task, progress_bar):
 
 class TaskWithProgression:
 
-    def __init__(self, batch_title="", nb_sub_process=cpu_count()):
+    def __init__(self, batch_title="", nb_sub_process=None):
         self.batch_title = batch_title
         self.nb_sub_process = nb_sub_process
+        if self.nb_sub_process is None:
+            self.nb_sub_process = Constants.NB_SUB_PROCESS
 
     def update_title(self, ):
         if self.nb_sub_process != 0:

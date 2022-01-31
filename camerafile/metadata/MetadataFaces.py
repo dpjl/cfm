@@ -19,15 +19,6 @@ class MetadataFaces(Metadata):
         else:
             self.value = value
 
-    @staticmethod
-    def compute_face_boxes_task(metadata_face):
-        try:
-            metadata_face.compute_face_boxes()
-            return metadata_face
-        except:
-            print("Error " + metadata_face.media_path)
-            return metadata_face
-
     def compute_face_boxes(self):
 
         if MetadataFaces.face_rec is None:
@@ -39,11 +30,6 @@ class MetadataFaces(Metadata):
             img = numpy.array(image.image_data)
             self.value = {"locations": MetadataFaces.face_rec.face_locations(img), "names": []}
             self.binary_value = MetadataFaces.face_rec.face_encodings(img, known_face_locations=self.value["locations"])
-
-    @staticmethod
-    def recognize_faces_task(metadata_face):
-        metadata_face.recognize_faces()
-        return metadata_face
 
     def recognize_faces(self):
         if self.knn_clf is None:

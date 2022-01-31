@@ -1,18 +1,14 @@
-import hashlib
-import os
-from pathlib import Path
-
-import imagehash
-
 from camerafile.core.Constants import IMAGE_TYPE
 from camerafile.tools.Image import Image
+import hashlib
+import imagehash
 
 
 class Hash:
 
-    def __init__(self, path):
-        self.path = path
-        self.extension = self.extension = os.path.splitext(Path(path).name)[1].lower()
+    def __init__(self, file_access):
+        self.file_access = file_access
+        self.extension = file_access.get_extension()
 
     def get(self):
         if self.extension in IMAGE_TYPE:
@@ -22,33 +18,35 @@ class Hash:
         return hash_value
 
     def image_hash(self):
-        image = Image(self.path)
-        try:
-            # faster than md5 hash
-            # concatenates date to limitate false positives
-            # can be a problem for "rafales" ?
-            # img_date = datetime.strptime(self.media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
-            # date_str = img_date.strftime('-%Y-%m-%d-%H-%M-%S-%f')
-            result = str(imagehash.phash(image.image_data))
 
-            # doesn't work (why ?)
-            # and slower
-            # file_hash = hashlib.md5()
-            # file_hash.update(img.tobytes())
-            # result = file_hash.hexdigest()
-        except:
-            result = self.md5_hash()
+        with self.file_access.open() as image_file:
+            image = Image(image_file)
+            try:
+                # faster than md5 hash
+                # concatenates date to limitate false positives
+                # can be a problem for "rafales" ?
+                # img_date = datetime.strptime(self.media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
+                # date_str = img_date.strftime('-%Y-%m-%d-%H-%M-%S-%f')
+                result = str(imagehash.phash(image.image_data))
+
+                # doesn't work (why ?)
+                # and slower
+                # file_hash = hashlib.md5()
+                # file_hash.update(img.tobytes())
+                # result = file_hash.hexdigest()
+            except:
+                result = self.md5_hash()
         return result
 
     def md5_hash(self):
-        with open(self.path, "rb") as f:
+        with self.file_access.open() as f:
             file_hash = hashlib.md5()
             while chunk := f.read(8192):
                 file_hash.update(chunk)
         return file_hash.hexdigest()
 
     def md5_hash_old(self):
-        with open(self.path, "rb") as f:
+        with self.file_access.open() as f:
             file_hash = hashlib.md5()
             while chunk := f.read(65536):
                 file_hash.update(chunk)

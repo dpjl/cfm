@@ -132,6 +132,12 @@ class ExifTool(object):
         return output[:-len(cls.SENTINEL)], err
 
     @classmethod
+    def execute_with_bytes(cls, input_bytes, *args):
+        result = subprocess.run([Resource.exiftool_executable, *args], input=input_bytes,
+                                capture_output=True)
+        return result.stdout
+
+    @classmethod
     def parse_date(cls, exif_tool_result, field, date_format):
         if field in exif_tool_result[0]:
             str_date = exif_tool_result[0][field]
@@ -152,22 +158,28 @@ class ExifTool(object):
         return date
 
     @classmethod
-    def get_metadata(cls, filename):
-        stdout, stderr = cls.execute("-b", "-j", "-n",
-                                     "-" + cls.MODEL_METADATA,
-                                     "-" + cls.SOURCE_METADATA,
-                                     "-" + cls.WIDTH_METADATA,
-                                     "-" + cls.HEIGHT_METADATA,
-                                     "-" + cls.ORIENTATION_METADATA,
-                                     "-" + cls.THUMBNAIL_METADATA,
-                                     "-" + cls.SUB_SEC_CREATE_DATE,
-                                     "-" + cls.SUB_SEC_DATE_TIME_ORIGINAL,
-                                     "-" + cls.SUB_SEC_MODIFY_DATE,
-                                     "-" + cls.DATE_TIME_ORIGINAL,
-                                     filename)
+    def get_exif_args(cls):
+        return ("-" + cls.MODEL_METADATA,
+                "-" + cls.SOURCE_METADATA,
+                "-" + cls.WIDTH_METADATA,
+                "-" + cls.HEIGHT_METADATA,
+                "-" + cls.ORIENTATION_METADATA,
+                "-" + cls.THUMBNAIL_METADATA,
+                "-" + cls.SUB_SEC_CREATE_DATE,
+                "-" + cls.SUB_SEC_DATE_TIME_ORIGINAL,
+                "-" + cls.SUB_SEC_MODIFY_DATE,
+                "-" + cls.DATE_TIME_ORIGINAL)
+
+    @classmethod
+    def get_metadata(cls, param):
+        if isinstance(param, str):
+            stdout, stderr = cls.execute("-b", "-j", "-n", *cls.get_exif_args(), param)
+        else:
+            stdout = cls.execute_with_bytes(param, "-b", "-j", "-n", *cls.get_exif_args(), "-")
+
         result = json.loads(stdout)
         if len(result) == 0:
-            return None, None
+            return None, None, None, None, None, None
 
         thumbnail = None
         if cls.THUMBNAIL_METADATA in result[0]:

@@ -1,13 +1,10 @@
 import base64
 import io
 import logging
-from datetime import datetime, timedelta
-from pathlib import Path
 
 from PIL import Image
 
 from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
-from camerafile.tools.ExifTool import ExifTool
 from camerafile.metadata.Metadata import Metadata
 
 LOGGER = logging.getLogger(__name__)
@@ -15,10 +12,10 @@ LOGGER = logging.getLogger(__name__)
 
 class MetadataInternal(Metadata):
 
-    def __init__(self, media_id, media_path, extension):
+    def __init__(self, media_id, file_access, extension):
         super().__init__(None)
         self.media_id = media_id
-        self.media_path = media_path
+        self.file_access = file_access
         self.extension = extension
         self.thumbnail = None
 
@@ -43,37 +40,16 @@ class MetadataInternal(Metadata):
     def get_height(self):
         return self.get_md_value(HEIGHT)
 
-    @staticmethod
-    def load_internal_metadata_task(internal_metadata):
-        try:
-            internal_metadata.load_internal_metadata()
-            return internal_metadata
-        except:
-            print("Error during load_internal_metadata_task execution for " + str(internal_metadata.media_path))
-            return internal_metadata
-
-    @staticmethod
-    def even_round(date):
-        microseconds = date.microsecond
-        date = date.replace(microsecond=0)
-        if microseconds >= 500:
-            date += timedelta(seconds=1)
-            if date.second % 2 != 0:
-                date -= timedelta(seconds=1)
-        else:
-            if date.second % 2 != 0:
-                date += timedelta(seconds=1)
-        return date
-
     def load_internal_metadata(self):
 
         if self.value is None:
 
-            model, date, width, height, orientation, thumbnail = ExifTool.get_metadata(self.media_path)
+            model, date, width, height, orientation, thumbnail = self.file_access.call_exif_tool()
+            # with open(self.file_access.path, "rb") as file_stream:
+            #    model, date, width, height, orientation, thumbnail = ExifTool.get_metadata(file_stream)
 
-            last_modified_date = self.even_round(datetime.fromtimestamp(Path(self.media_path).stat().st_mtime))
+            last_modified_date = self.file_access.get_last_modification_date()
             if date is None:
-                # round to the nearest even second because of differences between ntfs en fat
                 date = last_modified_date
 
             if orientation is not None and (orientation == 6 or orientation == 8):

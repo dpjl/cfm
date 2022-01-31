@@ -21,18 +21,6 @@ class MetadataThumbnail(Metadata):
         self.error = False
         self.thumbnail = None
 
-    @staticmethod
-    def compute_thumbnail_task(metadata_thumbnail):
-        try:
-            if not MetadataThumbnail.init:
-                Resource.init()
-                MetadataThumbnail.init = True
-            metadata_thumbnail.compute_thumbnail()
-            return metadata_thumbnail
-        except:
-            metadata_thumbnail.error = True
-            return metadata_thumbnail
-
     def compute_thumbnail(self):
         if self.thumbnail is None:
             _, _, _, _, _, thumbnail = ExifTool.get_metadata(self.media_path)

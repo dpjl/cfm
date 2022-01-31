@@ -2,12 +2,14 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from camerafile.core.Constants import TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, THUMBNAIL
+from pyzipper import zipfile
+
+from camerafile.core.Constants import MANAGED_TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, THUMBNAIL, ARCHIVE_TYPE
 from camerafile.tools.FaceRecognition import FaceRecognition
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.core.MediaFile import MediaFile
-from camerafile.metadata.MediaSetDatabase import MediaSetDatabase
+from camerafile.core.MediaSetDatabase import MediaSetDatabase
 from camerafile.core.OutputDirectory import OutputDirectory
 
 LOGGER = Logger(__name__)
@@ -72,6 +74,9 @@ class MediaSet:
         self.update_date_size_name_map(media_file)
         self.update_date_size_sig_map(media_file)
         self.update_date_model_size_map(media_file)
+
+    def remove_file(self, media_file):
+        self.media_file_list.remove(media_file)
 
     def get_media(self, media_id):
         if media_id in self.id_map:
@@ -268,7 +273,8 @@ class MediaSet:
         date = None
         media_result = None
         for media_file in media_list:
-            media_date = datetime.strptime(media_file.metadata[INTERNAL].get_last_modification_date(), '%Y/%m/%d %H:%M:%S.%f')
+            media_date = datetime.strptime(media_file.metadata[INTERNAL].get_last_modification_date(),
+                                           '%Y/%m/%d %H:%M:%S.%f')
             if date is None or media_date < date:
                 date = media_date
                 media_result = media_file
@@ -282,10 +288,18 @@ class MediaSet:
             for media_list in n_copy:
                 media_file = self.get_oldest_modified_file(media_list)
                 if not new_media_set.contains(media_file):
-                    #_, new_path = media_file.get_destination_path(new_media_set)
+                    # _, new_path = media_file.get_destination_path(new_media_set)
                     _, new_path = media_file.get_organization_path(new_media_set, new_path_map)
                     new_path_map[new_path] = 0
-                    result.append((media_file.id, media_file.path, new_path, copy_mode))
+                    result.append((media_file.file_access, new_path, copy_mode))
+        return result
+
+    def all_files_not_in_other_media_set(self, new_media_set):
+        result = []
+        for media_file in self:
+            if not new_media_set.contains(media_file):
+                if not media_file.file_access.is_in_trash():
+                    result.append(media_file.file_access)
         return result
 
     def get_file_list(self, ext=None, cm=None):
@@ -319,93 +333,74 @@ class MediaSet:
         return True
 
     def create_media_dir_parent(self, dir_or_file_path):
-        parent = str(Path(dir_or_file_path).parent)
+        parent = Path(dir_or_file_path).parent.as_posix()
         if parent not in self.media_dir_list:
             new_media_dir = MediaDirectory(parent, self.create_media_dir_parent(parent), self)
             self.media_dir_list[parent] = new_media_dir
         return self.media_dir_list[parent]
 
     def initialize_file_and_dir_list(self):
-        file_map, ignored_files = self.list_all_files()
+        file_map, zipped_file_map, ignored_files = self.list_all_files()
         saved_file = self.output_directory.save_list(ignored_files, "ignored-files.json")
         LOGGER.info_indent("{l1} files ignored [{saved}]".format(l1=len(ignored_files), saved=saved_file))
         LOGGER.info_indent("{l1} files detected as media file".format(l1=len(file_map)))
-        root_dir = MediaDirectory(str(self.root_path), None, self)
-        self.media_dir_list[str(self.root_path)] = root_dir
-        self.database.load_all_media_files(self, file_map)
+        root_dir = MediaDirectory(self.root_path.as_posix(), None, self)
+        self.media_dir_list[self.root_path.as_posix()] = root_dir
+        self.database.load_all_files(self, file_map, zipped_file_map)
         self.database.load_all_thumbnails(self)
-        self.init_new_files(file_map)
+        self.init_new_media_files(file_map)
+        self.init_new_media_files(zipped_file_map, archive=1)
 
-    def init_new_files(self, found_file_map):
-        LOGGER.start_status_line("{nb_file} files are not in cache", 1000, prof=2)
+    def init_new_media_files(self, found_file_map, archive=0):
+        if archive == 0:
+            LOGGER.start_status_line("{nb_file} files are not in cache", 1000, prof=2)
+        else:
+            LOGGER.start_status_line("{nb_file} zipped files are not in cache", 1, prof=2)
         number_of_files = 0
         LOGGER.update_status_line(nb_file=number_of_files)
         for file_path, loaded in found_file_map.items():
             if not loaded:
-                new_media_file = MediaFile(file_path, self.create_media_dir_parent(file_path), self)
+                new_media_file = MediaFile(file_path, self.create_media_dir_parent(file_path), self, archive)
                 self.add_file(new_media_file)
                 number_of_files += 1
                 LOGGER.update_status_line(nb_file=number_of_files)
         LOGGER.end_status_line(nb_file=number_of_files)
 
+    @staticmethod
+    def import_zip_file(zip_file_path, zipped_file_map):
+        with zipfile.ZipFile(zip_file_path) as zip_file:
+            number_of_files = 0
+            for file_name in zip_file.namelist():
+                if not file_name.endswith('/'):
+                    file_path = Path(zip_file_path + "<~>" + file_name).as_posix()
+                    zipped_file_map[file_path] = False
+                    number_of_files += 1
+        return number_of_files
+
     def list_all_files(self):
-        # Récupérer la liste complète des fichiers avec des commandes spécifiques windows genre dir /a-D /S /B D:\data\photos-all ?
+        # Use windows commands like dir /a-D /S /B D:\data\photos-all ?
         number_of_files = 0
-        LOGGER.start_status_line("{nb_file} files found in directory and subdirectories")
-        LOGGER.update_status_line(nb_file=number_of_files)
+        number_of_zip_files = 0
+        LOGGER.start_status_line(
+            "{nb_file} files found in directory and subdirectories ({nb_zip_files} inside zip files)")
+        LOGGER.update_status_line(nb_file=number_of_files, nb_zip_files=number_of_zip_files)
         file_map = {}
+        zipped_file_map = {}
         ignored_files = []
-        for p, d, f in os.walk(self.root_path, topdown=True):
-            for file in f:
+        for path, dir_list, file_list in os.walk(self.root_path, topdown=True):
+            for file in file_list:
                 number_of_files += 1
                 extension = os.path.splitext(file)[1].lower()
-                if extension in TYPE:
-                    file_map[(str(Path(p + "/" + file)))] = False
+                file_path = (Path(path) / file).as_posix()
+                if extension in MANAGED_TYPE:
+                    file_map[file_path] = False
+                elif extension in ARCHIVE_TYPE:
+                    number_of_zip_files += self.import_zip_file(file_path, zipped_file_map)
                 else:
-                    ignored_files.append(str(Path(p + "/" + file)))
-            LOGGER.update_status_line(nb_file=number_of_files)
-        LOGGER.end_status_line(nb_file=number_of_files)
-        return file_map, ignored_files
-
-    def initialize_file_and_dir_list_old(self, progress_signal=None):
-        LOGGER.info(">>>> Opening media directory " + str(self.root_path))
-        number_of_files = 0
-        ignored_files = []
-        root_dir = MediaDirectory(str(self.root_path), None, self)
-        self.media_dir_list[str(self.root_path)] = root_dir
-        starting_time = datetime.now().strftime('%H:%M:%S')
-
-        for (parent_media_dir_path, folder_names, file_names) in os.walk(self.root_path, topdown=True):
-
-            if ".cfm" in parent_media_dir_path:
-                continue
-
-            parent_media_dir_path = Path(parent_media_dir_path)
-            parent_media_dir = self.media_dir_list[str(parent_media_dir_path)]
-
-            for name in folder_names:
-                media_dir_path = str(parent_media_dir_path / name)
-                new_media_dir = MediaDirectory(media_dir_path, parent_media_dir, self)
-                self.media_dir_list[media_dir_path] = new_media_dir
-
-            for name in file_names:
-                number_of_files += 1
-                media_file_path = str(parent_media_dir_path / name)
-                media_file_extension = os.path.splitext(name)[1].lower()
-
-                if media_file_extension in TYPE:
-                    new_media_file = MediaFile(media_file_path, parent_media_dir, self)
-                    self.database.load_media_file(new_media_file)
-                    self.add_file(new_media_file)
-                else:
-                    ignored_files.append(media_file_path)
-
-            if progress_signal is not None:
-                progress_signal.emit(number_of_files)
-            print("\r[" + starting_time + "] " + str(number_of_files) + " files found", end='')
-        print("")
-        LOGGER.info("{l1} files detected as media file".format(l1=len(self)))
-        self.output_directory.save_list(ignored_files, "ignored-files.json")
+                    ignored_files.append(file_path)
+            LOGGER.update_status_line(nb_file=number_of_files, nb_zip_files=number_of_zip_files)
+        LOGGER.end_status_line(nb_file=number_of_files, nb_zip_files=number_of_zip_files)
+        return file_map, zipped_file_map, ignored_files
 
     def get_files_with_thumbnail_errors(self):
         error_files = []
