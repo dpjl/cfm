@@ -1,7 +1,7 @@
 ImageHash
 Pillow==8.2.0
 jellyfish
-numpy==1.19.3
+numpy==1.21.0
 sklearn
 face_recognition
 dill
