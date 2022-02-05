@@ -2,9 +2,9 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import Tuple
 
 import pyzipper
-from pyzipper import zipfile
 
 from camerafile.core import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess
@@ -13,12 +13,18 @@ from camerafile.tools.ExifTool import ExifTool
 
 
 class StandardFileAccess(FileAccess):
+    TYPE = 0
 
-    def __init__(self, root_path, path, file_id):
-        super().__init__(root_path, path, file_id)
+    def __init__(self, root_path, path):
+        super().__init__(root_path, path)
 
     def open(self):
         return open(self.path, "rb")
+
+    def get_file_size(self):
+        if self.file_size is None:
+            self.file_size = os.stat(self.path).st_size
+        return self.file_size
 
     def delete_file(self):
         relative_path = "trash/" + Path(self.path).relative_to(self.root_path).as_posix()
@@ -30,9 +36,9 @@ class StandardFileAccess(FileAccess):
         os.remove(self.path)
         return True, self.id, ZipFileAccess.concat_path(self.get_sync_file(), relative_path)
 
-    def copy_to(self, new_file_path, copy_mode):
+    def copy_to(self, new_file_path: str, copy_mode: str) -> Tuple[bool, str, str, str]:
         if os.path.exists(new_file_path):
-            return False, self.id, None
+            return False, "File does not exist", self.id, ""
         os.makedirs(Path(new_file_path).parent, exist_ok=True)
         if copy_mode == self.FULL_COPY:
             shutil.copy2(self.path, new_file_path)
@@ -41,8 +47,8 @@ class StandardFileAccess(FileAccess):
         elif copy_mode == self.HARD_LINKS:
             os.link(self.path, new_file_path)
         else:
-            print("Invalid copy mode : " + copy_mode)
-        return True, self.id, new_file_path
+            return False, "Invalid copy path", self.id, ""
+        return True, "Copied", self.id, new_file_path
 
     def get_last_modification_date(self):
         # round to the nearest even second because of differences between ntfs en fat

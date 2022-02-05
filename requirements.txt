@@ -9,3 +9,4 @@ moviepy
 reportlab==3.5.67
 git+https://github.com/dpjl/pyinstaller
 pyzipper
+reprint

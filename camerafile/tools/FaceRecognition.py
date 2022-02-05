@@ -3,11 +3,14 @@ import math
 import os
 import pickle
 from pathlib import Path
-
-
+from typing import TYPE_CHECKING
 
 from camerafile.tools.Image import Image
 from camerafile.core.Constants import FACES
+
+
+if TYPE_CHECKING:
+    from camerafile.core.MediaSet import MediaSet
 
 INDEX = "index"
 ENCODINGS = "encodings"
@@ -16,7 +19,7 @@ IMAGES = "images"
 
 class FaceRecognition:
 
-    def __init__(self, media_set, output_directory):
+    def __init__(self, media_set: "MediaSet", output_directory):
         self.media_set = media_set
         self.training_path = output_directory.path / "training_examples"
         self.all_encoding_ids = {}

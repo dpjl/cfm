@@ -8,6 +8,7 @@ from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import Frame, Paragraph
 
 from camerafile.core.Constants import THUMBNAIL
+from camerafile.core.MediaFile import MediaFile
 
 
 class PdfFile:
@@ -43,7 +44,7 @@ class PdfFile:
                   rightPadding=0, topPadding=0)
         f.addFromList(items, self.canvas)
 
-    def add_media_image(self, media):
+    def add_media_image(self, media: MediaFile):
 
         if media.metadata[THUMBNAIL].thumbnail is not None and media.metadata[THUMBNAIL].thumbnail != b'':
             bytes_image = io.BytesIO(media.metadata[THUMBNAIL].thumbnail)
@@ -53,7 +54,7 @@ class PdfFile:
             self.canvas.drawBoundary(Color(4, 4, 4, 0), self.x, self.y, self.thb_width, self.thb_height)
             self.no_thb += 1
 
-        self.canvas.linkURL("../" + str(media.relative_path),
+        self.canvas.linkURL("../" + str(media.get_path()),
                             (self.x, self.y + self.thb_height, self.x + self.thb_width, self.y),
                             relative=0, thickness=0)
 

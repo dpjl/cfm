@@ -1,0 +1,34 @@
+from camerafile.core.BatchTool import TaskWithProgression
+from camerafile.core.Constants import CFM_CAMERA_MODEL
+from camerafile.core.Logging import Logger
+from camerafile.core.MediaFile import MediaFile
+
+LOGGER = Logger(__name__)
+
+
+# Not compatible with multi sub-processes
+class BatchDeleteFaces(TaskWithProgression):
+    BATCH_TITLE = "Delete CFM camera models"
+
+    def __init__(self, media_set):
+        self.media_set = media_set
+        TaskWithProgression.__init__(self, batch_title=self.BATCH_TITLE, nb_sub_process=0)
+
+    def initialize(self):
+        LOGGER.write_title(self.media_set, self.update_title())
+
+    def task_getter(self):
+        return self.task
+
+    def task(self, media_file: MediaFile):
+        media_file.metadata[CFM_CAMERA_MODEL] = None
+        return media_file
+
+    def arguments(self):
+        return self.media_set
+
+    def post_task(self, media_file, progress_bar, replace=False):
+        progress_bar.increment()
+
+    def finalize(self):
+        pass

@@ -1,23 +1,26 @@
 import os
-from datetime import datetime
 from pathlib import Path
+from typing import Tuple
 
 from pyzipper import zipfile
-
+from datetime import datetime
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.tools.ExifTool import ExifTool
 
 
 class ZipFileAccess(FileAccess):
+    TYPE = 1
 
-    def __init__(self, root_path, path, file_id):
-        super().__init__(root_path, path, file_id)
-        temp_split = path.rsplit("<~>", 1)
-        if len(temp_split) != 2:
-            print("An error occurs with file: " + path)
-            return
-        self.zip_path = temp_split[0]
-        self.file_path = temp_split[1]
+    def __init__(self, root_path, zip_path, file_path):
+        super().__init__(root_path, Path(zip_path) / file_path)
+        self.zip_path = zip_path
+        self.file_path = file_path
+
+    def get_file_size(self):
+        if self.file_size is None:
+            with zipfile.ZipFile(self.zip_path) as zip_file:
+                self.file_size = zip_file.getinfo(self.file_path).file_size
+        return self.file_size
 
     def is_in_trash(self):
         return self.zip_path == self.get_sync_file()
@@ -30,20 +33,12 @@ class ZipFileAccess(FileAccess):
         with zipfile.ZipFile(self.zip_path) as zip_file:
             return zip_file.open(self.file_path, "r")
 
-    @staticmethod
-    def split_path(path):
-        return path.rsplit("<~>", 1)
-
-    @staticmethod
-    def concat_path(path, file):
-        return path + "<~>" + file
-
-    def copy_to(self, new_file_path, copy_mode):
+    def copy_to(self, new_file_path: str, copy_mode: str) -> Tuple[bool, str, str, str]:
         os.makedirs(Path(new_file_path).parent, exist_ok=True)
         with zipfile.ZipFile(self.zip_path) as origin:
             with open(new_file_path, 'wb') as destination:
                 destination.write(origin.read(self.file_path))
-        return True, self.id, new_file_path
+        return True, "Extracted", self.id, new_file_path
 
     def get_last_modification_date(self):
         try:

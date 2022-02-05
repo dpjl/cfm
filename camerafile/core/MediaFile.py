@@ -1,14 +1,11 @@
-import hashlib
 import logging
 import os
 from datetime import datetime
-from pathlib import Path
 
 from camerafile.core import Constants
 from camerafile.core.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
     DESTINATION_COPY_PATH, CFM_CAMERA_MODEL, ORIGINAL_PATH
-from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
-from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
+from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.MetadataList import MetadataList
 
 LOGGER = logging.getLogger(__name__)
@@ -16,29 +13,22 @@ LOGGER = logging.getLogger(__name__)
 
 class MediaFile:
 
-    def __init__(self, path, parent_dir, parent_set, archive=0):
-        self.path = path
+    def __init__(self, file_access: FileAccess, parent_dir, parent_set):
         self.parent_dir = parent_dir
         self.parent_set = parent_set
-        self.archive = archive
-
-        self.relative_path = Path(self.path).relative_to(parent_set.root_path)
-        self.name = Path(self.path).name
-        self.extension = os.path.splitext(self.name)[1].lower()
-        self.id = hashlib.md5(str(self.relative_path).encode()).hexdigest()
-
-        if archive == 0:
-            self.file_access = StandardFileAccess(parent_set.root_path, path, self.id)
-        else:
-            self.file_access = ZipFileAccess(parent_set.root_path, path, self.id)
-
+        self.file_access = file_access
+        self.id = file_access.id
+        self.extension = file_access.extension
+        self.path = file_access.path
         self.metadata = MetadataList(self)
-        self.loaded_from_database = False
         self.db_id = None
         self.date_identifier = None
 
+    def get_path(self):
+        return self.file_access.get_relative_path()
+
     def __str__(self):
-        return self.path
+        return self.file_access.get_path()
 
     def is_same(self, other):
         # self.metadata.compute_value(SIGNATURE)
@@ -107,14 +97,14 @@ class MediaFile:
     def add_size_to_filename(self, filename):
         dimensions = self.get_dimensions()
         if dimensions is None:
-            print("Width and/or height cannot be found for " + self.path)
+            print("Width and/or height cannot be found for " + str(self))
             return filename
         return self.add_suffix_to_filename(filename, "[" + dimensions + "]")
 
     def add_date_to_filename(self, filename):
         date = self.get_date()
         if date is None:
-            print("Date cannot be found for " + self.path)
+            print("Date cannot be found for " + str(self))
             return filename
         new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%Ss")
         return self.add_suffix_to_filename(filename, "[" + new_date_format + "]")
@@ -139,7 +129,7 @@ class MediaFile:
         year = date.strftime("%Y")
         month = date.strftime("%m[%B]")
         new_dir_path = new_media_set.root_path / year / month / camera_model
-        new_file_name = self.name
+        new_file_name = self.file_access.name
         new_file_path = new_dir_path / new_file_name
 
         # Here, concatenate only [~2], [~3], ...
@@ -160,7 +150,7 @@ class MediaFile:
     def copy_metadata(self, new_media_set, new_file_path):
         new_media_file = MediaFile(str(new_file_path), None, new_media_set)
         new_media_file.metadata = self.metadata
-        new_media_file.metadata.set_value(ORIGINAL_COPY_PATH, str(self.path))
+        new_media_file.metadata.set_value(ORIGINAL_COPY_PATH, str(self))
         new_media_file.metadata.set_value(DESTINATION_COPY_PATH, str(new_file_path))
         new_media_set.add_file(new_media_file)
         return True
@@ -169,7 +159,7 @@ class MediaFile:
         new_media_file = MediaFile(str(new_file_path), None, self.parent_set)
         new_media_file.metadata = self.metadata
         new_media_file.loaded_from_database = True
-        new_media_file.metadata.set_value(ORIGINAL_PATH, str(self.path))
+        new_media_file.metadata.set_value(ORIGINAL_PATH, str(self))
         self.parent_set.add_file(new_media_file)
         self.parent_set.remove_file(self)
         return True

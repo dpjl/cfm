@@ -1,6 +1,6 @@
 import logging
 
-from typing import Dict
+from typing import Dict, TYPE_CHECKING
 
 from camerafile.core.Constants import INTERNAL, SIGNATURE, FACES, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
     ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, CFM_CAMERA_MODEL, THUMBNAIL, ORIGINAL_PATH
@@ -13,24 +13,27 @@ from camerafile.metadata.MetadataThumbnail import MetadataThumbnail
 
 LOGGER = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from camerafile.core.MediaFile import MediaFile
+
 
 class MetadataList:
     metadata_list: Dict[str, Metadata]
     COMPUTE_PREFIX = "Computed "
 
-    def __init__(self, media_file):
+    def __init__(self, media_file: "MediaFile"):
         self.media_file = media_file
+
         self.metadata_list = {CFM_CAMERA_MODEL: MetadataCameraModel(media_file),
-                              INTERNAL: MetadataInternal(media_file.id, media_file.file_access, media_file.extension),
-                              THUMBNAIL: MetadataThumbnail(media_file.id, media_file.path, media_file.extension),
+                              INTERNAL: MetadataInternal(media_file.file_access),
+                              THUMBNAIL: MetadataThumbnail(media_file.file_access),
                               ORIGINAL_COPY_PATH: Metadata(media_file),
                               DESTINATION_COPY_PATH: Metadata(media_file),
                               ORIGINAL_PATH: Metadata(media_file),
                               ORIGINAL_MOVE_PATH: Metadata(media_file),
                               DESTINATION_MOVE_PATH: Metadata(media_file),
-                              SIGNATURE: MetadataSignature(media_file.file_access, media_file.extension),
-                              FACES: MetadataFaces(media_file.id, media_file.path,
-                                                   media_file.parent_set.face_rec.knn_clf)}
+                              SIGNATURE: MetadataSignature(media_file.file_access),
+                              FACES: MetadataFaces(media_file.file_access, media_file.parent_set.face_rec.knn_clf)}
 
     def __getitem__(self, key):
         return self.metadata_list[key]

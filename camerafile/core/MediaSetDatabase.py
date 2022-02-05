@@ -1,18 +1,23 @@
 import difflib
-import os
-
-import sys
-
-import dill
 import json
+import os
 import sqlite3
+import sys
 from datetime import datetime
 from json import JSONDecodeError
-from pathlib import Path
+from typing import Dict, Iterable
+
+import dill
 
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
+from camerafile.fileaccess.FileAccess import FileAccess
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from camerafile.core.MediaSet import MediaSet
 
 LOGGER = Logger(__name__)
 
@@ -40,15 +45,17 @@ class MediaSetDatabase:
         self.initialize_cache_db()
         self.initialize_thb_db()
 
-    def save(self, media_set):
+    def save(self, media_file_list: "Iterable[MediaFile]", log=True):
 
-        LOGGER.info("Saving cache " + str(self.cache_db_connection.db_path))
-        for media_file in media_set.media_file_list:
+        if log:
+            LOGGER.info("Saving cache " + str(self.cache_db_connection.db_path))
+        for media_file in media_file_list:
             self.save_media_file(media_file)
         self.cache_db_connection.file_connection.commit()
 
-        LOGGER.info("Saving thumbnails cache " + str(self.thb_db_connection.db_path))
-        for media_file in media_set.media_file_list:
+        if log:
+            LOGGER.info("Saving thumbnails cache " + str(self.thb_db_connection.db_path))
+        for media_file in media_file_list:
             self.save_thumbnail(media_file)
         self.thb_db_connection.file_connection.commit()
 
@@ -65,7 +72,6 @@ class MediaSetDatabase:
             self.cache_db_connection.execute('''CREATE TABLE metadata(
                                         file_id INTEGER PRIMARY KEY,
                                         file TEXT,
-                                        archive INTEGER,
                                         jm TEXT,
                                         bm BLOB,
                                         last_update_date TIMESTAMP)''')
@@ -92,13 +98,13 @@ class MediaSetDatabase:
         others = {}
         for n in range(len(description)):
             column_name = description[n][0]
-            if column_name in ["file_id", "file", "archive", "jm", "bm"]:
+            if column_name in ["file_id", "file", "jm", "bm"]:
                 text[column_name] = n
             else:
                 others[column_name] = n
         return text, others
 
-    def load_all_files(self, media_set, found_file_map, zipped_file_map):
+    def load_all_files(self, media_set: "MediaSet", found_file_map: Dict[str, FileAccess]):
         try:
             number_of_files = 0
             log_content = "{nb_file} files are already in cache " + str(self.cache_db_connection.db_path)
@@ -109,28 +115,24 @@ class MediaSetDatabase:
             text_fields, other_fields = self.get_columns_ids(self.cache_db_connection.cursor.description)
             for result in result_list:
                 if result is not None and len(result) >= 1:
-                    file_path = (Path(media_set.root_path / result[text_fields["file"]])).as_posix()
-                    if file_path in found_file_map or file_path in zipped_file_map:
+                    file = result[text_fields["file"]]
+                    file_path = (media_set.root_path / file).as_posix()
+                    if file_path in found_file_map:
                         file_id = result[text_fields["file_id"]]
                         json_content = result[text_fields["jm"]]
                         binary_content = result[text_fields["bm"]]
-                        archive = result[text_fields["archive"]]
+                        metadata = json.loads(json_content) if json_content is not None else "{}"
+                        binary_metadata = dill.loads(binary_content) if binary_content is not None else "{}"
                         try:
-                            new_media_file = MediaFile(file_path, media_set.create_media_dir_parent(file_path),
-                                                       media_set, archive)
-                            new_media_file.metadata.load_from_dict(
-                                json.loads(json_content) if json_content is not None else "{}")
-                            new_media_file.metadata.load_binary_from_dict(
-                                dill.loads(binary_content) if binary_content is not None else "{}")
-                            new_media_file.loaded_from_database = True
+                            media_dir = media_set.create_media_dir_parent(file_path)
+
+                            new_media_file = MediaFile(found_file_map[file_path], media_dir, media_set)
+                            new_media_file.metadata.load_from_dict(metadata)
+                            new_media_file.metadata.load_binary_from_dict(binary_metadata)
                             new_media_file.db_id = file_id
+
                             media_set.add_file(new_media_file)
-
-                            if archive == 0:
-                                found_file_map[file_path] = True
-                            else:
-                                zipped_file_map[file_path] = True
-
+                            found_file_map[file_path].loaded_from_database = True
                             number_of_files += 1
                         except JSONDecodeError:
                             print("Invalid json in database: %s" % file_path)
@@ -143,7 +145,7 @@ class MediaSetDatabase:
             raise
         LOGGER.end_status_line(nb_file=number_of_files)
 
-    def load_all_thumbnails(self, media_set):
+    def load_all_thumbnails(self, media_set: "MediaSet"):
         try:
             number_of_files = 0
             LOGGER.start_status_line("{nb_file} thumbnails found in cache " + str(self.thb_db_connection.db_path),
@@ -168,40 +170,37 @@ class MediaSetDatabase:
             raise
         LOGGER.end_status_line(nb_file=number_of_files)
 
-    def save_media_file(self, media_file):
+    def save_media_file(self, media_file: MediaFile):
         media_file_dict = media_file.metadata.save_to_dict()
-        json_content = json.dumps(media_file_dict)
+        json_data = json.dumps(media_file_dict)
 
         binary_media_file_dict = media_file.metadata.save_binary_to_dict()
-        binary_content = dill.dumps(binary_media_file_dict)
-        if media_file.loaded_from_database:
-            if json_content == 0 or json_content == '0':
-                print(media_file.relative_path.as_posix())
+        bin_data = dill.dumps(binary_media_file_dict)
+        if media_file.file_access.loaded_from_database:
+            if json_data == 0 or json_data == '0':
+                print(media_file.get_path())
             try:
                 self.cache_db_connection.cursor.execute(
                     '''update
                             metadata 
                        set 
-                            file = ?, archive = ?, jm = ?, bm = ?, last_update_date = ?
+                            file = ?, jm = ?, bm = ?, last_update_date = ?
                        where
                             file_id = ? and (jm is not ? or bm is not ?)''',
-                    (media_file.relative_path.as_posix(), media_file.archive, json_content, binary_content,
-                     datetime.now(),
-                     media_file.db_id, json_content, binary_content))
+                    (media_file.get_path(), json_data, bin_data, datetime.now(), media_file.db_id, json_data, bin_data))
             except sqlite3.IntegrityError:
-                print("Integrity error when updating media " + str(media_file.relative_path))
+                print("Integrity error when updating media " + str(media_file))
         else:
             self.cache_db_connection.cursor.execute(
                 '''insert into 
-                        metadata(file, archive, jm, bm, last_update_date)
+                        metadata(file, jm, bm, last_update_date)
                    values
-                        (?, ?, ?, ?, ?)''',
-                (media_file.relative_path.as_posix(), media_file.archive, json_content, binary_content,
-                 datetime.now()))
+                        (?, ?, ?, ?)''',
+                (media_file.get_path(), json_data, bin_data, datetime.now()))
 
-    def save_thumbnail(self, media_file):
+    def save_thumbnail(self, media_file: MediaFile):
         thumbnail_data = media_file.metadata[THUMBNAIL].thumbnail
-        if media_file.loaded_from_database:
+        if media_file.file_access.loaded_from_database:
             try:
                 self.thb_db_connection.cursor.execute(
                     '''update
@@ -210,17 +209,17 @@ class MediaSetDatabase:
                             file = ?, thb = ?
                        where
                             file_id = ? and thb is not ?''',
-                    (media_file.relative_path.as_posix(), thumbnail_data, media_file.db_id, thumbnail_data))
+                    (media_file.get_path(), thumbnail_data, media_file.db_id, thumbnail_data))
                 # Vérifier si ligne mise à jour ? Sinon ajouter une nouvelle ligne ?
             except sqlite3.IntegrityError:
-                print("Integrity error when updating media " + media_file.relative_path.as_posix())
+                print("Integrity error when updating media " + str(media_file))
         else:
             self.thb_db_connection.cursor.execute(
                 '''insert into 
                         thb(file_id, file, thb)
                    values
                         (?, ?, ?)''',
-                (media_file.id, media_file.relative_path.as_posix(), thumbnail_data))
+                (media_file.id, media_file.get_path(), thumbnail_data))
 
     def load_database_in_dict(self):
         data_dict = {}

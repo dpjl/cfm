@@ -1,11 +1,12 @@
 from camerafile.core import Configuration
 from camerafile.core.Resource import Resource
+from camerafile.metadata.MetadataThumbnail import MetadataThumbnail
 
 
 class ComputeThumbnail:
 
     @staticmethod
-    def execute(metadata_thumbnail):
+    def execute(metadata_thumbnail: MetadataThumbnail):
         try:
             if not Configuration.initialized:
                 Resource.init()

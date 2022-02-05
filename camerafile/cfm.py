@@ -3,9 +3,10 @@ import logging.config
 from multiprocessing.spawn import freeze_support
 from pathlib import Path
 
-from camerafile.core import Constants, Configuration
-from camerafile.processor.CameraFilesProcessor import CameraFilesProcessor
+import camerafile.core.Configuration
+from camerafile.core import Configuration
 from camerafile.core.Logging import init_logging
+from camerafile.core.MediaSet import MediaSet
 from camerafile.core.Resource import Resource
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.processor.BatchComputeCm import BatchComputeCm
@@ -17,6 +18,8 @@ from camerafile.processor.BatchDelete import BatchDelete
 from camerafile.processor.BatchDetectFaces import BatchDetectFaces
 from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
 from camerafile.processor.BatchRecoFaces import BatchRecoFaces
+from camerafile.processor.CompareMediaSets import CompareMediaSets
+from camerafile.processor.SearchForDuplicates import SearchForDuplicates
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,9 +57,6 @@ def create_main_args_parser():
     parser.add_argument('-H', '--hard-links', action='store_true',
                         help='copy will create hard links instead of file duplication')
 
-    parser.add_argument('-r', '--rm-duplicates', action='store_true',
-                        help='remove duplicates')
-
     parser.add_argument('-w', '--workers', type=int,
                         help='maximum number of CFM workers that can be run simultaneously')
 
@@ -65,6 +65,9 @@ def create_main_args_parser():
 
     parser.add_argument('-p', '--password', type=str,
                         help='password of the cfm zip sync file (contains deleted and unknown files)')
+
+    parser.add_argument('-x', '--exec', type=str,
+                        help='exec another processor')
 
     parser.add_argument('-v', '--version', action='store_true',
                         help='print version number')
@@ -78,7 +81,7 @@ def create_main_args_parser():
 
 def configure(args):
     if args.workers is not None:
-        Constants.NB_SUB_PROCESS = args.workers
+        camerafile.core.Configuration.NB_SUB_PROCESS = args.workers
 
     if args.password:
         Configuration.CFM_SYNC_PASSWORD = args.password.encode()
@@ -90,10 +93,10 @@ def execute(args):
     if args.org_format:
         pass
 
-    media_set1 = CameraFilesProcessor.load_media_set(args.dir1)
+    media_set1 = MediaSet.load_media_set(args.dir1)
     media_set2 = None
     if args.dir2:
-        media_set2 = CameraFilesProcessor.load_media_set(args.dir2)
+        media_set2 = MediaSet.load_media_set(args.dir2)
 
     BatchReadInternalMd(media_set1).execute()
     BatchComputeCm(media_set1).execute()
@@ -102,12 +105,20 @@ def execute(args):
         BatchReadInternalMd(media_set2).execute()
         BatchComputeCm(media_set2).execute()
 
-    if args.analyse:
-        CameraFilesProcessor.analyse_duplicates(media_set1)
+    if args.exec:
+        import importlib
+        ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.exec), args.exec)
+        ProcessorClass(media_set1).execute()
 
         if media_set2:
-            CameraFilesProcessor.analyse_duplicates(media_set2)
-            CameraFilesProcessor.cmp(media_set1, media_set2)
+            ProcessorClass(media_set2).execute()
+
+    if args.analyse:
+        SearchForDuplicates.execute(media_set1)
+
+        if media_set2:
+            SearchForDuplicates.execute(media_set2)
+            CompareMediaSets.execute(media_set1, media_set2)
 
     if args.generate_album:
         BatchComputeMissingThumbnails(media_set1).execute()
@@ -117,7 +128,7 @@ def execute(args):
         BatchDetectFaces(media_set1).execute()
 
     if args.learn_faces:
-        pass
+        media_set1.train()
 
     if args.identify_faces:
         BatchRecoFaces(media_set1).execute()

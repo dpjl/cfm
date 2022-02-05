@@ -1,7 +1,7 @@
-import shutil
+import os
+import sys
 import threading
 import time
-import sys
 
 from camerafile.console.StandardOutputWrapper import StdoutWrapper, StderrWrapper
 
@@ -15,7 +15,7 @@ class ConsoleProgressBar:
 
     def __init__(self, max_count, title="", clear_screen=False):
 
-        self.console_width = shutil.get_terminal_size((80, 20)).columns - 1
+        self.console_width = os.get_terminal_size().columns - 1
         self.title = title
         self.defil_position = 0
         self.position = 0
@@ -31,6 +31,7 @@ class ConsoleProgressBar:
         self.stderr = StderrWrapper(self.console_width)
         self.stdout.wrap()
         self.stderr.wrap()
+        self.details = {}
 
         thread = threading.Thread(None, self.auto_refresh, None, [], {})
         thread.start()
@@ -67,6 +68,10 @@ class ConsoleProgressBar:
             rem_time = ((current_time - self.start_time) / self.position) * (self.max - self.position)
             self.remaining_time = self.get_duration_string(rem_time)
 
+    def set_detail(self, key, text):
+        with self.lock_increment:
+            self.details[key] = text
+
     def set_item_text(self, item_text):
         with self.lock_increment:
             self.item_text = item_text
@@ -87,8 +92,13 @@ class ConsoleProgressBar:
 
         self.refresh()
 
+        self.stdout.clean_lines()
+        self.details = {}
+        self.refresh()
         if self.clear_screen:
-            print("\r", end='')
+            pass
+            # self.stdout.writelines_tmp(self.stdout.blanks(SPACE) * 4)
+            # print("\r", end='')
 
         self.stdout.unwrap()
         self.stderr.unwrap()
@@ -102,10 +112,7 @@ class ConsoleProgressBar:
         time.sleep(2 * REFRESH_DELAY)
 
     def refresh(self):
-
-        self.console_width = shutil.get_terminal_size((80, 20)).columns - 1
-        self.stdout.console_width = self.console_width
-        self.stderr.console_width = self.console_width
+        self.console_width = self.stdout.console_width
 
         if self.max == 0:
             return
@@ -123,7 +130,7 @@ class ConsoleProgressBar:
                 percent=str(int(position_100))[:3],
                 remaining=self.remaining_time[:5])
 
-            #progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
+            # progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
             progress_bar_size = 32
             current_position_progress_bar = int(position_100 * progress_bar_size / 100) + 1
             past_size = current_position_progress_bar - 1
@@ -140,7 +147,11 @@ class ConsoleProgressBar:
                 future='', c3=SPACE, l3=future_size)
 
             line = "{before}{progress_bar}{after}".format(before=before_bar, progress_bar=bar, after=after_bar)
-            sys.stdout.write(line[0:self.console_width])
+            details_lines = []
+            for key in self.details.keys():
+                start_of_line = "[" + str(key) + "] "
+                details_lines.append(start_of_line + self.cut_to_screen_size(self.details[key], len(start_of_line)))
+            self.stdout.writelines_with_lock(details_lines + [line[0:self.console_width]], tmp=True)
         else:
             stats = "{title} | {position:{position_len}}/{max} | {percent: >3}% {remaining} - ".format(
                 title=self.title,
@@ -155,6 +166,14 @@ class ConsoleProgressBar:
             line = stats + "{item}".format(
                 item=self.item_text[decal:])
             sys.stdout.write(line[0:self.console_width])
+
+    def cut_to_screen_size(self, content, other_content_len=0):
+        line_size = len(content) + other_content_len
+        if line_size > self.console_width:
+            decal = line_size - self.console_width + 4
+            return "..." + content[decal:]
+        else:
+            return content
 
 
 if __name__ == "__main__":

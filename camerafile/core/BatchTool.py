@@ -1,41 +1,20 @@
 import atexit
 import os
-from functools import wraps
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
+from multiprocessing import current_process
+from multiprocessing.queues import Queue
+
+import camerafile.core.Configuration
 from camerafile.console.ConsoleProgressBar import ConsoleProgressBar
-from camerafile.core import Constants
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.console.StandardOutputWrapper import StdoutRecorder
 from camerafile.core.Logging import init_only_console_logging, Logger
 from camerafile.core.Resource import Resource
-from camerafile.console.StandardOutputWrapper import StdoutRecorder
+from camerafile.tools.ExifTool import ExifTool
 
 LOGGER = Logger(__name__)
 
 
-def with_progression(title="", short_title=""):
-    def with_progression_outer(f):
-        @wraps(f)
-        def with_progression_inner(input_list, *args, progress_bar=None):
-
-            display_starting_line()
-            progress_bar = ConsoleProgressBar(len(input_list), "", False)
-            LOGGER.info(">>>> {title}".format(title=title))
-            try:
-                ret = f(input_list, *args, progress_bar)
-            finally:
-                progress_bar.stop()
-                ExifTool.stop()
-                LOGGER.info("{nb_elements} files processed in {duration}"
-                            .format(nb_elements=progress_bar.position,
-                                    duration=progress_bar.processing_time))
-            return ret
-
-        return with_progression_inner
-
-    return with_progression_outer
-
-
-def execute_batch(task, args, post_task, progress_bar):
+def execute_uni_process_batch(task, args, post_task, progress_bar):
     try:
         for arg in args:
             post_task(task(arg), progress_bar, replace=False)
@@ -58,18 +37,39 @@ def on_worker_end():
 
 
 def execute_task(*args):
-    stdout_recorder = StdoutRecorder().start()
-    if Resource.current_multiprocess_task is None:
-        print("Multi-processing: no task defined in sub-process.")
-    result = Resource.current_multiprocess_task(*args)
-    return result, stdout_recorder.stop()
+    try:
+        queue: Queue = args[0][0]
+        queue.put([current_process().pid, args[0][1].file_access.relative_path])
+        stdout_recorder = StdoutRecorder().start()
+        if Resource.current_multiprocess_task is None:
+            print("Multi-processing: no task defined in sub-process.")
+        result = Resource.current_multiprocess_task(args[0][1])
+        return result, stdout_recorder.stop()
+    except BaseException as e:
+        print(e)
 
 
 def execute_multiprocess_batch(nb_process, task, args, post_task, progress_bar):
+    m = Manager()
+    queue = m.Queue()
     pool = Pool(nb_process, on_worker_start, (task,))
+    nb_processed_elements = 0
+    nb_elements = len(args)
     try:
+        args = [(queue,) + (arg,) for arg in args]
         res_list = pool.imap_unordered(execute_task, args)
+
+        for i in range(min(nb_process, nb_elements)):
+            [n, detail] = queue.get(block=True, timeout=5)
+            progress_bar.set_detail(n, detail)
+            nb_processed_elements += 1
+
         for res in res_list:
+            if nb_processed_elements < nb_elements:
+                [n, detail] = queue.get(block=True, timeout=5)
+                progress_bar.set_detail(n, detail)
+                nb_processed_elements += 1
+
             result, stdout = res
             if stdout.strip() != "":
                 print(stdout.strip())
@@ -96,7 +96,7 @@ class TaskWithProgression:
         self.batch_title = batch_title
         self.nb_sub_process = nb_sub_process
         if self.nb_sub_process is None:
-            self.nb_sub_process = Constants.NB_SUB_PROCESS
+            self.nb_sub_process = camerafile.core.Configuration.NB_SUB_PROCESS
 
     def update_title(self, ):
         if self.nb_sub_process != 0:
@@ -130,7 +130,7 @@ class TaskWithProgression:
             if self.nb_sub_process != 0:
                 execute_multiprocess_batch(self.nb_sub_process, task, args, self.post_task, progress_bar)
             else:
-                execute_batch(task, args, self.post_task, progress_bar)
+                execute_uni_process_batch(task, args, self.post_task, progress_bar)
 
             self.finalize()
 

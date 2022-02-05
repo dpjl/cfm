@@ -5,6 +5,7 @@ import logging
 from PIL import Image
 
 from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
+from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
 
 LOGGER = logging.getLogger(__name__)
@@ -12,11 +13,9 @@ LOGGER = logging.getLogger(__name__)
 
 class MetadataInternal(Metadata):
 
-    def __init__(self, media_id, file_access, extension):
+    def __init__(self, file_access: FileAccess):
         super().__init__(None)
-        self.media_id = media_id
         self.file_access = file_access
-        self.extension = extension
         self.thumbnail = None
 
     def get_md_value(self, md_name):

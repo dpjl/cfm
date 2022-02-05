@@ -15,6 +15,13 @@ class Image:
         self.orientation = None
         self.read_image()
 
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.image_data is not None:
+            self.image_data.close()
+
     def read_image(self):
         try:
             self.image_data = PilImage.open(self.file)

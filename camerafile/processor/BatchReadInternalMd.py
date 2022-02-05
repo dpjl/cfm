@@ -1,6 +1,7 @@
 from camerafile.core.BatchTool import TaskWithProgression
 from camerafile.core.Constants import INTERNAL, THUMBNAIL, CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
+from camerafile.metadata.MetadataInternal import MetadataInternal
 from camerafile.task.LoadInternalMetadata import LoadInternalMetadata
 
 LOGGER = Logger(__name__)
@@ -25,8 +26,8 @@ class BatchReadInternalMd(TaskWithProgression):
                 internal_metadata_list.append(media_file.metadata[INTERNAL])
         return internal_metadata_list
 
-    def post_task(self, result_internal_metadata, progress_bar, replace=False):
-        original_media = self.media_set.get_media(result_internal_metadata.media_id)
+    def post_task(self, result_internal_metadata: MetadataInternal, progress_bar, replace=False):
+        original_media = self.media_set.get_media(result_internal_metadata.file_access.id)
         if replace:
             original_media.metadata[INTERNAL] = result_internal_metadata
         original_media.metadata[THUMBNAIL].thumbnail = original_media.metadata[INTERNAL].thumbnail

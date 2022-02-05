@@ -1,12 +1,16 @@
-from camerafile.core.Constants import IMAGE_TYPE
-from camerafile.tools.Image import Image
 import hashlib
+import os
+
 import imagehash
+
+from camerafile.core.Constants import IMAGE_TYPE
+from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.tools.Image import Image
 
 
 class Hash:
 
-    def __init__(self, file_access):
+    def __init__(self, file_access: FileAccess):
         self.file_access = file_access
         self.extension = file_access.get_extension()
 
@@ -14,7 +18,8 @@ class Hash:
         if self.extension in IMAGE_TYPE:
             hash_value = self.image_hash()
         else:
-            hash_value = self.md5_hash()
+            hash_value = self.file_size_in_bytes()
+            # hash_value = self.md5_hash()
         return hash_value
 
     def image_hash(self):
@@ -35,8 +40,12 @@ class Hash:
                 # file_hash.update(img.tobytes())
                 # result = file_hash.hexdigest()
             except:
-                result = self.md5_hash()
+                result = self.file_size_in_bytes()
+                # result = self.md5_hash()
         return result
+
+    def file_size_in_bytes(self):
+        return str(self.file_access.get_file_size())
 
     def md5_hash(self):
         with self.file_access.open() as f:

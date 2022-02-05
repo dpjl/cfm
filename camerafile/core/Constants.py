@@ -1,5 +1,3 @@
-from multiprocessing import cpu_count
-
 IMAGE_TYPE = [".jpg", ".jpeg", ".png", ".thm"]
 VIDEO_TYPE = [".mp4", ".mov", ".avi"]
 AUDIO_TYPE = [".wav", ".mp3"]
@@ -25,4 +23,3 @@ UNKNOWN = "Unknown"
 
 original_sigint_handler = None
 
-NB_SUB_PROCESS = cpu_count()

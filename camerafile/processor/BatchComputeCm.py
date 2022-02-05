@@ -7,10 +7,11 @@ LOGGER = Logger(__name__)
 
 # Not compatible with multi sub-processes
 class BatchComputeCm(TaskWithProgression):
+    BATCH_TITLE = "Try to recover missing camera models"
 
     def __init__(self, media_set):
         self.media_set = media_set
-        TaskWithProgression.__init__(self, batch_title="Try to recover missing camera models", nb_sub_process=0)
+        TaskWithProgression.__init__(self, batch_title=self.BATCH_TITLE, nb_sub_process=0)
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())

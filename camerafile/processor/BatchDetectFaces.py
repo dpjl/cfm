@@ -1,16 +1,21 @@
 from camerafile.core.BatchTool import TaskWithProgression
 from camerafile.core.Constants import IMAGE_TYPE, FACES
 from camerafile.core.Logging import Logger
+from camerafile.core.MediaFile import MediaFile
+from camerafile.core.MediaSet import MediaSet
+from camerafile.metadata.MetadataFaces import MetadataFaces
 from camerafile.task.ComputeFaceBoxes import ComputeFaceBoxes
 
 LOGGER = Logger(__name__)
 
 
 class BatchDetectFaces(TaskWithProgression):
+    BATCH_TITLE = "Detect faces"
 
-    def __init__(self, media_set):
+    def __init__(self, media_set: MediaSet):
         self.media_set = media_set
-        TaskWithProgression.__init__(self, batch_title="Detect faces")
+        self.processed_media_files = []
+        TaskWithProgression.__init__(self, batch_title=self.BATCH_TITLE)
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
@@ -25,6 +30,11 @@ class BatchDetectFaces(TaskWithProgression):
                 face_metadata_list.append(media_file.metadata[FACES])
         return face_metadata_list
 
-    def post_task(self, result_face_metadata, progress_bar, replace=True):
-        self.media_set.get_media(result_face_metadata.media_id).metadata[FACES] = result_face_metadata
+    def post_task(self, result_face_metadata: MetadataFaces, progress_bar, replace=True):
+        media_file: MediaFile = self.media_set.get_media(result_face_metadata.file_access.id)
+        media_file.metadata[FACES] = result_face_metadata
+        self.processed_media_files.append(media_file)
         progress_bar.increment()
+        if len(self.processed_media_files) > 100:
+            self.media_set.intermediate_save_database(self.processed_media_files)
+            self.processed_media_files = []

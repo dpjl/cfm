@@ -14,7 +14,7 @@ class MediaDirectory:
         self.parent_set = parent_set
         self.id = hashlib.md5(self.path.encode()).hexdigest()
         self.extension = None
-        self.file_access = StandardFileAccess(parent_set.root_path, path, self.id),
+        self.file_access = StandardFileAccess(parent_set.root_path, path),
         self.metadata = MetadataList(self)
 
     def __str__(self):
