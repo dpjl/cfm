@@ -53,6 +53,9 @@ class MediaFile:
             return str(width) + "x" + str(height)
         return None
 
+    def get_file_size(self):
+        return self.metadata[INTERNAL].get_file_size()
+
     def get_exif_date(self):
         return self.metadata[INTERNAL].get_date()
 

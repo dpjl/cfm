@@ -37,11 +37,11 @@ class SearchForDuplicates:
 
         pdf_file = PdfFile(str(media_set.output_directory.path / "edited.pdf"))
 
-        for date in media_set.date_model_size_map:
-            for model in media_set.date_model_size_map[date]:
-                if model is not None and model != "" and len(media_set.date_model_size_map[date][model]) > 1:
-                    for dim in media_set.date_model_size_map[date][model]:
-                        for media in media_set.date_model_size_map[date][model][dim]:
+        for date in media_set.date_model_dimension_map:
+            for model in media_set.date_model_dimension_map[date]:
+                if model is not None and model != "" and len(media_set.date_model_dimension_map[date][model]) > 1:
+                    for dim in media_set.date_model_dimension_map[date][model]:
+                        for media in media_set.date_model_dimension_map[date][model][dim]:
                             pdf_file.add_media_image(media)
                             break
                     pdf_file.new_line()

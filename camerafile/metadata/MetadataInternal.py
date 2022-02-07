@@ -4,7 +4,7 @@ import logging
 
 from PIL import Image
 
-from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
+from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION, SIZE
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
 
@@ -39,17 +39,23 @@ class MetadataInternal(Metadata):
     def get_height(self):
         return self.get_md_value(HEIGHT)
 
+    def get_file_size(self):
+        return self.get_md_value(SIZE)
+
     def load_internal_metadata(self):
 
         if self.value is None:
 
-            model, date, width, height, orientation, thumbnail = self.file_access.call_exif_tool()
+            model, date, width, height, orientation, file_size, thumbnail = self.file_access.call_exif_tool()
             # with open(self.file_access.path, "rb") as file_stream:
             #    model, date, width, height, orientation, thumbnail = ExifTool.get_metadata(file_stream)
 
             last_modified_date = self.file_access.get_last_modification_date()
             if date is None:
                 date = last_modified_date
+
+            if file_size is None:
+                file_size = self.file_access.get_file_size()
 
             if orientation is not None and (orientation == 6 or orientation == 8):
                 old_width = width
@@ -67,7 +73,8 @@ class MetadataInternal(Metadata):
                           DATE_LAST_MODIFICATION: last_modified_date,
                           WIDTH: width,
                           HEIGHT: height,
-                          ORIENTATION: orientation}
+                          ORIENTATION: orientation,
+                          SIZE: file_size}
 
             if thumbnail is not None:
                 self.thumbnail = base64.b64decode(thumbnail[7:])

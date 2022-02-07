@@ -28,9 +28,9 @@ class MediaSet:
         self.face_rec = FaceRecognition(self, self.output_directory)
         self.media_file_list = []
         self.media_dir_list = {}
-        self.date_size_name_map = {}
-        self.date_size_sig_map = {}
-        self.date_model_size_map = {}
+        self.date_size_map = {}
+        self.date_sig_map = {}
+        self.date_model_dimension_map = {}
         self.id_map = {}
         self.database = MediaSetDatabase(self.output_directory)
         self.initialize_file_and_dir_list()
@@ -108,6 +108,15 @@ class MediaSet:
             map_to_update[x][y][z].append(media_file)
 
     @staticmethod
+    def update_x_y_map(map_to_update, x, y, media_file):
+        if x not in map_to_update:
+            map_to_update[x] = {}
+        if y not in map_to_update[x]:
+            map_to_update[x][y] = []
+        if media_file not in map_to_update[x][y]:
+            map_to_update[x][y].append(media_file)
+
+    @staticmethod
     def exist_in_x_y_z_map(map_to_inspect, x, y, z):
         if x is not None and x in map_to_inspect:
             if y in map_to_inspect[x]:
@@ -117,50 +126,49 @@ class MediaSet:
                     return len(map_to_inspect[x][y]) != 0
         return False
 
+    @staticmethod
+    def exist_in_x_y_map(map_to_inspect, x, y):
+        if x is not None and x in map_to_inspect:
+            if y is not None and y in map_to_inspect[x]:
+                return True
+        return False
+
     def update_date_size_name_map(self, media_file: MediaFile):
         date = media_file.get_exif_date()
-        dim = media_file.get_dimensions()
-        filename = media_file.file_access.name
+        size = media_file.get_file_size()
         if date is not None:
-            self.update_x_y_z_map(self.date_size_name_map, date, dim, filename, media_file)
+            self.update_x_y_map(self.date_size_map, date, size, media_file)
 
     def update_date_size_sig_map(self, media_file: MediaFile):
         date = media_file.get_exif_date()
-        dim = media_file.get_dimensions()
         sig = media_file.get_signature()
         if date is not None and sig is not None:
-            self.update_x_y_z_map(self.date_size_sig_map, date, dim, sig, media_file)
+            self.update_x_y_map(self.date_sig_map, date, sig, media_file)
 
     def update_date_model_size_map(self, media_file: MediaFile):
         date = media_file.get_exif_date()
         model = media_file.get_camera_model()
         dim = media_file.get_dimensions()
         if date is not None:
-            self.update_x_y_z_map(self.date_model_size_map, date, model, dim, media_file)
+            self.update_x_y_z_map(self.date_model_dimension_map, date, model, dim, media_file)
 
     def contains(self, item: MediaFile):
         date = item.get_exif_date()
-        dimensions = item.get_dimensions()
-        if self.get_microseconds(date) == 0:
-            if self.exist_in_x_y_z_map(self.date_size_name_map, date, dimensions, item.file_access.name):
-                return True
-        else:
-            if self.exist_in_x_y_z_map(self.date_size_name_map, date, dimensions, "*"):
-                return True
+        file_size = item.get_file_size()
+        if self.exist_in_x_y_map(self.date_size_map, date, file_size):
+            return True
         # vérifier si la signature devrait être calculée (possibly already exist)
         if item.get_signature() is not None:
-            if self.exist_in_x_y_z_map(self.date_size_sig_map, date, dimensions, item.get_signature()):
+            if self.exist_in_x_y_map(self.date_sig_map, date, item.get_signature()):
                 return True
         return False
 
     def get_possibly_duplicates(self):
         result = []
-        for date in self.date_size_name_map:
-            if self.get_microseconds(date) == 0:
-                for size in self.date_size_name_map[date]:
-                    if len(self.date_size_name_map[date][size]) > 1:
-                        for filename in self.date_size_name_map[date][size]:
-                            result.append(self.date_size_name_map[date][size][filename][0])
+        for date in self.date_size_map:
+            if len(self.date_size_map[date]) > 1:
+                for file_size in self.date_size_map[date]:
+                    result.append(self.date_size_map[date][file_size][0])
         return result
 
     def get_duplicates_report(self, duplicates):
@@ -177,18 +185,16 @@ class MediaSet:
 
     def get_possibly_already_exists(self, media_set2):
         result = []
-        for date in self.date_size_name_map:
-            if self.get_microseconds(date) == 0:
-                for size in self.date_size_name_map[date]:
-                    if date in media_set2.date_size_name_map and size in media_set2.date_size_name_map[date]:
-                        if len(self.date_size_name_map[date][size]) == 1:
-                            filename1, _ = self.get_first_element(self.date_size_name_map[date][size])
-                            if filename1 not in media_set2.date_size_name_map[date][size]:
-                                result.append(self.date_size_name_map[date][size][filename1][0])
-                        if len(media_set2.date_size_name_map[date][size]) == 1:
-                            filename1, _ = self.get_first_element(media_set2.date_size_name_map[date][size])
-                            if filename1 not in self.date_size_name_map[date][size]:
-                                result.append(media_set2.date_size_name_map[date][size][filename1][0])
+        for date in self.date_size_map:
+            if date in media_set2.date_size_map:
+                if len(self.date_size_map[date]) == 1:
+                    file_size, _ = self.get_first_element(self.date_size_map[date])
+                    if file_size not in media_set2.date_size_map[date]:
+                        result.append(self.date_size_map[date][file_size][0])
+                if len(media_set2.date_size_map[date]) == 1:
+                    file_size, _ = self.get_first_element(media_set2.date_size_map[date])
+                    if file_size not in self.date_size_map[date]:
+                        result.append(media_set2.date_size_map[date][file_size][0])
         return result
 
     def get_copied_files(self):
@@ -201,46 +207,31 @@ class MediaSet:
     def cmp(self, other_media_set: "MediaSet"):
         in_both = []
         only_in_self = []
-        for date in self.date_size_name_map:
-            if self.get_microseconds(date) != 0:
-                for size in self.date_size_name_map[date]:
-                    media_list = self.get_media_list_from_date_and_size(date, size)
+        for date in self.date_size_map:
+            if len(self.date_size_map[date]) == 1:
+                _, unique_media_list = self.get_first_element(self.date_size_map[date])
+                if other_media_set.contains(unique_media_list[0]):
+                    in_both.append(unique_media_list)
+                else:
+                    only_in_self.append(unique_media_list)
+            else:
+                for sig in self.date_sig_map[date]:
+                    media_list = self.date_sig_map[date][sig]
                     if other_media_set.contains(media_list[0]):
                         in_both.append(media_list)
                     else:
                         only_in_self.append(media_list)
-            else:
-                for size in self.date_size_name_map[date]:
-                    if len(self.date_size_name_map[date][size]) == 1:
-                        _, unique_media_list = self.get_first_element(self.date_size_name_map[date][size])
-                        if other_media_set.contains(unique_media_list[0]):
-                            in_both.append(unique_media_list)
-                        else:
-                            only_in_self.append(unique_media_list)
-                    else:
-                        for sig in self.date_size_sig_map[date][size]:
-                            media_list = self.date_size_sig_map[date][size][sig]
-                            if other_media_set.contains(media_list[0]):
-                                in_both.append(media_list)
-                            else:
-                                only_in_self.append(media_list)
         return in_both, only_in_self
 
     def duplicates(self):
         n_copy = {}
-        for date in self.date_size_name_map:
-            if self.get_microseconds(date) != 0:
-                for size in self.date_size_name_map[date]:
-                    media_list = self.get_media_list_from_date_and_size(date, size)
-                    self.add_duplicates_to_n_copy(n_copy, media_list)
+        for date, file_size_map in self.date_size_map.items():
+            if len(file_size_map) == 1:
+                _, media_list = self.get_first_element(file_size_map)
+                self.add_duplicates_to_n_copy(n_copy, media_list)
             else:
-                for size, filename_map in self.date_size_name_map[date].items():
-                    if len(filename_map) == 1:
-                        _, media_list = self.get_first_element(filename_map)
-                        self.add_duplicates_to_n_copy(n_copy, media_list)
-                    else:
-                        for media_list in self.date_size_sig_map[date][size].values():
-                            self.add_duplicates_to_n_copy(n_copy, media_list)
+                for media_list in self.date_sig_map[date].values():
+                    self.add_duplicates_to_n_copy(n_copy, media_list)
         return n_copy
 
     @staticmethod
@@ -258,33 +249,18 @@ class MediaSet:
                         media_file.metadata[metadata_name].value = not_empty_metadata_value
 
     def propagate_sig_to_duplicates(self):
-        for date in self.date_size_name_map:
-            for size in self.date_size_name_map[date]:
-                for filename in self.date_size_name_map[date][size]:
-                    self.propagate_metadata_value(SIGNATURE, self.date_size_name_map[date][size][filename])
+        for date in self.date_size_map:
+            for file_size in self.date_size_map[date]:
+                self.propagate_metadata_value(SIGNATURE, self.date_size_map[date][file_size])
 
     def propagate_cm_to_duplicates(self):
-        for date in self.date_size_name_map:
-            for size in self.date_size_name_map[date]:
-                for filename in self.date_size_name_map[date][size]:
-                    self.propagate_metadata_value(CFM_CAMERA_MODEL, self.date_size_name_map[date][size][filename])
+        for date in self.date_size_map:
+            for file_size in self.date_size_map[date]:
+                self.propagate_metadata_value(CFM_CAMERA_MODEL, self.date_size_map[date][file_size])
 
-        for date in self.date_size_sig_map:
-            for size in self.date_size_sig_map[date]:
-                for sig in self.date_size_sig_map[date][size]:
-                    self.propagate_metadata_value(CFM_CAMERA_MODEL, self.date_size_sig_map[date][size][sig])
-
-    @staticmethod
-    def get_microseconds(date):
-        if date is not None:
-            return datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f').microsecond
-        return 0
-
-    def get_media_list_from_date_and_size(self, date, size):
-        media_list = []
-        for filename in self.date_size_name_map[date][size]:
-            media_list += self.date_size_name_map[date][size][filename]
-        return media_list
+        for date in self.date_sig_map:
+            for sig in self.date_sig_map[date]:
+                self.propagate_metadata_value(CFM_CAMERA_MODEL, self.date_sig_map[date][sig])
 
     @staticmethod
     def add_duplicates_to_n_copy(n_copy, media_list: List[MediaFile]):

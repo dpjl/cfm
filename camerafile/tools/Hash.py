@@ -2,6 +2,7 @@ import hashlib
 import os
 
 import imagehash
+from PIL import ImageOps
 
 from camerafile.core.Constants import IMAGE_TYPE
 from camerafile.fileaccess.FileAccess import FileAccess
@@ -39,7 +40,8 @@ class Hash:
                 # file_hash = hashlib.md5()
                 # file_hash.update(img.tobytes())
                 # result = file_hash.hexdigest()
-            except:
+            except BaseException as e:
+                print("image_hash: " + str(e) + " / " + self.file_access.relative_path)
                 result = self.file_size_in_bytes()
                 # result = self.md5_hash()
         return result

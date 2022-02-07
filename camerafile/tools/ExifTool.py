@@ -66,6 +66,7 @@ class ExifTool(object):
     WIDTH_METADATA = "ImageWidth"
     HEIGHT_METADATA = "ImageHeight"
     ORIENTATION_METADATA = "Orientation"
+    FILE_SIZE_METADATA = "FileSize"
     SUB_SEC_CREATE_DATE = "SubSecCreateDate"
     SUB_SEC_DATE_TIME_ORIGINAL = "SubSecDateTimeOriginal"
     SUB_SEC_MODIFY_DATE = "SubSecModifyDate"
@@ -146,6 +147,9 @@ class ExifTool(object):
             except ValueError:
                 return None
 
+    # "#CreationDate"
+    # "#CameraModel"
+
     @classmethod
     def read_date(cls, exif_tool_result):
         date = cls.parse_date(exif_tool_result, cls.SUB_SEC_DATE_TIME_ORIGINAL, '%Y:%m:%d %H:%M:%S.%f')
@@ -164,6 +168,7 @@ class ExifTool(object):
                 "-" + cls.WIDTH_METADATA,
                 "-" + cls.HEIGHT_METADATA,
                 "-" + cls.ORIENTATION_METADATA,
+                "-" + cls.FILE_SIZE_METADATA,
                 "-" + cls.THUMBNAIL_METADATA,
                 "-" + cls.SUB_SEC_CREATE_DATE,
                 "-" + cls.SUB_SEC_DATE_TIME_ORIGINAL,
@@ -179,7 +184,7 @@ class ExifTool(object):
 
         result = json.loads(stdout)
         if len(result) == 0:
-            return None, None, None, None, None, None
+            return None, None, None, None, None, None, None
 
         thumbnail = None
         if cls.THUMBNAIL_METADATA in result[0]:
@@ -205,7 +210,11 @@ class ExifTool(object):
         if cls.ORIENTATION_METADATA in result[0]:
             orientation = result[0][cls.ORIENTATION_METADATA]
 
-        return model, date, width, height, orientation, thumbnail
+        file_size = None
+        if cls.FILE_SIZE_METADATA in result[0]:
+            file_size = result[0][cls.FILE_SIZE_METADATA]
+
+        return model, date, width, height, orientation, file_size, thumbnail
 
     @classmethod
     def update_model(cls, filename, new_model):

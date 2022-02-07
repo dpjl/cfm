@@ -13,6 +13,7 @@ DATE = "date"
 DATE_LAST_MODIFICATION = "date-lm"
 WIDTH = "width"
 HEIGHT = "height"
+SIZE = "size"
 ORIENTATION = "orient"
 ORIGINAL_PATH = "ori-path"
 ORIGINAL_COPY_PATH = "ori-cp-path"
@@ -21,5 +22,11 @@ ORIGINAL_MOVE_PATH = "ori-mv-path"
 DESTINATION_MOVE_PATH = "dest-mv-path"
 UNKNOWN = "Unknown"
 
-original_sigint_handler = None
+# consider that files are identical if creation date, dimensions and file size are identical
+COMP_STRICT = "strict"
+# same as strict but ignore metadata (only image data are compared)
+COMP_STRICT_LIGHT = "strict-image"
+# consider that files are identical if creation date, and image hash are identical (robust to resize)
+COMP_SIMILAR = "similar"
 
+original_sigint_handler = None

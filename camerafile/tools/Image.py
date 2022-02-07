@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from PIL import Image as PilImage, ImageDraw
+from PIL import Image as PilImage, ImageDraw, ImageOps
 
 
 class Image:
@@ -25,10 +25,22 @@ class Image:
     def read_image(self):
         try:
             self.image_data = PilImage.open(self.file)
-            self.width, self.height = self.image_data.size
             self.get_metadata_with_pil()
+            self.rotate_if_necessary()
+            self.width, self.height = self.image_data.size
         except:
             self.image_data = None
+
+    def rotate_if_necessary(self):
+        self.image_data = ImageOps.exif_transpose(self.image_data)
+
+        # if self.orientation is not None:
+        #    if self.orientation == 3:
+        #        self.image_data = self.image_data.rotate(180, expand=True)
+        #    if self.orientation == 6:
+        #        self.image_data = self.image_data.rotate(270, expand=True)
+        #    if self.orientation == 8:
+        #        self.image_data = self.image_data.rotate(90, expand=True)
 
     def get_metadata_with_pil(self):
         if self.image_data.getexif() is not None:
@@ -43,16 +55,6 @@ class Image:
                     # comment récupérer ici l'équivalent de FileModifyDate (voir ExifTool) ?
             if 0x0112 in exif:
                 self.orientation = exif[0x0112]
-
-        # ImageOps.exif_transpose(image)
-
-        # if self.orientation is not None:
-        #    if self.orientation == 3:
-        #        self.image_data = self.image_data.rotate(180, expand=True)
-        #    if self.orientation == 6:
-        #        self.image_data = self.image_data.rotate(270, expand=True)
-        #    if self.orientation == 8:
-        #        self.image_data = self.image_data.rotate(90, expand=True)
 
     def display_face(self, face):
         img_copy = self.image_data.copy()

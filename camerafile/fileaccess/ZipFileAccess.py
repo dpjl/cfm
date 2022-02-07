@@ -55,6 +55,6 @@ class ZipFileAccess(FileAccess):
                 result = ExifTool.get_metadata(zip_file.read(self.file_path))
         except KeyError as e:
             print(str(e) + "[" + self.path + "]")
-            return None, None, None, None, None, None
+            return None, None, None, None, None, None, None
 
         return result

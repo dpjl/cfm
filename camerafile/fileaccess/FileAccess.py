@@ -64,3 +64,6 @@ class FileAccess:
 
     def get_file_size(self):
         pass
+
+    def get_last_modification_date(self):
+        pass

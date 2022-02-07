@@ -20,7 +20,7 @@ class MetadataThumbnail(Metadata):
 
     def compute_thumbnail(self):
         if self.thumbnail is None:
-            _, _, _, _, _, thumbnail = self.file_access.call_exif_tool()
+            _, _, _, _, _, _, thumbnail = self.file_access.call_exif_tool()
 
             if thumbnail is not None:
                 self.thumbnail = base64.b64decode(thumbnail[7:])
