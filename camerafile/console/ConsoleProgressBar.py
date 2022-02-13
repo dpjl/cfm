@@ -1,4 +1,7 @@
+import datetime
 import os
+
+import humanize
 import sys
 import threading
 import time
@@ -36,7 +39,8 @@ class ConsoleProgressBar:
         thread = threading.Thread(None, self.auto_refresh, None, [], {})
         thread.start()
 
-    def get_short_duration_string(self, duration):
+    @staticmethod
+    def get_short_duration_string(duration):
         hours = int(duration / 3600)
         minutes = int((duration - hours * 3600) / 60)
         seconds = int((duration - hours * 3600) % 60)
@@ -48,7 +52,8 @@ class ConsoleProgressBar:
         else:
             return "{num: >4}s".format(num=seconds)
 
-    def get_duration_string(self, duration):
+    @staticmethod
+    def get_duration_string(duration):
         result = ""
         hours = int(duration / 3600)
         minutes = int((duration - hours * 3600) / 60)
@@ -66,7 +71,8 @@ class ConsoleProgressBar:
         if self.position > 0:
             current_time = time.time()
             rem_time = ((current_time - self.start_time) / self.position) * (self.max - self.position)
-            self.remaining_time = self.get_duration_string(rem_time)
+            #self.remaining_time = self.get_duration_string(rem_time)
+            self.remaining_time = humanize.naturaldelta(datetime.timedelta(seconds=rem_time))
 
     def set_detail(self, key, text):
         with self.lock_increment:
@@ -111,6 +117,14 @@ class ConsoleProgressBar:
         self.processing_time = self.get_duration_string(time.time() - self.start_time)
         time.sleep(2 * REFRESH_DELAY)
 
+    def cut_to_screen_size(self, content, other_content_len=0):
+        line_size = len(content) + other_content_len
+        if line_size > self.console_width:
+            decal = line_size - self.console_width + 4
+            return "..." + content[decal:]
+        else:
+            return content
+
     def refresh(self):
         self.console_width = self.stdout.console_width
 
@@ -128,7 +142,7 @@ class ConsoleProgressBar:
                 position=self.position, position_len=len(str(self.max)),
                 max=self.max,
                 percent=str(int(position_100))[:3],
-                remaining=self.remaining_time[:5])
+                remaining=self.remaining_time)
 
             # progress_bar_size = self.console_width - len(before_bar) - len(after_bar)
             progress_bar_size = 32
@@ -163,17 +177,8 @@ class ConsoleProgressBar:
             decal = 0
             if line_size > self.console_width:
                 decal = line_size - self.console_width
-            line = stats + "{item}".format(
-                item=self.item_text[decal:])
+            line = stats + "{item}".format(item=self.item_text[decal:])
             sys.stdout.write(line[0:self.console_width])
-
-    def cut_to_screen_size(self, content, other_content_len=0):
-        line_size = len(content) + other_content_len
-        if line_size > self.console_width:
-            decal = line_size - self.console_width + 4
-            return "..." + content[decal:]
-        else:
-            return content
 
 
 if __name__ == "__main__":

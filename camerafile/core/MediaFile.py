@@ -1,6 +1,10 @@
+import hashlib
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
+
+from typing import TYPE_CHECKING
 
 from camerafile.core import Constants
 from camerafile.core.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
@@ -8,24 +12,40 @@ from camerafile.core.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.MetadataList import MetadataList
 
+if TYPE_CHECKING:
+    from camerafile.core.MediaSet import MediaSet
+
 LOGGER = logging.getLogger(__name__)
 
 
 class MediaFile:
 
-    def __init__(self, file_access: FileAccess, parent_dir, parent_set):
+    def __init__(self, file_access: FileAccess, parent_dir, parent_set: "MediaSet"):
         self.parent_dir = parent_dir
         self.parent_set = parent_set
+
         self.file_access = file_access
-        self.id = file_access.id
+        self.relative_path = Path(file_access.path).relative_to(parent_set.root_path).as_posix()
+        self.id: str = hashlib.md5(self.relative_path.encode()).hexdigest()
+        file_access.set_id(self.id)
+        file_access.set_relative_path(self.relative_path)
         self.extension = file_access.extension
         self.path = file_access.path
+
         self.metadata = MetadataList(self)
         self.db_id = None
         self.date_identifier = None
+        self.exists_in_db = False
+        self.thumbnail_in_db = False
+        self.exists = True
 
     def get_path(self):
-        return self.file_access.get_relative_path()
+        return self.relative_path
+
+    def is_in_trash(self):
+        if self.parent_set.get_trash_file() in self.path:
+            return True
+        return False
 
     def __str__(self):
         return self.file_access.get_path()
@@ -54,7 +74,7 @@ class MediaFile:
         return None
 
     def get_file_size(self):
-        return self.metadata[INTERNAL].get_file_size()
+        return self.file_access.get_file_size()
 
     def get_exif_date(self):
         return self.metadata[INTERNAL].get_date()
@@ -150,16 +170,16 @@ class MediaFile:
 
         return new_dir_path, new_file_path
 
-    def copy_metadata(self, new_media_set, new_file_path):
-        new_media_file = MediaFile(str(new_file_path), None, new_media_set)
+    def copy(self, new_media_set, new_file_access: FileAccess):
+        new_media_file = MediaFile(new_file_access, None, new_media_set)
         new_media_file.metadata = self.metadata
         new_media_file.metadata.set_value(ORIGINAL_COPY_PATH, str(self))
-        new_media_file.metadata.set_value(DESTINATION_COPY_PATH, str(new_file_path))
+        new_media_file.metadata.set_value(DESTINATION_COPY_PATH, new_file_access.path)
         new_media_set.add_file(new_media_file)
         return True
 
-    def move_metadata(self, new_file_path):
-        new_media_file = MediaFile(str(new_file_path), None, self.parent_set)
+    def move(self, new_file_access: FileAccess):
+        new_media_file = MediaFile(new_file_access, None, self.parent_set)
         new_media_file.metadata = self.metadata
         new_media_file.loaded_from_database = True
         new_media_file.metadata.set_value(ORIGINAL_PATH, str(self))

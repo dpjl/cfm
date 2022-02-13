@@ -2,19 +2,19 @@ import difflib
 import json
 import os
 import sqlite3
-import sys
 from datetime import datetime
 from json import JSONDecodeError
-from typing import Dict, Iterable
 
 import dill
+import sys
+from typing import Dict, Iterable
+from typing import TYPE_CHECKING
 
+from camerafile.core import Configuration
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
 from camerafile.fileaccess.FileAccess import FileAccess
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
@@ -38,34 +38,64 @@ class DBConnection:
 
 
 class MediaSetDatabase:
+    __instance = {}
 
     def __init__(self, output_directory):
-        self.cache_db_connection = DBConnection(output_directory.path / 'cfm.db')
-        self.thb_db_connection = DBConnection(output_directory.path / 'thb.db')
-        self.initialize_cache_db()
-        self.initialize_thb_db()
+        self.cfm_file = output_directory.path / 'cfm.db'
+        self.thb_file = output_directory.path / 'thb.db'
+        self.cache_db_connection = None
+        self.thb_db_connection = None
+        self.is_active = Configuration.USE_DB_FOR_CACHE or self.exists()
+
+    @staticmethod
+    def get_instance(output_directory):
+        if output_directory not in MediaSetDatabase.__instance:
+            MediaSetDatabase.__instance[output_directory] = MediaSetDatabase(output_directory)
+        return MediaSetDatabase.__instance[output_directory]
+
+    def initialize_cfm_connection(self):
+        if self.is_active:
+            if self.cache_db_connection is None:
+                self.cache_db_connection = DBConnection(self.cfm_file)
+                self.initialize_cache_db()
+
+    def initialize_thb_connection(self):
+        if Configuration.THUMBNAILS:
+            if self.thb_db_connection is None:
+                self.thb_db_connection = DBConnection(self.thb_file)
+                self.initialize_thb_db()
+
+    def exists(self):
+        return self.cfm_file.exists()
 
     def save(self, media_file_list: "Iterable[MediaFile]", log=True):
+        if self.is_active:
+            if self.cache_db_connection:
+                if log:
+                    LOGGER.info("Saving cache " + str(self.cache_db_connection.db_path))
+                for media_file in media_file_list:
+                    self.save_media_file(media_file)
+                self.cache_db_connection.file_connection.commit()
 
-        if log:
-            LOGGER.info("Saving cache " + str(self.cache_db_connection.db_path))
-        for media_file in media_file_list:
-            self.save_media_file(media_file)
-        self.cache_db_connection.file_connection.commit()
-
-        if log:
-            LOGGER.info("Saving thumbnails cache " + str(self.thb_db_connection.db_path))
-        for media_file in media_file_list:
-            self.save_thumbnail(media_file)
-        self.thb_db_connection.file_connection.commit()
+        if Configuration.THUMBNAILS:
+            if self.thb_db_connection:
+                if log:
+                    LOGGER.info("Saving thumbnails cache " + str(self.thb_db_connection.db_path))
+                for media_file in media_file_list:
+                    self.save_thumbnail(media_file)
+                self.thb_db_connection.file_connection.commit()
 
         # Use to reduce size of db if rows or data have been deleted. Put this in specific option.
         # self.cache_db_connection.file_connection.execute("VACUUM")
         # self.thb_db_connection.file_connection.execute("VACUUM")
 
     def close(self):
-        self.cache_db_connection.file_connection.close()
-        self.thb_db_connection.file_connection.close()
+        if self.cache_db_connection:
+            self.cache_db_connection.file_connection.close()
+            self.cache_db_connection = None
+        if self.thb_db_connection:
+            self.thb_db_connection.file_connection.close()
+            self.thb_db_connection = None
 
     def initialize_cache_db(self):
         if self.cache_db_connection.new_database:
@@ -104,71 +134,125 @@ class MediaSetDatabase:
                 others[column_name] = n
         return text, others
 
-    def load_all_files(self, media_set: "MediaSet", found_file_map: Dict[str, FileAccess]):
+    def new_media_file(self, media_set: "MediaSet", file_access: FileAccess, file_id, json_m, binary_m):
+
+        metadata = json.loads(json_m) if json_m is not None else "{}"
+        binary_metadata = dill.loads(binary_m) if binary_m is not None else "{}"
         try:
-            number_of_files = 0
-            log_content = "{nb_file} files are already in cache " + str(self.cache_db_connection.db_path)
-            LOGGER.start_status_line(log_content, prof=2)
-            LOGGER.update_status_line(nb_file=number_of_files)
-            self.cache_db_connection.cursor.execute('select * from metadata')
-            result_list = self.cache_db_connection.cursor.fetchall()
-            text_fields, other_fields = self.get_columns_ids(self.cache_db_connection.cursor.description)
-            for result in result_list:
+            media_dir = media_set.create_media_dir_parent(file_access.path)
+
+            new_media_file = MediaFile(file_access, media_dir, media_set)
+            new_media_file.metadata.load_from_dict(metadata)
+            new_media_file.metadata.load_binary_from_dict(binary_metadata)
+            new_media_file.db_id = file_id
+            new_media_file.exists_in_db = True
+            return new_media_file
+        except JSONDecodeError:
+            print("Invalid json in database: %s" % file_access.path)
+            return None
+
+    def load_all_files(self, media_set: "MediaSet", not_loaded_files: Dict[str, FileAccess]):
+
+        if not self.is_active:
+            return not_loaded_files
+
+        self.initialize_cfm_connection()
+
+        for media_file in media_set:
+            media_file.exists_in_db = False
+
+        try:
+            nb_loaded = 0
+            nb_total = 0
+            nb_deleted = 0
+            log_content = "{loaded}/{total} loaded from db " + str(self.cfm_file)
+
+            LOGGER.start(log_content, prof=2, update_freq=1000)
+            LOGGER.update(loaded=nb_loaded, total=nb_total, deleted=nb_deleted)
+
+            cursor = self.cache_db_connection.cursor
+            cursor.execute('select * from metadata')
+            text_fields, other_fields = self.get_columns_ids(cursor.description)
+            for result in cursor:
                 if result is not None and len(result) >= 1:
                     file = result[text_fields["file"]]
                     file_path = (media_set.root_path / file).as_posix()
-                    if file_path in found_file_map:
+                    nb_total += 1
+
+                    if file in media_set.filename_map:
+                        media_set.filename_map[file].exists_in_db = True
+
+                    elif file_path in not_loaded_files:
                         file_id = result[text_fields["file_id"]]
-                        json_content = result[text_fields["jm"]]
-                        binary_content = result[text_fields["bm"]]
-                        metadata = json.loads(json_content) if json_content is not None else "{}"
-                        binary_metadata = dill.loads(binary_content) if binary_content is not None else "{}"
-                        try:
-                            media_dir = media_set.create_media_dir_parent(file_path)
-
-                            new_media_file = MediaFile(found_file_map[file_path], media_dir, media_set)
-                            new_media_file.metadata.load_from_dict(metadata)
-                            new_media_file.metadata.load_binary_from_dict(binary_metadata)
-                            new_media_file.db_id = file_id
-
-                            media_set.add_file(new_media_file)
-                            found_file_map[file_path].loaded_from_database = True
-                            number_of_files += 1
-                        except JSONDecodeError:
-                            print("Invalid json in database: %s" % file_path)
+                        json_m = result[text_fields["jm"]]
+                        bin_m = result[text_fields["bm"]]
+                        media_file = self.new_media_file(media_set, not_loaded_files[file_path], file_id, json_m, bin_m)
+                        if media_file is not None:
+                            media_set.add_file(media_file)
+                            del not_loaded_files[file_path]
+                            nb_loaded += 1
                     else:
-                        # TODO not found on filesystem, delete from database
-                        pass
-                LOGGER.update_status_line(nb_file=number_of_files)
-        except:
-            print("can't load database")
+                        nb_deleted += 1
+                        file_id = result[text_fields["file_id"]]
+                        self.delete_media_file(file_id)
+                LOGGER.update(loaded=nb_loaded, total=nb_total, deleted=nb_deleted)
+        except BaseException as e:
+            print("can't load database: " + str(e))
             raise
-        LOGGER.end_status_line(nb_file=number_of_files)
+        LOGGER.end(loaded=nb_loaded, total=nb_total, deleted=nb_deleted)
+        return not_loaded_files
 
     def load_all_thumbnails(self, media_set: "MediaSet"):
+
+        if not Configuration.THUMBNAILS:
+            return
+
+        for media_file in media_set:
+            media_file.thumbnail_in_db = False
+
+        self.initialize_thb_connection()
+
         try:
             number_of_files = 0
-            LOGGER.start_status_line("{nb_file} thumbnails found in cache " + str(self.thb_db_connection.db_path),
-                                     prof=2)
-            LOGGER.update_status_line(nb_file=number_of_files)
-            self.thb_db_connection.cursor.execute('select file_id, thb from thb')
-            result_list = self.thb_db_connection.cursor.fetchall()
-            for result in result_list:
+            nb_deleted = 0
+            LOGGER.start("{nb_file} thumbnails found in cache " + str(self.thb_file), prof=2, update_freq=1000)
+            LOGGER.update(nb_file=number_of_files)
+
+            cursor = self.thb_db_connection.cursor
+            cursor.execute('select file_id, thb from thb')
+            for result in cursor:
                 if result is not None and len(result) >= 1:
                     file_id = result[0]
                     thb_data = result[1]
                     try:
                         if file_id in media_set.id_map:
-                            media_file = media_set.get_media(file_id)
+                            media_file: MediaFile = media_set.get_media(file_id)
                             media_file.metadata[THUMBNAIL].thumbnail = thb_data
+                            media_file.thumbnail_in_db = True
                             number_of_files += 1
+                        else:
+                            nb_deleted += 1
+                            self.delete_thb(file_id)
                     except JSONDecodeError:
                         print("Invalid json in database for id: %s" % file_id)
-                LOGGER.update_status_line(nb_file=number_of_files)
-        except:
-            print("can't load database")
+                LOGGER.update(nb_file=number_of_files)
+
+        except BaseException as e:
+            print("can't load database: " + str(e))
             raise
-        LOGGER.end_status_line(nb_file=number_of_files)
+        LOGGER.end(nb_file=number_of_files)
+
+    def delete_media_file(self, file_id):
+        try:
+            self.cache_db_connection.cursor.execute('''delete from metadata where file_id = ?''', file_id)
+        except sqlite3.IntegrityError:
+            print("Integrity error when deleting media with id " + str(file_id))
+
+    def delete_thb(self, file_id):
+        try:
+            self.thb_db_connection.cursor.execute('''delete from thb where file_id = ?''', file_id)
+        except sqlite3.IntegrityError:
+            print("Integrity error when deleting media with id " + str(file_id))
 
     def save_media_file(self, media_file: MediaFile):
         media_file_dict = media_file.metadata.save_to_dict()
@@ -176,7 +260,7 @@ class MediaSetDatabase:
 
         binary_media_file_dict = media_file.metadata.save_binary_to_dict()
         bin_data = dill.dumps(binary_media_file_dict)
-        if media_file.file_access.loaded_from_database:
+        if media_file.exists_in_db:
             if json_data == 0 or json_data == '0':
                 print(media_file.get_path())
             try:
@@ -197,10 +281,11 @@ class MediaSetDatabase:
                    values
                         (?, ?, ?, ?)''',
                 (media_file.get_path(), json_data, bin_data, datetime.now()))
+        media_file.exists_in_db = True
 
     def save_thumbnail(self, media_file: MediaFile):
         thumbnail_data = media_file.metadata[THUMBNAIL].thumbnail
-        if media_file.file_access.loaded_from_database:
+        if media_file.thumbnail_in_db:
             try:
                 self.thb_db_connection.cursor.execute(
                     '''update
@@ -210,7 +295,6 @@ class MediaSetDatabase:
                        where
                             file_id = ? and thb is not ?''',
                     (media_file.get_path(), thumbnail_data, media_file.db_id, thumbnail_data))
-                # Vérifier si ligne mise à jour ? Sinon ajouter une nouvelle ligne ?
             except sqlite3.IntegrityError:
                 print("Integrity error when updating media " + str(media_file))
         else:
@@ -220,6 +304,7 @@ class MediaSetDatabase:
                    values
                         (?, ?, ?)''',
                 (media_file.id, media_file.get_path(), thumbnail_data))
+        media_file.thumbnail_in_db = True
 
     def load_database_in_dict(self):
         data_dict = {}

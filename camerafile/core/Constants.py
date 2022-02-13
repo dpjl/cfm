@@ -29,4 +29,8 @@ COMP_STRICT_LIGHT = "strict-image"
 # consider that files are identical if creation date, and image hash are identical (robust to resize)
 COMP_SIMILAR = "similar"
 
+# First compare similar. Then for images with no exif creation date (only them), compare diff with all other signatures
+# (required to compate signature of all the images)
+COMP_SIMILAR_AND_ANALYSE_UNEXIFED = "..."
+
 original_sigint_handler = None

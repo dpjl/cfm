@@ -1,4 +1,4 @@
-from camerafile.core.BatchTool import TaskWithProgression
+from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
 from camerafile.core.Constants import CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
@@ -25,7 +25,10 @@ class BatchDeleteFaces(TaskWithProgression):
         return media_file
 
     def arguments(self):
-        return self.media_set
+        args_list = []
+        for media_file in self.media_set:
+            args_list.append(BatchArgs(media_file, media_file.relative_path))
+        return args_list
 
     def post_task(self, media_file, progress_bar, replace=False):
         progress_bar.increment()

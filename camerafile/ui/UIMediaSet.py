@@ -224,7 +224,7 @@ class UIMediaSetTab(QtWidgets.QWidget):
             media_file.metadata.compute_value(SIGNATURE)
             progress_callback.emit(int((i * 100) / total))
 
-        self.media_set.save_database()
+        self.media_set.save_on_disk()
 
         self.duplicates_result = self.media_set.analyze_duplicates_2()
         for element in sorted(self.duplicates_result):

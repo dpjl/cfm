@@ -5,7 +5,7 @@ import pickle
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from camerafile.tools.Image import Image
+from camerafile.tools.CFMImage import CFMImage
 from camerafile.core.Constants import FACES
 
 
@@ -73,12 +73,13 @@ class FaceRecognition:
         for media_file in self.media_set:
             if media_file.metadata[FACES].value is not None:
                 n_face = 0
+                print(media_file)
                 for face in media_file.metadata[FACES].value["locations"]:
                     face_coord = media_file.metadata[FACES].value["locations"][n_face]
                     encoding_content = media_file.metadata[FACES].binary_value[n_face]
                     if self.get_encoding_id(encoding_content) not in self.all_encoding_ids:
-                        if self.predict(encoding_content) == "unrecognized":
-                            image = Image(media_file.path)
+                        if self.knn_clf is None or self.predict(encoding_content) == "unrecognized":
+                            image = CFMImage(media_file.path)
                             face_image = image.display_face(face)
                             print("Image: {image_path}".format(image_path=media_file.path))
                             print("Face coordinates: {coord}".format(coord=str(face_coord)))

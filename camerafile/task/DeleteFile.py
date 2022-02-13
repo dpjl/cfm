@@ -1,19 +1,18 @@
+from typing import Tuple
+
 from camerafile.core import Configuration
+from camerafile.fileaccess.FileAccess import FileAccess
 
 
 class DeleteFile:
 
     @staticmethod
-    def execute(file_access):
-        if not Configuration.initialized:
-            from camerafile.cfm import configure
-            from camerafile.cfm import create_main_args_parser
-            parser = create_main_args_parser()
-            args = parser.parse_args()
-            configure(args)
-            Configuration.initialized = True
+    def execute(delete_task_arg: Tuple[FileAccess, str]):
+        file_access, trash_file = delete_task_arg
         try:
-            return file_access.delete_file()
+            return file_access.delete_file(trash_file)
         except BaseException as e:
+            if Configuration.EXIT_ON_ERROR:
+                raise e
             print(e)
-            return False, file_access.id, None
+            return False, "Exception", file_access, None

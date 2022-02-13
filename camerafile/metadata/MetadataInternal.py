@@ -4,9 +4,11 @@ import logging
 
 from PIL import Image
 
+from camerafile.core import Configuration
 from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION, SIZE
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
+from camerafile.tools.ExifTool import ExifTool
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,28 +41,37 @@ class MetadataInternal(Metadata):
     def get_height(self):
         return self.get_md_value(HEIGHT)
 
-    def get_file_size(self):
-        return self.get_md_value(SIZE)
-
     def load_internal_metadata(self):
 
         if self.value is None:
 
-            model, date, width, height, orientation, file_size, thumbnail = self.file_access.call_exif_tool()
-            # with open(self.file_access.path, "rb") as file_stream:
-            #    model, date, width, height, orientation, thumbnail = ExifTool.get_metadata(file_stream)
+            args = (ExifTool.BEST_CAMERA_MODEL,
+                    ExifTool.BEST_CREATION_DATE,
+                    ExifTool.WIDTH_METADATA,
+                    ExifTool.HEIGHT_METADATA,
+                    ExifTool.ORIENTATION_METADATA)
 
-            last_modified_date = self.file_access.get_last_modification_date()
-            if date is None:
-                date = last_modified_date
+            if Configuration.THUMBNAILS:
+                args += (ExifTool.THUMBNAIL_METADATA,)
 
-            if file_size is None:
-                file_size = self.file_access.get_file_size()
+            result = self.file_access.call_exif_tool(args)
+
+            orientation = result[ExifTool.ORIENTATION_METADATA] if ExifTool.ORIENTATION_METADATA in result else None
+            width = result[ExifTool.WIDTH_METADATA] if ExifTool.WIDTH_METADATA in result else None
+            height = result[ExifTool.HEIGHT_METADATA] if ExifTool.HEIGHT_METADATA in result else None
+            date = result[ExifTool.BEST_CREATION_DATE] if ExifTool.BEST_CREATION_DATE in result else None
+            thumbnail = result[ExifTool.THUMBNAIL_METADATA] if ExifTool.THUMBNAIL_METADATA in result else None
+            camera_model = result[ExifTool.BEST_CAMERA_MODEL] if ExifTool.BEST_CAMERA_MODEL in result else None
 
             if orientation is not None and (orientation == 6 or orientation == 8):
                 old_width = width
                 width = height
                 height = old_width
+
+            last_modified_date = self.file_access.get_last_modification_date()
+
+            if date is None:
+                date = last_modified_date
 
             if date is not None:
                 date = date.strftime("%Y/%m/%d %H:%M:%S.%f")
@@ -68,17 +79,16 @@ class MetadataInternal(Metadata):
             if last_modified_date is not None:
                 last_modified_date = last_modified_date.strftime("%Y/%m/%d %H:%M:%S.%f")
 
-            self.value = {CAMERA_MODEL: model,
+            self.value = {CAMERA_MODEL: camera_model,
                           DATE: date,
                           DATE_LAST_MODIFICATION: last_modified_date,
                           WIDTH: width,
                           HEIGHT: height,
-                          ORIENTATION: orientation,
-                          SIZE: file_size}
+                          ORIENTATION: orientation}
 
             if thumbnail is not None:
-                self.thumbnail = base64.b64decode(thumbnail[7:])
-                thb = Image.open(io.BytesIO(self.thumbnail))
+                thumbnail = base64.b64decode(thumbnail[7:])
+                thb = Image.open(io.BytesIO(thumbnail))
                 thb.thumbnail((100, 100))
                 bytes_output = io.BytesIO()
                 thb.save(bytes_output, format='JPEG')

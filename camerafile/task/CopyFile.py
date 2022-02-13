@@ -1,15 +1,19 @@
 from typing import Tuple
 
-from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.core import Configuration
+from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
+from camerafile.task.Task import Task
 
 
 class CopyFile:
 
     @staticmethod
-    def execute(copy_task_arg: Tuple[FileAccess, str, str]):
+    def execute(copy_task_arg: Tuple[FileAccess, str, CopyMode]):
         file_access, new_file_path, copy_mode = copy_task_arg
         try:
             return file_access.copy_to(new_file_path, copy_mode)
         except BaseException as e:
+            if Configuration.EXIT_ON_ERROR:
+                raise e
             print(e)
             return False, file_access.id, None

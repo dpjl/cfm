@@ -1,7 +1,8 @@
 import numpy
 
+from camerafile.core import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess
-from camerafile.tools.Image import Image
+from camerafile.tools.CFMImage import CFMImage
 from camerafile.metadata.Metadata import Metadata
 
 
@@ -26,10 +27,24 @@ class MetadataFaces(Metadata):
 
         if self.value is None:
             with self.file_access.open() as file:
-                image = Image(file)
+                image = CFMImage(file)
                 with image:
-                    img = numpy.array(image.image_data)
+
+                    data = image.image_data
+                    original_data = data
+                    if not Configuration.FACE_DETECTION_KEEP_IMAGE_SIZE:
+                        height_resize = 480
+                        frame_resize_scale = float(image.image_data.height) / height_resize
+                        (width, height) = (data.width // frame_resize_scale, data.height // frame_resize_scale)
+                        data = image.image_data.resize((int(width), int(height)))
+
+                    img = numpy.array(data)
+
                     locations = MetadataFaces.face_rec.face_locations(img)
+                    if not Configuration.FACE_DETECTION_KEEP_IMAGE_SIZE:
+                        locations = [tuple([int(frame_resize_scale * pos) for pos in loc]) for loc in locations]
+                        img = numpy.array(original_data)
+
                     encoding = MetadataFaces.face_rec.face_encodings(img, known_face_locations=locations)
 
                     self.value = {"locations": locations, "names": []}

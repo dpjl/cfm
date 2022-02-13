@@ -61,13 +61,13 @@ class Logger:
             result += "|___ "
         return result + message
 
-    def start_status_line(self, log_content, update_freq=1, prof=0):
+    def start(self, log_content, update_freq=1, prof=0):
         self.status_line = StatusLine(self.get_indented_message(log_content, prof), update_freq)
 
-    def update_status_line(self, **args):
+    def update(self, **args):
         self.status_line.update(**args)
 
-    def end_status_line(self, **args):
+    def end(self, **args):
         self.status_line.end(**args)
 
     def display_starting_line(self):

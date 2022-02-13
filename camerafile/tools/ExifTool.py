@@ -74,6 +74,14 @@ class ExifTool(object):
     CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: no. If yes, attention to timezone
     MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
     THUMBNAIL_METADATA = "ThumbnailImage"
+    BEST_CAMERA_MODEL = 'best-camera-model'
+    BEST_CREATION_DATE = "best-creation-date"
+    BEST_CAMERA_MODEL_LIST = (MODEL_METADATA,
+                              SOURCE_METADATA)
+    BEST_CREATION_DATE_LIST = (SUB_SEC_CREATE_DATE,
+                               SUB_SEC_DATE_TIME_ORIGINAL,
+                               SUB_SEC_MODIFY_DATE,
+                               DATE_TIME_ORIGINAL)
     SENTINEL = "{ready}\n"
 
     executable = None
@@ -147,9 +155,6 @@ class ExifTool(object):
             except ValueError:
                 return None
 
-    # "#CreationDate"
-    # "#CameraModel"
-
     @classmethod
     def read_date(cls, exif_tool_result):
         date = cls.parse_date(exif_tool_result, cls.SUB_SEC_DATE_TIME_ORIGINAL, '%Y:%m:%d %H:%M:%S.%f')
@@ -162,59 +167,50 @@ class ExifTool(object):
         return date
 
     @classmethod
-    def get_exif_args(cls):
-        return ("-" + cls.MODEL_METADATA,
-                "-" + cls.SOURCE_METADATA,
-                "-" + cls.WIDTH_METADATA,
-                "-" + cls.HEIGHT_METADATA,
-                "-" + cls.ORIENTATION_METADATA,
-                "-" + cls.FILE_SIZE_METADATA,
-                "-" + cls.THUMBNAIL_METADATA,
-                "-" + cls.SUB_SEC_CREATE_DATE,
-                "-" + cls.SUB_SEC_DATE_TIME_ORIGINAL,
-                "-" + cls.SUB_SEC_MODIFY_DATE,
-                "-" + cls.DATE_TIME_ORIGINAL)
+    def load_from_result(cls, result, metadata_name):
+
+        if metadata_name == cls.BEST_CAMERA_MODEL:
+            if cls.MODEL_METADATA in result[0]:
+                return result[0][cls.MODEL_METADATA]
+            elif cls.SOURCE_METADATA in result[0]:
+                return result[0][cls.SOURCE_METADATA]
+
+        elif metadata_name == cls.BEST_CREATION_DATE:
+            return cls.read_date(result)
+
+        elif metadata_name in result[0]:
+            return result[0][metadata_name]
+
+        return None
 
     @classmethod
-    def get_metadata(cls, param):
-        if isinstance(param, str):
-            stdout, stderr = cls.execute("-b", "-j", "-n", *cls.get_exif_args(), param)
+    def expand_args(cls, *args):
+        result = ()
+        for arg in args:
+
+            if str(arg) == cls.BEST_CREATION_DATE:
+                result += cls.BEST_CREATION_DATE_LIST
+
+            elif str(arg) == cls.BEST_CAMERA_MODEL:
+                result += cls.BEST_CAMERA_MODEL_LIST
+
+            else:
+                result += (arg,)
+        return tuple(['-' + arg for arg in result])
+
+    @classmethod
+    def get_metadata(cls, file, *args):
+        real_args = cls.expand_args(*args)
+        if isinstance(file, str):
+            stdout, stderr = cls.execute("-fast2", "-b", "-j", "-n", *real_args, file)
         else:
-            stdout = cls.execute_with_bytes(param, "-b", "-j", "-n", *cls.get_exif_args(), "-")
+            stdout = cls.execute_with_bytes(file, "-fast2", "-b", "-j", "-n", *real_args, "-")
 
         result = json.loads(stdout)
         if len(result) == 0:
-            return None, None, None, None, None, None, None
+            return {}
 
-        thumbnail = None
-        if cls.THUMBNAIL_METADATA in result[0]:
-            thumbnail = result[0][cls.THUMBNAIL_METADATA]
-
-        model = None
-        if cls.MODEL_METADATA in result[0]:
-            model = result[0][cls.MODEL_METADATA]
-        elif cls.SOURCE_METADATA in result[0]:
-            model = result[0][cls.SOURCE_METADATA]
-
-        date = cls.read_date(result)
-
-        width = None
-        if cls.WIDTH_METADATA in result[0]:
-            width = result[0][cls.WIDTH_METADATA]
-
-        height = None
-        if cls.HEIGHT_METADATA in result[0]:
-            height = result[0][cls.HEIGHT_METADATA]
-
-        orientation = None
-        if cls.ORIENTATION_METADATA in result[0]:
-            orientation = result[0][cls.ORIENTATION_METADATA]
-
-        file_size = None
-        if cls.FILE_SIZE_METADATA in result[0]:
-            file_size = result[0][cls.FILE_SIZE_METADATA]
-
-        return model, date, width, height, orientation, file_size, thumbnail
+        return {metadata_name: cls.load_from_result(result, metadata_name) for metadata_name in args}
 
     @classmethod
     def update_model(cls, filename, new_model):

@@ -1,4 +1,4 @@
-from camerafile.core.BatchTool import TaskWithProgression
+from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
 from camerafile.core.Constants import SIGNATURE
 from camerafile.core.Logging import Logger
 from camerafile.task.ComputeSignature import ComputeSignature
@@ -25,7 +25,7 @@ class BatchComputeNecessarySignaturesMultiProcess(TaskWithProgression):
         return ComputeSignature.execute
 
     def arguments(self):
-        signature_metadata_list = []
+        args_list = []
         file_list_1 = self.media_set.get_possibly_duplicates()
         file_list_2 = []
         file_list_3 = []
@@ -38,15 +38,15 @@ class BatchComputeNecessarySignaturesMultiProcess(TaskWithProgression):
 
         for media_file in file_list_1 + file_list_2 + file_list_3:
             if media_file.metadata[SIGNATURE].value is None:
-                signature_metadata_list.append(media_file.metadata[SIGNATURE])
-        return signature_metadata_list
+                args_list.append(BatchArgs(media_file.metadata[SIGNATURE], media_file.relative_path))
+        return args_list
 
     def post_task(self, result_signature_metadata, progress_bar, replace=False):
         original_media = self.media_set.get_media(result_signature_metadata.file_access.id)
         if original_media is None:
             original_media = self.media_set2.get_media(result_signature_metadata.file_access.id)
         original_media.metadata[SIGNATURE] = result_signature_metadata
-        original_media.parent_set.update_date_size_sig_map(original_media)
+        original_media.parent_set.add_to_date_size_sig_map(original_media)
         progress_bar.increment()
 
     def finalize(self):

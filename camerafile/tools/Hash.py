@@ -6,7 +6,7 @@ from PIL import ImageOps
 
 from camerafile.core.Constants import IMAGE_TYPE
 from camerafile.fileaccess.FileAccess import FileAccess
-from camerafile.tools.Image import Image
+from camerafile.tools.CFMImage import CFMImage
 
 
 class Hash:
@@ -26,7 +26,7 @@ class Hash:
     def image_hash(self):
 
         with self.file_access.open() as image_file:
-            image = Image(image_file)
+            image = CFMImage(image_file)
             try:
                 # faster than md5 hash
                 # concatenates date to limitate false positives

@@ -1,20 +1,21 @@
 import os
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 
 from pyzipper import zipfile
 from datetime import datetime
-from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
+from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
 from camerafile.tools.ExifTool import ExifTool
 
 
 class ZipFileAccess(FileAccess):
-    TYPE = 1
 
-    def __init__(self, root_path, zip_path, file_path):
-        super().__init__(root_path, Path(zip_path) / file_path)
+    def __init__(self, zip_path, file_path, file_size=None):
+        super().__init__(Path(zip_path) / file_path)
         self.zip_path = zip_path
         self.file_path = file_path
+        self.file_size = file_size
 
     def get_file_size(self):
         if self.file_size is None:
@@ -22,23 +23,20 @@ class ZipFileAccess(FileAccess):
                 self.file_size = zip_file.getinfo(self.file_path).file_size
         return self.file_size
 
-    def is_in_trash(self):
-        return self.zip_path == self.get_sync_file()
-
-    def delete_file(self):
-        print("Delete not managed inside zip: " + self.path)
-        return False, self.id, None
-
     def open(self):
         with zipfile.ZipFile(self.zip_path) as zip_file:
-            return zip_file.open(self.file_path, "r")
+            return zip_file.open(self.file_path)
 
-    def copy_to(self, new_file_path: str, copy_mode: str) -> Tuple[bool, str, str, str]:
+    def delete_file(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
+        print("Delete not managed inside zip: " + self.path)
+        return False, "Not managed inside zip", self, None
+
+    def copy_to(self, new_file_path: str, copy_mode: CopyMode) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
         os.makedirs(Path(new_file_path).parent, exist_ok=True)
         with zipfile.ZipFile(self.zip_path) as origin:
             with open(new_file_path, 'wb') as destination:
                 destination.write(origin.read(self.file_path))
-        return True, "Extracted", self.id, new_file_path
+        return True, "Extracted", self, StandardFileAccess(new_file_path, self.file_size)
 
     def get_last_modification_date(self):
         try:
@@ -49,12 +47,12 @@ class ZipFileAccess(FileAccess):
             return None
         return result
 
-    def call_exif_tool(self):
+    def call_exif_tool(self, args):
         try:
             with zipfile.ZipFile(self.zip_path) as zip_file:
-                result = ExifTool.get_metadata(zip_file.read(self.file_path))
+                result = ExifTool.get_metadata(zip_file.read(self.file_path), *args)
         except KeyError as e:
             print(str(e) + "[" + self.path + "]")
-            return None, None, None, None, None, None, None
+            return {}
 
         return result

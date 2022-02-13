@@ -4,20 +4,34 @@ from multiprocessing import Pool, Manager
 from multiprocessing import current_process
 from multiprocessing.queues import Queue
 
+from typing import List
+
 import camerafile.core.Configuration
 from camerafile.console.ConsoleProgressBar import ConsoleProgressBar
 from camerafile.console.StandardOutputWrapper import StdoutRecorder
 from camerafile.core.Logging import init_only_console_logging, Logger
 from camerafile.core.Resource import Resource
+from camerafile.task.Task import Task
 from camerafile.tools.ExifTool import ExifTool
 
 LOGGER = Logger(__name__)
 
 
-def execute_uni_process_batch(task, args, post_task, progress_bar):
+class BatchArgs:
+
+    def __init__(self, args, info):
+        self.args = args
+        self.info = info
+        self.queue = None
+
+
+def execute_uni_process_batch(task, batch_args_list: List[BatchArgs], post_task, progress_bar):
+    pid = current_process().pid
     try:
-        for arg in args:
-            post_task(task(arg), progress_bar, replace=False)
+        for batch_args in batch_args_list:
+            progress_bar.set_detail(pid, batch_args.info)
+            result = task(batch_args.args)
+            post_task(result, progress_bar, replace=False)
     finally:
         progress_bar.stop()
         ExifTool.stop()
@@ -26,6 +40,7 @@ def execute_uni_process_batch(task, args, post_task, progress_bar):
 def on_worker_start(task):
     atexit.register(on_worker_end)
     Resource.init()
+    Task.init()
     Resource.current_multiprocess_task = task
     init_only_console_logging()
     LOGGER.debug("Start sub-process : " + str(os.getpid()))
@@ -36,28 +51,30 @@ def on_worker_end():
     LOGGER.debug("Stop sub-process : " + str(os.getpid()))
 
 
-def execute_task(*args):
+def execute_task(batch_args: BatchArgs):
     try:
-        queue: Queue = args[0][0]
-        queue.put([current_process().pid, args[0][1].file_access.relative_path])
+        queue: Queue = batch_args.queue
+        if queue is not None:
+            queue.put([current_process().pid, batch_args.info])
         stdout_recorder = StdoutRecorder().start()
         if Resource.current_multiprocess_task is None:
             print("Multi-processing: no task defined in sub-process.")
-        result = Resource.current_multiprocess_task(args[0][1])
+        result = Resource.current_multiprocess_task(batch_args.args)
         return result, stdout_recorder.stop()
     except BaseException as e:
         print(e)
 
 
-def execute_multiprocess_batch(nb_process, task, args, post_task, progress_bar):
+def execute_multiprocess_batch(nb_process, task, args_list: List[BatchArgs], post_task, progress_bar):
     m = Manager()
     queue = m.Queue()
     pool = Pool(nb_process, on_worker_start, (task,))
     nb_processed_elements = 0
-    nb_elements = len(args)
+    nb_elements = len(args_list)
     try:
-        args = [(queue,) + (arg,) for arg in args]
-        res_list = pool.imap_unordered(execute_task, args)
+        for batch_args in args_list:
+            batch_args.queue = queue
+        res_list = pool.imap_unordered(execute_task, args_list)
 
         for i in range(min(nb_process, nb_elements)):
             [n, detail] = queue.get(block=True, timeout=5)
@@ -69,11 +86,11 @@ def execute_multiprocess_batch(nb_process, task, args, post_task, progress_bar):
                 [n, detail] = queue.get(block=True, timeout=5)
                 progress_bar.set_detail(n, detail)
                 nb_processed_elements += 1
-
             result, stdout = res
             if stdout.strip() != "":
                 print(stdout.strip())
             post_task(result, progress_bar, replace=True)
+
     except KeyboardInterrupt:
         try:
             LOGGER.info("Interrupted by user (Ctrl-C)")
@@ -115,8 +132,8 @@ class TaskWithProgression:
     def post_task(self, **args):
         pass
 
-    def arguments(self):
-        return ()
+    def arguments(self) -> List[BatchArgs]:
+        return []
 
     def finalize(self):
         pass
@@ -126,7 +143,7 @@ class TaskWithProgression:
         task = self.task_getter()
         args = self.arguments()
         if len(args) != 0:
-            progress_bar = ConsoleProgressBar(len(args), "", False)
+            progress_bar = ConsoleProgressBar(len(args))
             if self.nb_sub_process != 0:
                 execute_multiprocess_batch(self.nb_sub_process, task, args, self.post_task, progress_bar)
             else:

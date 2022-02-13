@@ -1,7 +1,10 @@
+from typing import Tuple, Union
+
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import TaskWithProgression
+from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
+from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.task.DeleteFile import DeleteFile
 
 LOGGER = Logger(__name__)
@@ -23,6 +26,9 @@ class BatchDelete(TaskWithProgression):
         self.result_stats = {}
         self.not_copied_files = []
 
+    def initialize(self):
+        LOGGER.write_title(self.media_set_2, self.update_title())
+
     def task_getter(self):
         return DeleteFile.execute
 
@@ -32,14 +38,21 @@ class BatchDelete(TaskWithProgression):
         self.result_stats[status] += 1
 
     def arguments(self):
-        return self.media_set_2.all_files_not_in_other_media_set(self.media_set_1)
+        args_list = []
+        for media_file in self.media_set_2:
+            if not self.media_set_1.contains(media_file):
+                if not media_file.is_in_trash():
+                    args_list.append(
+                        BatchArgs((media_file.file_access, self.media_set_2.get_trash_file()),
+                                  media_file.relative_path))
+        return args_list
 
-    def post_task(self, result_delete, progress_bar, replace=False):
-        success, status, file_id, new_file_path = result_delete
-        original_media = self.media_set_2.get_media(file_id)
+    def post_task(self, result_delete: Tuple[bool, str, FileAccess, Union[FileAccess, None]], pb, replace=False):
+        success, status, old_file_access, new_file_access = result_delete
+        original_media = self.media_set_2.get_media(old_file_access.id)
 
         if success:
-            original_media.move_metadata(new_file_path)
+            original_media.move(new_file_access)
         else:
             self.not_copied_files.append(original_media)
 
@@ -48,7 +61,7 @@ class BatchDelete(TaskWithProgression):
         else:
             self.increment_stats(self.ERROR_STATUS)
 
-        progress_bar.increment()
+        pb.increment()
 
     def finalize(self):
         LOGGER.info(self.media_set_1.output_directory.save_list(self.not_copied_files, self.NOT_DELETED_FILES_JSON))
