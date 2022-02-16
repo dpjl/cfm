@@ -1,19 +1,20 @@
 from typing import List
 
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
+from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.ComputeThumbnail import ComputeThumbnail
 
 LOGGER = Logger(__name__)
 
 
-class BatchComputeMissingThumbnails(TaskWithProgression):
+class BatchComputeMissingThumbnails(CFMBatch):
 
     def __init__(self, media_set: MediaSet):
         self.media_set = media_set
-        TaskWithProgression.__init__(self, "Generate missing thumbnails")
+        CFMBatch.__init__(self, "Generate missing thumbnails")
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())

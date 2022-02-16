@@ -1,17 +1,18 @@
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Constants import INTERNAL, THUMBNAIL, CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
 from camerafile.metadata.MetadataInternal import MetadataInternal
+from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.LoadInternalMetadata import LoadInternalMetadata
 
 LOGGER = Logger(__name__)
 
 
-class BatchReadInternalMd(TaskWithProgression):
+class BatchReadInternalMd(CFMBatch):
 
     def __init__(self, media_set):
         self.media_set = media_set
-        TaskWithProgression.__init__(self, "Read media exif metadata")
+        CFMBatch.__init__(self, "Read media exif metadata")
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())

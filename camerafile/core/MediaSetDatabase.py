@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Iterable
 from typing import TYPE_CHECKING
 
-from camerafile.core import Configuration
+from camerafile.core.Configuration import Configuration
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
@@ -45,10 +45,10 @@ class MediaSetDatabase:
         self.thb_file = output_directory.path / 'thb.db'
         self.cache_db_connection = None
         self.thb_db_connection = None
-        self.is_active = Configuration.USE_DB_FOR_CACHE or self.exists()
+        self.is_active = Configuration.get().use_db_for_cache or self.exists()
 
     @staticmethod
-    def get_instance(output_directory):
+    def get(output_directory):
         if output_directory not in MediaSetDatabase.__instance:
             MediaSetDatabase.__instance[output_directory] = MediaSetDatabase(output_directory)
         return MediaSetDatabase.__instance[output_directory]
@@ -60,7 +60,7 @@ class MediaSetDatabase:
                 self.initialize_cache_db()
 
     def initialize_thb_connection(self):
-        if Configuration.THUMBNAILS:
+        if Configuration.get().thumbnails:
             if self.thb_db_connection is None:
                 self.thb_db_connection = DBConnection(self.thb_file)
                 self.initialize_thb_db()
@@ -77,7 +77,7 @@ class MediaSetDatabase:
                     self.save_media_file(media_file)
                 self.cache_db_connection.file_connection.commit()
 
-        if Configuration.THUMBNAILS:
+        if Configuration.get().thumbnails:
             if self.thb_db_connection:
                 if log:
                     LOGGER.info("Saving thumbnails cache " + str(self.thb_db_connection.db_path))
@@ -134,7 +134,8 @@ class MediaSetDatabase:
                 others[column_name] = n
         return text, others
 
-    def new_media_file(self, media_set: "MediaSet", file_access: FileAccess, file_id, json_m, binary_m):
+    @staticmethod
+    def new_media_file(media_set: "MediaSet", file_access: FileAccess, file_id, json_m, binary_m):
 
         metadata = json.loads(json_m) if json_m is not None else "{}"
         binary_metadata = dill.loads(binary_m) if binary_m is not None else "{}"
@@ -204,7 +205,7 @@ class MediaSetDatabase:
 
     def load_all_thumbnails(self, media_set: "MediaSet"):
 
-        if not Configuration.THUMBNAILS:
+        if not Configuration.get().thumbnails:
             return
 
         for media_file in media_set:

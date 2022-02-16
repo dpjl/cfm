@@ -1,16 +1,17 @@
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
 from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.DeleteFile import DeleteFile
 
 LOGGER = Logger(__name__)
 
 
-class BatchDelete(TaskWithProgression):
+class BatchDelete(CFMBatch):
     BATCH_TITLE = "Delete files (move to trash)"
     RESULT_COLUMN__STATUS = "Status"
     RESULT_COLUMN__NUMBER = "Number"
@@ -22,7 +23,7 @@ class BatchDelete(TaskWithProgression):
         self.media_set_1 = media_set_1
         self.media_set_2 = media_set_2
         self.copy_mode = copy_mode
-        TaskWithProgression.__init__(self, batch_title=self.BATCH_TITLE)
+        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE)
         self.result_stats = {}
         self.not_copied_files = []
 

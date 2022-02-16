@@ -1,5 +1,5 @@
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core import Configuration
+from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
 from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import BatchComputeNecessarySignaturesMultiProcess
@@ -24,7 +24,7 @@ class SearchForDuplicates:
         tab.print_header(str(media_set.root_path))
         tab.print_multi_line(duplicates_report)
 
-        if Configuration.GENERATE_PDF:
+        if Configuration.get().generate_pdf:
             pdf_file = PdfFile(str(media_set.output_directory.path / "duplicates.pdf"))
 
             for n_copy, media_list_list in sorted(duplicates.items()):

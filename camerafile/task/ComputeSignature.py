@@ -1,6 +1,5 @@
-from camerafile.core import Configuration
+from camerafile.core.Configuration import Configuration
 from camerafile.metadata.MetadataSignature import MetadataSignature
-from camerafile.task.Task import Task
 
 
 class ComputeSignature:
@@ -11,7 +10,7 @@ class ComputeSignature:
             signature_metadata.compute_value()
             return signature_metadata
         except BaseException as e:
-            if Configuration.EXIT_ON_ERROR:
+            if Configuration.get().exit_on_error:
                 raise e
             print(print(str(e) + "/" + str(signature_metadata.file_access.get_path())))
             return signature_metadata

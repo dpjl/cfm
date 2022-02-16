@@ -2,11 +2,11 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Union
 
 import pyzipper
+from typing import Tuple, Union
 
-from camerafile.core import Configuration
+from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
 from camerafile.tools.ExifTool import ExifTool
 
@@ -28,8 +28,9 @@ class StandardFileAccess(FileAccess):
     def delete_file(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
         from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
         with pyzipper.AESZipFile(trash_file_path, "w", compression=pyzipper.ZIP_LZMA) as sync_file:
-            if Configuration.CFM_SYNC_PASSWORD is not None:
-                sync_file.setpassword(Configuration.CFM_SYNC_PASSWORD)
+            password = Configuration.get().cfm_sync_password
+            if password is not None:
+                sync_file.setpassword(password)
                 sync_file.setencryption(pyzipper.WZ_AES, nbits=128)
             sync_file.write(self.path, self.relative_path)
         os.remove(self.path)

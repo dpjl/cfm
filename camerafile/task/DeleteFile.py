@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from camerafile.core import Configuration
+from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess
 
 
@@ -12,7 +12,7 @@ class DeleteFile:
         try:
             return file_access.delete_file(trash_file)
         except BaseException as e:
-            if Configuration.EXIT_ON_ERROR:
+            if Configuration.get().exit_on_error:
                 raise e
             print(e)
             return False, "Exception", file_access, None

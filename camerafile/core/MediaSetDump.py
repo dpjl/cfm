@@ -1,10 +1,8 @@
-import datetime
 import pickle
 
-import humanize
 import time
 
-from camerafile.core import Configuration
+from camerafile.core.Configuration import Configuration as Conf
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 
@@ -16,10 +14,10 @@ class MediaSetDump:
 
     def __init__(self, output_directory):
         self.dump_file = output_directory.path / 'cfm.dump'
-        self.is_active = Configuration.USE_DUMP_FOR_CACHE or self.exists() or not Configuration.USE_DB_FOR_CACHE
+        self.is_active = Conf.get().use_dump_for_cache or self.exists() or not Conf.get().use_db_for_cache
 
     @staticmethod
-    def get_instance(output_directory):
+    def get(output_directory):
         if output_directory not in MediaSetDump.__instance:
             MediaSetDump.__instance[output_directory] = MediaSetDump(output_directory)
         return MediaSetDump.__instance[output_directory]

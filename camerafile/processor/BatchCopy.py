@@ -1,16 +1,17 @@
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
 from camerafile.fileaccess.FileAccess import CopyMode, FileAccess
+from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.CopyFile import CopyFile
 
 LOGGER = Logger(__name__)
 
 
-class BatchCopy(TaskWithProgression):
+class BatchCopy(CFMBatch):
     BATCH_TITLE = "Copy files"
     RESULT_COLUMN__STATUS = "Status"
     RESULT_COLUMN__NUMBER = "Number"
@@ -22,7 +23,7 @@ class BatchCopy(TaskWithProgression):
         self.old_media_set = old_media_set
         self.new_media_set = new_media_set
         self.copy_mode = copy_mode
-        TaskWithProgression.__init__(self, batch_title=self.BATCH_TITLE)
+        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE)
         self.result_stats = {}
         self.not_copied_files = []
 

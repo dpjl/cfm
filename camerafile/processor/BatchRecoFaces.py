@@ -1,17 +1,18 @@
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Constants import IMAGE_TYPE, FACES
 from camerafile.core.Logging import Logger
 from camerafile.metadata.MetadataFaces import MetadataFaces
+from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.RecognizeFaces import RecognizeFaces
 
 LOGGER = Logger(__name__)
 
 
-class BatchRecoFaces(TaskWithProgression):
+class BatchRecoFaces(CFMBatch):
 
     def __init__(self, media_set):
         self.media_set = media_set
-        TaskWithProgression.__init__(self, batch_title="Recognize faces")
+        CFMBatch.__init__(self, batch_title="Recognize faces")
 
     def task_getter(self):
         return RecognizeFaces.execute

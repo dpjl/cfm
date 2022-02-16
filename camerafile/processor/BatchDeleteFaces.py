@@ -1,18 +1,19 @@
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Constants import FACES
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
+from camerafile.processor.CFMBatch import CFMBatch
 
 LOGGER = Logger(__name__)
 
 
 # Not compatible with multi sub-processes
-class BatchDeleteFaces(TaskWithProgression):
+class BatchDeleteFaces(CFMBatch):
     BATCH_TITLE = "Delete computed faces"
 
     def __init__(self, media_set):
         self.media_set = media_set
-        TaskWithProgression.__init__(self, batch_title=self.BATCH_TITLE, nb_sub_process=0)
+        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE, nb_sub_process=0)
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())

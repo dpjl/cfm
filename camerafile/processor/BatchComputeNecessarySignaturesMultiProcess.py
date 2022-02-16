@@ -1,22 +1,21 @@
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Constants import SIGNATURE
 from camerafile.core.Logging import Logger
+from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.ComputeSignature import ComputeSignature
 
 LOGGER = Logger(__name__)
 
 
-class BatchComputeNecessarySignaturesMultiProcess(TaskWithProgression):
+class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
 
     def __init__(self, media_set, media_set2=None):
         self.media_set = media_set
         self.media_set2 = media_set2
         if media_set2 is None:
-            TaskWithProgression.__init__(self,
-                                         batch_title="Compute necessary signatures in order to detect duplicates")
+            CFMBatch.__init__(self, batch_title="Compute necessary signatures in order to detect duplicates")
         else:
-            TaskWithProgression.__init__(self,
-                                         batch_title="Compute necessary signatures in order to compare 2 mediasets")
+            CFMBatch.__init__(self, batch_title="Compute necessary signatures in order to compare 2 mediasets")
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())

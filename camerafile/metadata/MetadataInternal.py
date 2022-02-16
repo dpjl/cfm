@@ -1,16 +1,50 @@
 import base64
 import io
 import logging
+import re
 
+import sys
 from PIL import Image
 
-from camerafile.core import Configuration
-from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION, SIZE
+from camerafile.core.Configuration import Configuration
+from camerafile.core.Constants import CAMERA_MODEL, DATE, WIDTH, HEIGHT, ORIENTATION, DATE_LAST_MODIFICATION
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
 from camerafile.tools.ExifTool import ExifTool
 
 LOGGER = logging.getLogger(__name__)
+
+
+class OrgFormat:
+
+    def __init__(self, format_description: str):
+        self.format_description = format_description
+        self.fields = re.findall(r'\${((.*?):(.*?):(.*?))}', format_description)
+
+    def get_exif_names(self):
+        for field in self.fields:
+            if field[1] == "exif":
+                return field[2]
+
+    def get_cfm_names(self):
+        for field in self.fields:
+            if field[1] == "cfm":
+                if field[2] == "createDate":
+                    return ExifTool.BEST_CREATION_DATE
+                elif field[2] == "cameraModel":
+                    return ExifTool.BEST_CAMERA_MODEL
+                else:
+                    print("Format error: invalid cfm field " + field[2])
+                    print("Possible values: createDate, cameraModel")
+                    sys.exit(1)
+
+    def get_value(self, field):
+        pass
+
+    def get_formated_string(self):
+        result = self.format_description
+        for field in self.fields:
+            result = result.replace(field[0], self.get_value(field[0]))
 
 
 class MetadataInternal(Metadata):
@@ -43,6 +77,18 @@ class MetadataInternal(Metadata):
 
     def load_internal_metadata(self):
 
+        # mode DO_NOT_READ_EXIF : warning car analyze moins précis / ne peux être appliqué que pour "analyze"
+        # error si format qui contient un exif dans l'organize'
+
+        # ${exif:field}
+        # ${cfm:field}
+        # ${file:field:}
+
+        # ${cfm:creationDate:%Y}/${cfm:creationDate:%m[%B]}/{cfm:cameraModel:Unknown}
+
+        # Traitament des "file" et des "cfm" à part (à peu près comme aujourd'hui).
+        # Les exifs, on les charge et on les enregistre dans la map avec leur nom exiftool
+
         if self.value is None:
 
             args = (ExifTool.BEST_CAMERA_MODEL,
@@ -51,7 +97,7 @@ class MetadataInternal(Metadata):
                     ExifTool.HEIGHT_METADATA,
                     ExifTool.ORIENTATION_METADATA)
 
-            if Configuration.THUMBNAILS:
+            if Configuration.get().thumbnails:
                 args += (ExifTool.THUMBNAIL_METADATA,)
 
             result = self.file_access.call_exif_tool(args)

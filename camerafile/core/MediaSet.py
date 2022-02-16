@@ -29,7 +29,7 @@ class MediaSet:
         self.name = self.root_path.name
         self.output_directory = OutputDirectory(self.root_path)
         self.trash_file = (Path(self.root_path) / self.CFM_TRASH).as_posix()
-        if not MediaSetDump.get_instance(self.output_directory).load(self):
+        if not MediaSetDump.get(self.output_directory).load(self):
             self.media_file_list = []
             self.media_dir_list = {}
             self.date_size_map = {}
@@ -86,14 +86,14 @@ class MediaSet:
                 return media_file
 
     def save_on_disk(self):
-        MediaSetDatabase.get_instance(self.output_directory).save(self)
-        MediaSetDump.get_instance(self.output_directory).save(self)
+        MediaSetDatabase.get(self.output_directory).save(self)
+        MediaSetDump.get(self.output_directory).save(self)
 
     def intermediate_save_database(self, media_file_list: Iterable[MediaFile]):
-        MediaSetDatabase.get_instance(self.output_directory).save(media_file_list, log=False)
+        MediaSetDatabase.get(self.output_directory).save(media_file_list, log=False)
 
     def close_database(self):
-        MediaSetDatabase.get_instance(self.output_directory).close()
+        MediaSetDatabase.get(self.output_directory).close()
 
     def add_file(self, media_file: MediaFile):
         self.media_file_list.append(media_file)
@@ -333,9 +333,9 @@ class MediaSet:
         LOGGER.info_indent("{l1} media files loaded media set dump".format(l1=len(self.filename_map)), prof=2)
         root_dir = MediaDirectory(self.root_path.as_posix(), None, self)
         self.media_dir_list[self.root_path.as_posix()] = root_dir
-        not_loaded_files = MediaSetDatabase.get_instance(self.output_directory).load_all_files(self, not_loaded_files)
+        not_loaded_files = MediaSetDatabase.get(self.output_directory).load_all_files(self, not_loaded_files)
         self.init_new_media_files(not_loaded_files)
-        MediaSetDatabase.get_instance(self.output_directory).load_all_thumbnails(self)
+        MediaSetDatabase.get(self.output_directory).load_all_thumbnails(self)
 
     def init_new_media_files(self, found_files_map: Dict[str, FileAccess]):
         LOGGER.start("{nb_file} new files that are not already in dump or db", 1000, prof=2)

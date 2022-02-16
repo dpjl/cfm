@@ -10,7 +10,6 @@ class Resource:
     program_path = None
     logging_configuration = None
     cfm_configuration = None
-    current_multiprocess_task = None
     original_sigint_handler = None
 
     @staticmethod
