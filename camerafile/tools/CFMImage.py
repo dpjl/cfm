@@ -24,7 +24,7 @@ class CFMImage:
 
     def read_image(self):
         try:
-            self.image_data = Image.open(self.file)
+            self.image_data: Image = Image.open(self.file)
             self.get_metadata_with_pil()
             self.rotate_if_necessary()
             self.width, self.height = self.image_data.size

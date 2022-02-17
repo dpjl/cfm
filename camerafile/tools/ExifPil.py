@@ -1,40 +1,38 @@
 import json
-import locale
 import logging
-import subprocess
 from datetime import datetime
-from threading import Thread
-from queue import Queue, Empty
-from camerafile.core.Resource import Resource
+
+from PIL.ExifTags import TAGS
 
 LOGGER = logging.getLogger(__name__)
 
 
 class ExifPil(object):
-    CHARSET_OPTION = ("-charset", "filename=" + locale.getpreferredencoding())
-    IMAGE_UPDATE = "image files updated"
-    SOURCE_METADATA = "Source"
+    NAME_TO_TAG = {name: tag for tag, name in TAGS.items()}
+
     MODEL_METADATA = "Model"
-    WIDTH_METADATA = "ImageWidth"
-    HEIGHT_METADATA = "ImageHeight"
     ORIENTATION_METADATA = "Orientation"
-    FILE_SIZE_METADATA = "FileSize"
-    SUB_SEC_CREATE_DATE = "SubSecCreateDate"
-    SUB_SEC_DATE_TIME_ORIGINAL = "SubSecDateTimeOriginal"
-    SUB_SEC_MODIFY_DATE = "SubSecModifyDate"
-    DATE_TIME_ORIGINAL = "DateTimeOriginal"  # Attention to timezone ?
-    CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: no. If yes, attention to timezone
-    MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
-    THUMBNAIL_METADATA = "ThumbnailImage"
-    BEST_CAMERA_MODEL = 'best-camera-model'
+
+    SUB_SEC_DATE_TIME_ORIGINAL = "SubsecTimeOriginal"
+    SUB_SEC_CREATE_DATE = "SubsecTimeDigitized"
+    SUB_SEC_MODIFY_DATE = "SubsecTime"
+
+    DATE_TIME_ORIGINAL = "DateTimeOriginal"
+    CREATE_DATE = "DateTimeDigitized"
+    MODIFY_DATE = "DateTime"
+
+    THUMBNAIL_OFFSET = "JpegIFOffset"
+    THUMBNAIL_BYTES_COUNT = "JpegIFByteCount"
+
     BEST_CREATION_DATE = "best-creation-date"
-    BEST_CAMERA_MODEL_LIST = (MODEL_METADATA,
-                              SOURCE_METADATA)
+
     BEST_CREATION_DATE_LIST = (SUB_SEC_CREATE_DATE,
                                SUB_SEC_DATE_TIME_ORIGINAL,
                                SUB_SEC_MODIFY_DATE,
                                DATE_TIME_ORIGINAL)
 
+    def get_exif_value(self, img, field_name):
+        return img.getexif()[self.NAME_TO_TAG[field_name]]
 
     @classmethod
     def execute(cls, *args):
@@ -117,4 +115,3 @@ class ExifPil(object):
             return {}
 
         return {metadata_name: cls.load_from_result(result, metadata_name) for metadata_name in args}
-
