@@ -2,7 +2,7 @@ import logging
 import shutil
 from datetime import datetime
 
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool
 from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.core.Resource import Resource
 

@@ -1,12 +1,15 @@
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Union
 
 from pyzipper import zipfile
-from datetime import datetime
+from typing import Tuple, Union
+
+from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
 from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool
+from camerafile.mdtools.JPEGMdReader import JPEGMdReader
 
 
 class ZipFileAccess(FileAccess):
@@ -54,5 +57,14 @@ class ZipFileAccess(FileAccess):
         except KeyError as e:
             print(str(e) + "[" + self.path + "]")
             return {}
-
         return result
+
+    def read_md(self, args):
+        if Configuration.get().exif_tool:
+            return self.call_exif_tool(args)
+        else:
+            if self.is_image():
+                with zipfile.ZipFile(self.zip_path) as zip_file:
+                    return JPEGMdReader(zip_file.open(self.file_path)).get_metadata(*args)
+            else:
+                return self.call_exif_tool(args)

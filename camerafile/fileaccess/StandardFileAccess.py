@@ -8,7 +8,9 @@ from typing import Tuple, Union
 
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.mdtools.AVIMdReader import AVIMdReader
+from camerafile.mdtools.ExifToolReader import ExifTool
+from camerafile.mdtools.JPEGMdReader import JPEGMdReader
 
 
 class StandardFileAccess(FileAccess):
@@ -54,5 +56,16 @@ class StandardFileAccess(FileAccess):
         # round to the nearest even second because of differences between ntfs en fat
         return self.even_round(datetime.fromtimestamp(Path(self.path).stat().st_mtime))
 
-    def call_exif_tool(self, args):
-        return ExifTool.get_metadata(self.path, *args)
+    def read_md(self, args):
+        if Configuration.get().exif_tool:
+            return ExifTool.get_metadata(self.path, *args)
+        else:
+            if self.is_image():
+                return JPEGMdReader(self.path).get_metadata(*args)
+            # This code is not ready (QTMdReader is much less compatible with different brands than ExifTool)
+            # elif self.is_qt_video():
+            #    return QTMdReader(self.path).get_metadata(*args)
+            elif self.is_avi_video():
+                return AVIMdReader(self.path).get_metadata(*args)
+            else:
+                return ExifTool.get_metadata(self.path, *args)

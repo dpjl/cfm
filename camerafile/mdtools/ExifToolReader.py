@@ -1,11 +1,17 @@
+import base64
+import io
 import json
 import locale
 import logging
 import subprocess
 from datetime import datetime
-from threading import Thread
 from queue import Queue, Empty
+from threading import Thread
+
+from PIL.Image import Image
+
 from camerafile.core.Resource import Resource
+from camerafile.mdtools.MdConstants import MetadataNames
 
 LOGGER = logging.getLogger(__name__)
 
@@ -74,8 +80,7 @@ class ExifTool(object):
     CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: no. If yes, attention to timezone
     MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
     THUMBNAIL_METADATA = "ThumbnailImage"
-    BEST_CAMERA_MODEL = 'best-camera-model'
-    BEST_CREATION_DATE = "best-creation-date"
+
     BEST_CAMERA_MODEL_LIST = (MODEL_METADATA,
                               SOURCE_METADATA)
     BEST_CREATION_DATE_LIST = (SUB_SEC_CREATE_DATE,
@@ -169,17 +174,42 @@ class ExifTool(object):
     @classmethod
     def load_from_result(cls, result, metadata_name):
 
-        if metadata_name == cls.BEST_CAMERA_MODEL:
-            if cls.MODEL_METADATA in result[0]:
-                return result[0][cls.MODEL_METADATA]
-            elif cls.SOURCE_METADATA in result[0]:
-                return result[0][cls.SOURCE_METADATA]
+        if len(result) == 0:
+            return
 
-        elif metadata_name == cls.BEST_CREATION_DATE:
+        metadata = result[0]
+
+        if metadata_name == MetadataNames.MODEL:
+            if cls.MODEL_METADATA in metadata:
+                return metadata[cls.MODEL_METADATA]
+            elif cls.SOURCE_METADATA in metadata:
+                return metadata[cls.SOURCE_METADATA]
+
+        elif metadata_name == MetadataNames.CREATION_DATE:
             return cls.read_date(result)
 
-        elif metadata_name in result[0]:
-            return result[0][metadata_name]
+        elif metadata_name == MetadataNames.THUMBNAIL or metadata_name == cls.THUMBNAIL_METADATA:
+            if cls.THUMBNAIL_METADATA in metadata:
+                thumbnail = metadata[cls.THUMBNAIL_METADATA]
+                if thumbnail is not None:
+                    thumbnail = base64.b64decode(thumbnail[7:])
+                    thb = Image.open(io.BytesIO(thumbnail))
+                    thb.thumbnail((100, 100))
+                    bytes_output = io.BytesIO()
+                    thb.save(bytes_output, format='JPEG')
+                    return bytes_output.getvalue()
+
+        if metadata_name == MetadataNames.WIDTH and cls.WIDTH_METADATA in metadata:
+            return metadata[cls.WIDTH_METADATA]
+
+        if metadata_name == MetadataNames.HEIGHT and cls.HEIGHT_METADATA in metadata:
+            return metadata[cls.HEIGHT_METADATA]
+
+        if metadata_name == MetadataNames.ORIENTATION and cls.ORIENTATION_METADATA in metadata:
+            return metadata[cls.ORIENTATION_METADATA]
+
+        elif metadata_name in metadata:
+            return metadata[metadata_name]
 
         return None
 
@@ -188,15 +218,27 @@ class ExifTool(object):
         result = ()
         for arg in args:
 
-            if str(arg) == cls.BEST_CREATION_DATE:
+            if arg == MetadataNames.CREATION_DATE:
                 result += cls.BEST_CREATION_DATE_LIST
 
-            elif str(arg) == cls.BEST_CAMERA_MODEL:
+            elif arg == MetadataNames.MODEL:
                 result += cls.BEST_CAMERA_MODEL_LIST
 
-            else:
+            if arg == MetadataNames.WIDTH:
+                result += (cls.WIDTH_METADATA,)
+
+            elif arg == MetadataNames.HEIGHT:
+                result += (cls.HEIGHT_METADATA,)
+
+            elif arg == MetadataNames.ORIENTATION:
+                result += (cls.ORIENTATION_METADATA,)
+
+            elif isinstance(arg, MetadataNames):
+                result += (arg.value,)
+
+            elif isinstance(arg, str):
                 result += (arg,)
-        return tuple(['-' + arg for arg in result])
+        return tuple(['-' + str(arg) for arg in result])
 
     @classmethod
     def get_metadata(cls, file, *args):
@@ -209,7 +251,6 @@ class ExifTool(object):
         result = json.loads(stdout)
         if len(result) == 0:
             return {}
-
         return {metadata_name: cls.load_from_result(result, metadata_name) for metadata_name in args}
 
     @classmethod

@@ -1,13 +1,12 @@
-from pathlib import Path
-
 from camerafile.core.MediaSetDatabase import MediaSetDatabase
-from camerafile.core.OutputDirectory import OutputDirectory
 
 
 class CompareDatabases:
 
-    @staticmethod
-    def execute(dir_1_path, dir_2_path):
-        db1 = MediaSetDatabase(OutputDirectory(Path(dir_1_path).resolve()))
-        db2 = MediaSetDatabase(OutputDirectory(Path(dir_2_path).resolve()))
+    def execute(self, db1, db2):
+        print("Compare {db1} with {db2}".format(db1=db1, db2=db2))
+        db1 = MediaSetDatabase.get(None, cfm_db_file=db1)
+        db2 = MediaSetDatabase.get(None, cfm_db_file=db2)
+        db1.initialize_cfm_connection()
+        db2.initialize_cfm_connection()
         db1.compare(db2)

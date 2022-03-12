@@ -4,7 +4,7 @@ from camerafile.core.BatchTool import TaskWithProgression
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import init_only_console_logging, Logger
 from camerafile.core.Resource import Resource
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool
 
 LOGGER = Logger(__name__)
 

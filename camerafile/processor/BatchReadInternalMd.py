@@ -1,6 +1,7 @@
 from camerafile.core.BatchTool import BatchArgs
 from camerafile.core.Constants import INTERNAL, THUMBNAIL, CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
+from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.metadata.MetadataInternal import MetadataInternal
 from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.LoadInternalMetadata import LoadInternalMetadata
@@ -33,6 +34,7 @@ class BatchReadInternalMd(CFMBatch):
             original_media.metadata[INTERNAL] = result_internal_metadata
         original_media.metadata[THUMBNAIL].thumbnail = original_media.metadata[INTERNAL].thumbnail
         original_media.metadata[INTERNAL].thumbnail = None
-        original_media.metadata[CFM_CAMERA_MODEL].set_value(original_media.metadata[INTERNAL].get_cm())
+        original_media.metadata[CFM_CAMERA_MODEL].set_value(
+            original_media.metadata[INTERNAL].get_md_value(MetadataNames.MODEL))
         original_media.parent_set.add_to_date_size_name_map(original_media)
         progress_bar.increment()

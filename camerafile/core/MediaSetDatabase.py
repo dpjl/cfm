@@ -40,18 +40,27 @@ class DBConnection:
 class MediaSetDatabase:
     __instance = {}
 
-    def __init__(self, output_directory):
-        self.cfm_file = output_directory.path / 'cfm.db'
-        self.thb_file = output_directory.path / 'thb.db'
+    def __init__(self, output_directory, cfm_db_file=None, thb_db_file=None):
+        self.cfm_file = cfm_db_file
+        self.thb_file = thb_db_file
+        if self.cfm_file is None and output_directory is not None:
+            self.cfm_file = output_directory.path / "cfm.db"
+        if self.thb_file is None and output_directory is not None:
+            self.thb_file = output_directory.path / "thb.db"
         self.cache_db_connection = None
         self.thb_db_connection = None
         self.is_active = Configuration.get().use_db_for_cache or self.exists()
 
     @staticmethod
-    def get(output_directory):
-        if output_directory not in MediaSetDatabase.__instance:
-            MediaSetDatabase.__instance[output_directory] = MediaSetDatabase(output_directory)
-        return MediaSetDatabase.__instance[output_directory]
+    def get(output_directory, cfm_db_file=None, thb_db_file=None):
+        db_id = str(output_directory.path) if output_directory is not None else ""
+        if cfm_db_file is not None:
+            db_id += cfm_db_file
+        if thb_db_file is not None:
+            db_id += thb_db_file
+        if db_id not in MediaSetDatabase.__instance:
+            MediaSetDatabase.__instance[db_id] = MediaSetDatabase(output_directory, cfm_db_file, thb_db_file)
+        return MediaSetDatabase.__instance[db_id]
 
     def initialize_cfm_connection(self):
         if self.is_active:
@@ -315,6 +324,13 @@ class MediaSetDatabase:
         for result in result_list:
             if result is not None and len(result) >= 1:
                 data_dict[result[text_fields["file"]]] = json.loads(result[text_fields["jm"]])
+                data_dict[result[text_fields["file"]]]["file"] = result[text_fields["file"]]
+                data_dict[result[text_fields["file"]]]["cfm-cm"] = None
+                data_dict[result[text_fields["file"]]]["faces"] = None
+                data_dict[result[text_fields["file"]]]["hash"] = None
+                if "internal" in data_dict[result[text_fields["file"]]]:
+                    data_dict[result[text_fields["file"]]]["internal"]["width"] = None
+                    data_dict[result[text_fields["file"]]]["internal"]["height"] = None
                 data_dict[result[text_fields["file"]]].pop('Faces', None)
         return data_dict
 

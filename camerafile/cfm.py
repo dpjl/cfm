@@ -85,14 +85,20 @@ def create_main_args_parser():
 
     p = sp_list.add_parser("custom", aliases=["c"], help='Exexute a custom processor')
     p.set_defaults(command="custom")
-    p.add_argument('dir1', metavar='dir1', type=str, help='Delete all duplicates from d1')
-    p.add_argument('dir2', nargs='?', metavar='dir2', type=str, help='Delete from d2 all files that are not in d1')
-    p.add_argument('-x', '--exec', type=str, help='Name of the processor to execute')
+    p.add_argument('processor', type=str, help='Name of the processor to execute')
+    p.add_argument('args', nargs='*', metavar='arguments', type=str, help='Arguments of the custom processor')
 
     return parser
 
 
 def execute(args):
+    if args.command == "custom":
+        import importlib
+        ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.processor), args.processor)
+        p = ProcessorClass()
+        p.execute(*tuple(args.args))
+        return
+
     media_set1 = MediaSet.load_media_set(args.dir1)
     media_set2 = None
     if "dir2" in args and args.dir2:
@@ -125,14 +131,6 @@ def execute(args):
         if args.identify_faces:
             BatchRecoFaces(media_set1).execute()
 
-    if args.command in ["custom", "c"]:
-        import importlib
-        ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.exec), args.exec)
-        ProcessorClass(media_set1).execute()
-
-        if media_set2:
-            ProcessorClass(media_set2).execute()
-
     print("")
 
     media_set1.save_on_disk()
@@ -154,7 +152,8 @@ def main():
         sys.exit(1)
 
     Resource.init()
-    init_logging(Path(args.dir1))
+    if args.command != "custom":
+        init_logging(Path(args.dir1))
     LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL")
     Configuration.get().init(args)
     execute(args)

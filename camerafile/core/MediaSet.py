@@ -16,6 +16,7 @@ from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
 from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
+from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.tools.FaceRecognition import FaceRecognition
 
 LOGGER = Logger(__name__)
@@ -308,15 +309,15 @@ class MediaSet:
         internal_md = media_file.metadata[INTERNAL]
 
         if cm_filter == "known":
-            if internal_md.get_cm() is None:
+            if internal_md.get_md_value(MetadataNames.MODEL) is None:
                 return False
 
         elif cm_filter == "unknown":
-            if internal_md.get_cm() is not None or cfm_camera_model.value is not None:
+            if internal_md.get_md_value(MetadataNames.MODEL) is not None or cfm_camera_model.value is not None:
                 return False
 
         elif cm_filter == "recovered":
-            if internal_md.get_cm() is not None or cfm_camera_model.value is None:
+            if internal_md.get_md_value(MetadataNames.MODEL) is not None or cfm_camera_model.value is None:
                 return False
 
         return True

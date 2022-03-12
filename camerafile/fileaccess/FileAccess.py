@@ -2,7 +2,10 @@ import os
 from datetime import timedelta
 from enum import IntEnum
 from pathlib import Path
+
 from typing import Tuple, Union
+
+from camerafile.core import Constants
 
 
 class CopyMode(IntEnum):
@@ -60,7 +63,19 @@ class FileAccess:
                 date += timedelta(seconds=1)
         return date
 
-    def call_exif_tool(self, args):
+    def is_image(self):
+        return self.extension in Constants.IMAGE_TYPE
+
+    def is_video(self):
+        return self.extension in Constants.IMAGE_TYPE
+
+    def is_qt_video(self):
+        return self.extension in Constants.QT_TYPE
+
+    def is_avi_video(self):
+        return self.extension in Constants.AVI_TYPE
+
+    def read_md(self, args):
         pass
 
     def open(self):

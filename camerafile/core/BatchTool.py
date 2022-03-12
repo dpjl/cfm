@@ -1,4 +1,5 @@
 import atexit
+import traceback
 from multiprocessing import Pool, Manager, cpu_count
 from multiprocessing import current_process
 from multiprocessing.queues import Queue
@@ -7,7 +8,7 @@ from typing import List
 
 from camerafile.console.ConsoleProgressBar import ConsoleProgressBar
 from camerafile.console.StandardOutputWrapper import StdoutRecorder
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool
 
 DEFAULT_NB_SUB_PROCESS = cpu_count()
 
@@ -17,11 +18,11 @@ class BatchArgs:
     def __init__(self, args, info):
         self.args = args
         self.info = info
-        self.queue = None
 
 
 class TaskWithProgression:
     current_multiprocess_task = None
+    queue = None
 
     def __init__(self, batch_title="", nb_sub_process=None, on_worker_start=None, on_worker_end=None):
         self.batch_title = batch_title
@@ -89,7 +90,7 @@ class TaskWithProgression:
     @staticmethod
     def execute_task(batch_args: BatchArgs):
         try:
-            queue: Queue = batch_args.queue
+            queue: Queue = TaskWithProgression.queue
             if queue is not None:
                 queue.put([current_process().pid, batch_args.info])
             stdout_recorder = StdoutRecorder().start()
@@ -99,12 +100,13 @@ class TaskWithProgression:
             result = TaskWithProgression.current_multiprocess_task(batch_args.args)
             return result, stdout_recorder.stop()
         except BaseException as e:
-            return None, str(e)
+            return None, traceback.format_exc()
 
     @staticmethod
     def on_worker_start(task, queue, custom_ows=None, custom_owe=None):
         stdout_recorder = StdoutRecorder().start()
         TaskWithProgression.current_multiprocess_task = task
+        TaskWithProgression.queue = queue
         atexit.register(TaskWithProgression.on_worker_end, queue, custom_owe)
         if custom_ows:
             custom_ows()
@@ -124,6 +126,7 @@ class TaskWithProgression:
         nb_process = min(nb_process, nb_elements)
         pool = Pool(nb_process, self.on_worker_start, (task, queue, self.custom_ows, self.custom_owe))
         nb_processed_elements = 0
+        terminate_correctly = False
         try:
 
             for i in range(nb_process):
@@ -131,8 +134,6 @@ class TaskWithProgression:
                 if on_worker_start_stdout != "":
                     print(on_worker_start_stdout.strip())
 
-            for batch_args in args_list:
-                batch_args.queue = queue
             res_list = pool.imap_unordered(self.execute_task, args_list)
 
             for i in range(nb_process):
@@ -148,7 +149,13 @@ class TaskWithProgression:
                 result, stdout = res
                 if stdout and stdout.strip() != "":
                     print(stdout.strip())
-                post_task(result, progress_bar, replace=True)
+                if result is not None:
+                    post_task(result, progress_bar, replace=True)
+                else:
+                    progress_bar.increment()
+                    print("One element has not been processed correctly")
+
+            terminate_correctly = True
 
         except KeyboardInterrupt:
             try:
@@ -156,14 +163,21 @@ class TaskWithProgression:
                 pool.terminate()
             except KeyboardInterrupt:
                 print("Interrupted by user (Ctrl-C) 2")
+        except BaseException as e:
+            print("Unexpected exception")
+            traceback.print_exc()
         finally:
             try:
                 pool.close()
-                pool.join()
                 progress_bar.stop()
-                for i in range(nb_process):
-                    on_worker_end_stdout = queue.get(block=True, timeout=5)
-                    if on_worker_end_stdout != "":
-                        print(on_worker_end_stdout.strip())
+                if terminate_correctly:
+                    pool.join()
+                    for i in range(nb_process):
+                        on_worker_end_stdout = queue.get(block=True, timeout=5)
+                        if on_worker_end_stdout != "":
+                            print(on_worker_end_stdout.strip())
+                else:
+                    pool.terminate()
+
             except KeyboardInterrupt:
                 print("Interrupted by user (Ctrl-C) 3")

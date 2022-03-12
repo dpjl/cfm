@@ -21,6 +21,7 @@ class Configuration:
         self.org_format = ""
         self.debug = False
         self.initialized = False
+        self.exif_tool = False
 
     @staticmethod
     def get():
