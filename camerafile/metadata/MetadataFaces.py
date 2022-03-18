@@ -3,7 +3,6 @@ import numpy
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
-from camerafile.tools.CFMImage import CFMImage
 
 
 class MetadataFaces(Metadata):
@@ -18,6 +17,11 @@ class MetadataFaces(Metadata):
         self.value = value
 
     def compute_face_boxes(self):
+        if self.value is None:
+            self.value, self.binary_value = self.file_access.compute_face_boxes()
+
+    @staticmethod
+    def static_compute_face_boxes(image):
 
         # We do this to not have to import face_recognition if it's not necessary at the load of the program
         # (but still only one time)
@@ -25,30 +29,24 @@ class MetadataFaces(Metadata):
             import face_recognition
             MetadataFaces.face_rec = face_recognition
 
-        if self.value is None:
-            with self.file_access.open() as file:
-                image = CFMImage(file)
-                with image:
+        data = image.image_data
+        original_data = data
+        if not Configuration.get().face_detection_keep_image_size:
+            height_resize = 480
+            frame_resize_scale = float(image.image_data.height) / height_resize
+            (width, height) = (data.width // frame_resize_scale, data.height // frame_resize_scale)
+            data = image.image_data.resize((int(width), int(height)))
 
-                    data = image.image_data
-                    original_data = data
-                    if not Configuration.get().face_detection_keep_image_size:
-                        height_resize = 480
-                        frame_resize_scale = float(image.image_data.height) / height_resize
-                        (width, height) = (data.width // frame_resize_scale, data.height // frame_resize_scale)
-                        data = image.image_data.resize((int(width), int(height)))
+        img = numpy.array(data)
 
-                    img = numpy.array(data)
+        locations = MetadataFaces.face_rec.face_locations(img)
+        if not Configuration.get().face_detection_keep_image_size:
+            locations = [tuple([int(frame_resize_scale * pos) for pos in loc]) for loc in locations]
+            img = numpy.array(original_data)
 
-                    locations = MetadataFaces.face_rec.face_locations(img)
-                    if not Configuration.get().face_detection_keep_image_size:
-                        locations = [tuple([int(frame_resize_scale * pos) for pos in loc]) for loc in locations]
-                        img = numpy.array(original_data)
+        encoding = MetadataFaces.face_rec.face_encodings(img, known_face_locations=locations)
 
-                    encoding = MetadataFaces.face_rec.face_encodings(img, known_face_locations=locations)
-
-                    self.value = {"locations": locations, "names": []}
-                    self.binary_value = encoding
+        return {"locations": locations, "names": []}, encoding
 
     def recognize_faces(self):
         if self.knn_clf is None:

@@ -2,16 +2,20 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import sys
+import yaml
 from humanize import naturalsize
 from pyzipper import zipfile
 from typing import List, Dict, Iterable
 
+from camerafile.core.Configuration import Configuration
 from camerafile.core.Constants import MANAGED_TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, THUMBNAIL, ARCHIVE_TYPE
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.core.MediaFile import MediaFile
 from camerafile.core.MediaSetDatabase import MediaSetDatabase
 from camerafile.core.MediaSetDump import MediaSetDump
+from camerafile.core.OrgFormat import OrgFormat
 from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
@@ -40,6 +44,80 @@ class MediaSet:
         self.face_rec = FaceRecognition(self, self.output_directory)
         self.initialize_file_and_dir_list()
         self.delete_not_existing_media()
+
+        self.state_file = self.output_directory.path / "state.yaml"
+        self.state = self.load_state()
+        self.read_md_needed = False
+        self.md_needed = ()
+        self.org_format = self.load_format()
+        self.load_metadata_to_read()
+
+    def load_state(self):
+        state = None
+        if self.state_file.exists():
+            with open(self.state_file) as file:
+                state = yaml.safe_load(file)
+        return state if state is not None else {}
+
+    def save_state(self):
+        with open(self.state_file, "w") as file:
+            return yaml.safe_dump(self.state, file)
+
+    def load_format(self):
+        param_format = Configuration.get().org_format
+        if "format" in self.state:
+            existing_format = self.state["format"]
+            if param_format is not None and param_format != "" and param_format != existing_format:
+                print("Error: format in argument differs from format save in " + str(self.state_file))
+                print("If you really want to force changing the destination format, please remove this file "
+                      "and launch again cfm.")
+                sys.exit(1)
+            else:
+                org_format = existing_format
+        else:
+            org_format = param_format
+
+        if org_format is not None and org_format != "":
+            self.state["format"] = param_format
+            self.save_state()
+            return OrgFormat(org_format)
+        else:
+            return None
+        # ${creationDate:%Y}/${creationDate:%m[%B]}/{cameraModel:Unknown}
+
+    def load_metadata_to_read(self):
+        previously_loaded_metadata = ()
+        if "loaded_metadata" in self.state:
+            previously_loaded_metadata = tuple([MetadataNames.from_str(arg) for arg in self.state["loaded_metadata"]])
+        args = ()
+        if Configuration.get().internal_read:
+            args += (MetadataNames.CREATION_DATE, MetadataNames.MODEL, MetadataNames.ORIENTATION)
+        else:
+            print("Warning: only system metadata will be used. It is faster but dates could be different from the"
+                  "date of the original date the photos were taken")
+
+        if self.org_format is not None:
+            md_list = self.org_format.get_metadata_list()
+            if not Configuration.get().internal_read:
+                md_list.remove(MetadataNames.CREATION_DATE)
+                if len(md_list) != 0:
+                    raise Exception("Error, some fields of target format cannot be loaded without "
+                                    "internal metadata loading: " + ", ".join(md_list))
+            args += md_list
+
+        if Configuration.get().thumbnails:
+            args += (MetadataNames.THUMBNAIL,)
+
+        for arg in args:
+            if arg not in previously_loaded_metadata:
+                self.read_md_needed = True
+                LOGGER.info("This metadata was not already loaded, internal read will be performed: " + str(arg))
+
+        self.md_needed = args
+
+    def update_loaded_metadata(self):
+        self.state["loaded_metadata"] = [str(md) for md in self.md_needed]
+        self.save_state()
 
     def delete_not_existing_media(self):
         deleted = []
@@ -101,7 +179,7 @@ class MediaSet:
         self.id_map[media_file.file_access.id] = media_file
         self.filename_map[media_file.relative_path] = media_file
         self.add_to_date_size_name_map(media_file)
-        self.add_to_date_size_sig_map(media_file)
+        self.add_to_date_sig_map(media_file)
 
     def remove_file(self, media_file: MediaFile):
         self.remove_from_date_size_sig_map(media_file)
@@ -141,7 +219,7 @@ class MediaSet:
         if date is not None:
             self.add_to_x_y_map(self.date_size_map, date, size, media_file)
 
-    def add_to_date_size_sig_map(self, media_file: MediaFile):
+    def add_to_date_sig_map(self, media_file: MediaFile):
         date = media_file.get_exif_date()
         sig = media_file.get_signature()
         if date is not None and sig is not None:
@@ -181,6 +259,19 @@ class MediaSet:
                 for file_size in self.date_size_map[date]:
                     result.append(self.date_size_map[date][file_size][0])
         return result
+
+    def duplicates(self):
+        n_copy = {}
+        for date, size_map in self.date_size_map.items():
+            if len(size_map) == 1:
+                _, media_list = self.get_first_element(size_map)
+                self.add_duplicates_to_n_copy(n_copy, media_list)
+            else:
+                #if date not in self.date_size_map:
+                #    raise Exception()
+                for media_list in self.date_sig_map[date].values():
+                    self.add_duplicates_to_n_copy(n_copy, media_list)
+        return n_copy
 
     def get_duplicates_report(self, duplicates):
         str_list = ["All media files: " + str(len(self.media_file_list)),
@@ -234,21 +325,10 @@ class MediaSet:
                         only_in_self.append(media_list)
         return in_both, only_in_self
 
-    def duplicates(self):
-        n_copy = {}
-        for date, file_size_map in self.date_size_map.items():
-            if len(file_size_map) == 1:
-                _, media_list = self.get_first_element(file_size_map)
-                self.add_duplicates_to_n_copy(n_copy, media_list)
-            else:
-                for media_list in self.date_sig_map[date].values():
-                    self.add_duplicates_to_n_copy(n_copy, media_list)
-        return n_copy
-
     @staticmethod
     def propagate_metadata_value(metadata_name, media_file_list: List[MediaFile]):
+        not_empty_metadata_value = None
         if len(media_file_list) > 1:
-            not_empty_metadata_value = None
             for media_file in media_file_list:
                 current_metadata_value = media_file.metadata[metadata_name].value
                 if current_metadata_value is not None:
@@ -258,11 +338,15 @@ class MediaSet:
                     current_metadata_value = media_file.metadata[metadata_name].value
                     if current_metadata_value is None:
                         media_file.metadata[metadata_name].value = not_empty_metadata_value
+        return not_empty_metadata_value is not None
 
     def propagate_sig_to_duplicates(self):
         for date in self.date_size_map:
             for file_size in self.date_size_map[date]:
-                self.propagate_metadata_value(SIGNATURE, self.date_size_map[date][file_size])
+                if len(self.date_size_map[date][file_size]) > 1:
+                    if self.propagate_metadata_value(SIGNATURE, self.date_size_map[date][file_size]):
+                        for media_file in self.date_size_map[date][file_size]:
+                            self.add_to_date_sig_map(media_file)
 
     def propagate_cm_to_duplicates(self):
         for date in self.date_size_map:

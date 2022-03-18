@@ -1,3 +1,4 @@
+import mmap
 import os
 import shutil
 from datetime import datetime
@@ -11,6 +12,9 @@ from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
 from camerafile.mdtools.AVIMdReader import AVIMdReader
 from camerafile.mdtools.ExifToolReader import ExifTool
 from camerafile.mdtools.JPEGMdReader import JPEGMdReader
+from camerafile.metadata.MetadataFaces import MetadataFaces
+from camerafile.tools.CFMImage import CFMImage
+from camerafile.tools.Hash import Hash
 
 
 class StandardFileAccess(FileAccess):
@@ -56,16 +60,49 @@ class StandardFileAccess(FileAccess):
         # round to the nearest even second because of differences between ntfs en fat
         return self.even_round(datetime.fromtimestamp(Path(self.path).stat().st_mtime))
 
+    def call_exif_tool(self, call_info, args):
+        try:
+            return call_info, ExifTool.get_metadata(self.path, *args)
+        except:
+            return call_info + " -> Failed", {}
+
     def read_md(self, args):
         if Configuration.get().exif_tool:
-            return ExifTool.get_metadata(self.path, *args)
+            return "ExifTool", ExifTool.get_metadata(self.path, *args)
         else:
             if self.is_image():
-                return JPEGMdReader(self.path).get_metadata(*args)
+                try:
+                    return "JPEGMdReader", JPEGMdReader(self.path).get_metadata(*args)
+                except:
+                    return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
+
             # This code is not ready (QTMdReader is much less compatible with different brands than ExifTool)
             # elif self.is_qt_video():
             #    return QTMdReader(self.path).get_metadata(*args)
             elif self.is_avi_video():
-                return AVIMdReader(self.path).get_metadata(*args)
+                try:
+                    return "AVIMdReader", AVIMdReader(self.path).get_metadata(*args)
+                except:
+                    return self.call_exif_tool("AVIMdReader -> ExifTool", args)
             else:
-                return ExifTool.get_metadata(self.path, *args)
+                return self.call_exif_tool("ExifTool", args)
+
+    def hash(self):
+        if self.is_image():
+            with open(self.path, 'rb') as f:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
+                    with CFMImage(mmap_obj) as image:
+                        try:
+                            return Hash.image_hash(image.image_data)
+                        except BaseException as e:
+                            print("image_hash: " + str(e) + " / " + self.relative_path)
+                            return str(self.get_file_size())
+        else:
+            return str(self.get_file_size())
+
+    def compute_face_boxes(self):
+        if self.is_image():
+            with open(self.path, 'rb') as f:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
+                    with CFMImage(mmap_obj) as image:
+                        return MetadataFaces.static_compute_face_boxes(image)

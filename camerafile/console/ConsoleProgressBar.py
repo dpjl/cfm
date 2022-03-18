@@ -1,9 +1,10 @@
 import datetime
 import os
+import shutil
+import threading
 
 import humanize
 import sys
-import threading
 import time
 
 from camerafile.console.StandardOutputWrapper import StdoutWrapper, StderrWrapper
@@ -18,7 +19,10 @@ class ConsoleProgressBar:
 
     def __init__(self, max_count, title="", clear_screen=False):
 
-        self.console_width = os.get_terminal_size().columns - 1
+        try:
+            self.console_width = os.get_terminal_size().columns - 1
+        except OSError:
+            self.console_width = shutil.get_terminal_size((80, 50))
         self.title = title
         self.defil_position = 0
         self.position = 0
@@ -35,6 +39,7 @@ class ConsoleProgressBar:
         self.stdout.wrap()
         self.stderr.wrap()
         self.details = {}
+        self.status = []
 
         thread = threading.Thread(None, self.auto_refresh, None, [], {})
         thread.start()
@@ -71,12 +76,16 @@ class ConsoleProgressBar:
         if self.position > 0:
             current_time = time.time()
             rem_time = ((current_time - self.start_time) / self.position) * (self.max - self.position)
-            #self.remaining_time = self.get_duration_string(rem_time)
+            # self.remaining_time = self.get_duration_string(rem_time)
             self.remaining_time = humanize.naturaldelta(datetime.timedelta(seconds=rem_time))
 
     def set_detail(self, key, text):
         with self.lock_increment:
             self.details[key] = text
+
+    def set_status(self, status):
+        with self.lock_increment:
+            self.status = status
 
     def set_item_text(self, item_text):
         with self.lock_increment:
@@ -100,6 +109,7 @@ class ConsoleProgressBar:
 
         self.stdout.clean_lines()
         self.details = {}
+        # self.status = None
         self.refresh()
         if self.clear_screen:
             pass
@@ -111,6 +121,8 @@ class ConsoleProgressBar:
 
         if not self.clear_screen:
             print("")
+            for _ in self.status:
+                print("")
 
     def stop(self):
         self.run = False
@@ -161,11 +173,14 @@ class ConsoleProgressBar:
                 future='', c3=SPACE, l3=future_size)
 
             line = "{before}{progress_bar}{after}".format(before=before_bar, progress_bar=bar, after=after_bar)
-            details_lines = []
+            lines = []
+            if self.status:
+                lines += self.status
             for key in self.details.keys():
                 start_of_line = "[" + str(key) + "] "
-                details_lines.append(start_of_line + self.cut_to_screen_size(self.details[key], len(start_of_line)))
-            self.stdout.writelines_with_lock(details_lines + [line[0:self.console_width]], tmp=True)
+                lines.append(start_of_line + self.cut_to_screen_size(self.details[key], len(start_of_line)))
+            lines.append(line[0:self.console_width])
+            self.stdout.writelines_with_lock(lines, tmp=True)
         else:
             stats = "{title} | {position:{position_len}}/{max} | {percent: >3}% {remaining} - ".format(
                 title=self.title,

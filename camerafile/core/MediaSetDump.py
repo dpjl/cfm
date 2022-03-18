@@ -3,7 +3,7 @@ import pickle
 import time
 
 from camerafile.core.Configuration import Configuration as Conf
-from camerafile.core.Constants import THUMBNAIL
+from camerafile.core.Constants import THUMBNAIL, INTERNAL
 from camerafile.core.Logging import Logger
 
 LOGGER = Logger(__name__)
@@ -42,6 +42,7 @@ class MediaSetDump:
     def save(self, media_set):
         if self.is_active:
             for media_file in media_set:
+                media_file.metadata[INTERNAL].thumbnail = None
                 media_file.metadata[THUMBNAIL].thumbnail = None
             with open(self.dump_file, "wb") as file:
                 LOGGER.start("Writing " + str(self.dump_file) + "... {result}")

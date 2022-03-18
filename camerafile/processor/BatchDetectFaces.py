@@ -1,4 +1,4 @@
-from camerafile.core.BatchTool import BatchArgs
+from camerafile.core.BatchTool import BatchElement
 from camerafile.core.Constants import IMAGE_TYPE, FACES
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
@@ -16,7 +16,9 @@ class BatchDetectFaces(CFMBatch):
     def __init__(self, media_set: MediaSet):
         self.media_set = media_set
         self.processed_media_files = []
-        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE)
+        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE,
+                          stderr_file=media_set.output_directory.batch_stderr,
+                          stdout_file=media_set.output_directory.batch_stdout)
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
@@ -27,8 +29,8 @@ class BatchDetectFaces(CFMBatch):
     def arguments(self):
         args_list = []
         for media_file in self.media_set:
-            if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].binary_value is None:
-                args_list.append(BatchArgs(media_file.metadata[FACES], media_file.relative_path))
+            if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].value is None:
+                args_list.append(BatchElement(media_file.metadata[FACES], media_file.relative_path))
         return args_list
 
     def post_task(self, result_face_metadata: MetadataFaces, progress_bar, replace=True):

@@ -291,6 +291,8 @@ class MediaSetDatabase:
                    values
                         (?, ?, ?, ?)''',
                 (media_file.get_path(), json_data, bin_data, datetime.now()))
+            # TODO: is file_id always the rowid ?
+            media_file.db_id = self.cache_db_connection.cursor.lastrowid
         media_file.exists_in_db = True
 
     def save_thumbnail(self, media_file: MediaFile):
@@ -326,8 +328,8 @@ class MediaSetDatabase:
                 data_dict[result[text_fields["file"]]] = json.loads(result[text_fields["jm"]])
                 data_dict[result[text_fields["file"]]]["file"] = result[text_fields["file"]]
                 data_dict[result[text_fields["file"]]]["cfm-cm"] = None
-                data_dict[result[text_fields["file"]]]["faces"] = None
-                data_dict[result[text_fields["file"]]]["hash"] = None
+                #data_dict[result[text_fields["file"]]]["faces"] = None
+                #data_dict[result[text_fields["file"]]]["hash"] = None
                 if "internal" in data_dict[result[text_fields["file"]]]:
                     data_dict[result[text_fields["file"]]]["internal"]["width"] = None
                     data_dict[result[text_fields["file"]]]["internal"]["height"] = None

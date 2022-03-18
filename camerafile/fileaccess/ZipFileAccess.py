@@ -10,6 +10,9 @@ from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
 from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
 from camerafile.mdtools.ExifToolReader import ExifTool
 from camerafile.mdtools.JPEGMdReader import JPEGMdReader
+from camerafile.metadata.MetadataFaces import MetadataFaces
+from camerafile.tools.CFMImage import CFMImage
+from camerafile.tools.Hash import Hash
 
 
 class ZipFileAccess(FileAccess):
@@ -50,21 +53,41 @@ class ZipFileAccess(FileAccess):
             return None
         return result
 
-    def call_exif_tool(self, args):
+    def call_exif_tool(self, call_info, args):
         try:
             with zipfile.ZipFile(self.zip_path) as zip_file:
-                result = ExifTool.get_metadata(zip_file.read(self.file_path), *args)
-        except KeyError as e:
-            print(str(e) + "[" + self.path + "]")
-            return {}
-        return result
+                return call_info, ExifTool.get_metadata(zip_file.read(self.file_path), *args)
+        except:
+            return call_info + " -> Failed", {}
 
     def read_md(self, args):
         if Configuration.get().exif_tool:
-            return self.call_exif_tool(args)
+            return "ExifTool", self.call_exif_tool(args)
         else:
             if self.is_image():
-                with zipfile.ZipFile(self.zip_path) as zip_file:
-                    return JPEGMdReader(zip_file.open(self.file_path)).get_metadata(*args)
+                try:
+                    with zipfile.ZipFile(self.zip_path) as zip_file:
+                        return "JPEGMdReader", JPEGMdReader(zip_file.open(self.file_path)).get_metadata(*args)
+                except:
+                    return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
             else:
-                return self.call_exif_tool(args)
+                return self.call_exif_tool("ExifTool", args)
+
+    def hash(self):
+        if self.is_image():
+            with self.open() as image_file:
+                with CFMImage(image_file) as image:
+                    try:
+                        return Hash.image_hash(image.image_data)
+                    except BaseException as e:
+                        print("image_hash: " + str(e) + " / " + self.relative_path)
+                        return str(self.get_file_size())
+        else:
+            return str(self.get_file_size())
+
+    def compute_face_boxes(self):
+        if self.is_image():
+            with zipfile.ZipFile(self.zip_path) as zip_file:
+                with zip_file.open(self.file_path) as zip_file_element:
+                    with CFMImage(zip_file_element) as image:
+                        return MetadataFaces.static_compute_face_boxes(image)

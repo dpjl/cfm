@@ -1,4 +1,4 @@
-from camerafile.core.BatchTool import BatchArgs
+from camerafile.core.BatchTool import BatchElement
 from camerafile.core.Constants import SIGNATURE
 from camerafile.core.Logging import Logger
 from camerafile.processor.CFMBatch import CFMBatch
@@ -13,9 +13,14 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
         self.media_set = media_set
         self.media_set2 = media_set2
         if media_set2 is None:
-            CFMBatch.__init__(self, batch_title="Compute necessary signatures in order to detect duplicates")
+            CFMBatch.__init__(self, batch_title="Compute necessary signatures in order to detect duplicates",
+                              stderr_file=media_set.output_directory.batch_stderr,
+                              stdout_file=media_set.output_directory.batch_stdout)
+
         else:
-            CFMBatch.__init__(self, batch_title="Compute necessary signatures in order to compare 2 mediasets")
+            CFMBatch.__init__(self, batch_title="Compute necessary signatures in order to compare 2 mediasets",
+                              stderr_file=media_set.output_directory.batch_stderr,
+                              stdout_file=media_set.output_directory.batch_stdout)
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
@@ -37,7 +42,7 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
 
         for media_file in file_list_1 + file_list_2 + file_list_3:
             if media_file.metadata[SIGNATURE].value is None:
-                args_list.append(BatchArgs(media_file.metadata[SIGNATURE], media_file.relative_path))
+                args_list.append(BatchElement(media_file.metadata[SIGNATURE], media_file.relative_path))
         return args_list
 
     def post_task(self, result_signature_metadata, progress_bar, replace=False):
@@ -45,7 +50,7 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
         if original_media is None:
             original_media = self.media_set2.get_media(result_signature_metadata.file_access.id)
         original_media.metadata[SIGNATURE] = result_signature_metadata
-        original_media.parent_set.add_to_date_size_sig_map(original_media)
+        original_media.parent_set.add_to_date_sig_map(original_media)
         progress_bar.increment()
 
     def finalize(self):

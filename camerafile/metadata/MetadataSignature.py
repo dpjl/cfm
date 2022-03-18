@@ -11,4 +11,4 @@ class MetadataSignature(Metadata):
 
     def compute_value(self):
         if self.value is None:
-            self.value = Hash(self.file_access).get()
+            self.value = self.file_access.hash()

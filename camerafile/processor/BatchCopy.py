@@ -1,7 +1,7 @@
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import BatchArgs
+from camerafile.core.BatchTool import BatchElement
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
 from camerafile.fileaccess.FileAccess import CopyMode, FileAccess
@@ -23,7 +23,10 @@ class BatchCopy(CFMBatch):
         self.old_media_set = old_media_set
         self.new_media_set = new_media_set
         self.copy_mode = copy_mode
-        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE)
+        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE,
+                          stderr_file=old_media_set.output_directory.batch_stderr,
+                          stdout_file=old_media_set.output_directory.batch_stdout)
+
         self.result_stats = {}
         self.not_copied_files = []
 
@@ -49,8 +52,8 @@ class BatchCopy(CFMBatch):
                     # _, new_path = media_file.get_destination_path(new_media_set)
                     _, new_path = media_file.get_organization_path(self.new_media_set, new_path_map)
                     new_path_map[new_path] = 0
-                    args_list.append(BatchArgs((media_file.file_access, new_path, self.copy_mode),
-                                               media_file.relative_path))
+                    args_list.append(BatchElement((media_file.file_access, new_path, self.copy_mode),
+                                                  media_file.relative_path))
         return args_list
 
     def post_task(self, result_copy: Tuple[bool, str, FileAccess, Union[FileAccess, None]], pb, replace=False):

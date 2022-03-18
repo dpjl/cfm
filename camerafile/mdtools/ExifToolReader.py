@@ -12,6 +12,7 @@ from PIL.Image import Image
 
 from camerafile.core.Resource import Resource
 from camerafile.mdtools.MdConstants import MetadataNames
+from camerafile.mdtools.MdException import MdException
 
 LOGGER = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ class ExifTool(object):
             if new_line is not None:
                 err += new_line
         if err != "":
-            LOGGER.error(err.strip())
+            raise MdException(err.strip())
         return output[:-len(cls.SENTINEL)], err
 
     @classmethod

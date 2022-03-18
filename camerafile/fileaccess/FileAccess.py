@@ -94,3 +94,9 @@ class FileAccess:
 
     def get_last_modification_date(self):
         pass
+
+    def hash(self):
+        pass
+
+    def compute_face_boxes(self):
+        pass

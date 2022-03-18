@@ -1,6 +1,6 @@
 from typing import List
 
-from camerafile.core.BatchTool import BatchArgs
+from camerafile.core.BatchTool import BatchElement
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
@@ -14,7 +14,9 @@ class BatchComputeMissingThumbnails(CFMBatch):
 
     def __init__(self, media_set: MediaSet):
         self.media_set = media_set
-        CFMBatch.__init__(self, "Generate missing thumbnails")
+        CFMBatch.__init__(self, "Generate missing thumbnails",
+                          stderr_file=media_set.output_directory.batch_stderr,
+                          stdout_file=media_set.output_directory.batch_stdout)
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
@@ -22,11 +24,11 @@ class BatchComputeMissingThumbnails(CFMBatch):
     def task_getter(self):
         return ComputeThumbnail.execute
 
-    def arguments(self) -> List[BatchArgs]:
+    def arguments(self) -> List[BatchElement]:
         args_list = []
         for media_file in self.media_set:
             if media_file.metadata[THUMBNAIL].thumbnail is None:
-                args_list.append(BatchArgs(media_file.metadata[THUMBNAIL], media_file.relative_path))
+                args_list.append(BatchElement(media_file.metadata[THUMBNAIL], media_file.relative_path))
         return args_list
 
     def post_task(self, result_thumbnail_metadata, progress_bar, replace=False):

@@ -2,7 +2,6 @@ import logging
 import shutil
 from datetime import datetime
 
-from camerafile.mdtools.ExifToolReader import ExifTool
 from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.core.Resource import Resource
 
@@ -15,9 +14,6 @@ def init_logging(base_path):
     logging_handlers["info_file_handler"]["filename"] = str(output_directory.path / info_file)
     logging_handlers["error_file_handler"]["filename"] = str(output_directory.path / error_file)
     logging.config.dictConfig(Resource.logging_configuration)
-
-    ExifTool.init(stdout_file_path=output_directory.path / "exif-stdout.txt",
-                  stderr_file_path=output_directory.path / "exif-stderr.txt")
 
 
 def init_only_console_logging():
@@ -36,11 +32,11 @@ class Logger:
     def write_title_2(self, directory, step_title):
         self.display_starting_line()
         print("█ [{dir}] > {title}]".format(dir=directory, title=step_title))
-        self.logger.info("{dir}] > {title}".format(dir=directory, title=step_title))
+        #self.logger.info("{dir}] > {title}".format(dir=directory, title=step_title))
 
     def info(self, log_content):
-        print(datetime.now().strftime("[%H:%M:%S] "), end="")
-        print(log_content)
+        # print(datetime.now().strftime("[%H:%M:%S] "), end="")
+        # print(log_content)
         self.logger.info(log_content)
 
     def debug(self, log_content):
@@ -51,7 +47,7 @@ class Logger:
     def info_indent(self, log_content, prof=1):
         print(datetime.now().strftime("[%H:%M:%S] "), end="")
         print(self.get_indented_message(log_content, prof))
-        self.logger.info(log_content)
+        # self.logger.info(log_content)
 
     def get_indented_message(self, message, prof=1):
         result = ""

@@ -1,6 +1,6 @@
 from typing import List
 
-from camerafile.core.BatchTool import TaskWithProgression, BatchArgs
+from camerafile.core.BatchTool import TaskWithProgression, BatchElement
 from camerafile.core.Constants import CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
@@ -26,12 +26,12 @@ class BatchComputeCm(TaskWithProgression):
         current_media.metadata[CFM_CAMERA_MODEL].compute_value()
         return current_media
 
-    def arguments(self) -> List[BatchArgs]:
+    def arguments(self) -> List[BatchElement]:
         self.status(self.media_set)
         media_list: List[MediaFile] = self.media_set.get_file_list(cm="unknown")
         args_list = []
         for media_file in media_list:
-            args_list.append(BatchArgs(media_file, media_file.relative_path))
+            args_list.append(BatchElement(media_file, media_file.relative_path))
         return args_list
 
     def post_task(self, current_media, progress_bar, replace=False):

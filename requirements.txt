@@ -1,11 +1,11 @@
 ImageHash==4.2.1
 Pillow==9.0.1
 jellyfish==0.9.0
-numpy==1.22.2 # 1.19.3 ?
+numpy==1.22.3 # 1.19.3 ?
 sklearn
 face_recognition
 moviepy==1.0.3
-reportlab==3.6.7
+reportlab==3.6.8
 pyzipper==0.3.5
 humanize==4.0.0
 git+https://github.com/dpjl/pyinstaller
@@ -14,4 +14,4 @@ git+https://github.com/Deconimus/quicktime-parser
 kaitaistruct==0.9
 exifread
 tzlocal
-
+pyyaml==6.0

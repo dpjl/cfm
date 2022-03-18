@@ -1,14 +1,14 @@
 import argparse
 import logging.config
 import os
+from multiprocessing.process import current_process
 from multiprocessing.spawn import freeze_support
-from pathlib import Path
 from textwrap import dedent
 
 import sys
 
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Logging import init_logging
+from camerafile.core.Logging import init_only_console_logging
 from camerafile.core.MediaSet import MediaSet
 from camerafile.core.Resource import Resource
 from camerafile.fileaccess.FileAccess import CopyMode
@@ -64,6 +64,7 @@ def create_main_args_parser():
     p.add_argument('dir1', metavar='dir1', type=str, help='Check for duplicates')
     p.add_argument('dir2', nargs='?', metavar='dir2', type=str, help='Check for duplicates / differences with dir1')
     p.add_argument('-g', '--generate-pdf', action='store_true', help='Generate pdf reports using thumbnails')
+    p.add_argument('-n', '--no-internal-read', action='store_true', help='Do not read internal metadata at all')
 
     desc = 'Fill and organize <dir2> in order for it to contain exactly one version ' \
            'of each distinct media files of <dir1>'
@@ -95,8 +96,7 @@ def execute(args):
     if args.command == "custom":
         import importlib
         ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.processor), args.processor)
-        p = ProcessorClass()
-        p.execute(*tuple(args.args))
+        ProcessorClass(*tuple(args.args))
         return
 
     media_set1 = MediaSet.load_media_set(args.dir1)
@@ -153,8 +153,8 @@ def main():
 
     Resource.init()
     if args.command != "custom":
-        init_logging(Path(args.dir1))
-    LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL")
+        init_only_console_logging()
+    LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL (pid: {pid})".format(pid=current_process().pid))
     Configuration.get().init(args)
     execute(args)
 
