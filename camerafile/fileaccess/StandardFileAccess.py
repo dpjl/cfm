@@ -68,7 +68,7 @@ class StandardFileAccess(FileAccess):
 
     def read_md(self, args):
         if Configuration.get().exif_tool:
-            return "ExifTool", ExifTool.get_metadata(self.path, *args)
+            return self.call_exif_tool("ExifTool", args)
         else:
             if self.is_image():
                 try:

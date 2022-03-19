@@ -1,25 +1,12 @@
+import os
+import sys
 import argparse
 import logging.config
-import os
+
+from textwrap import dedent
 from multiprocessing.process import current_process
 from multiprocessing.spawn import freeze_support
-from textwrap import dedent
-
-import sys
-
-from camerafile.core.Configuration import Configuration
-from camerafile.core.Logging import init_only_console_logging
-from camerafile.core.MediaSet import MediaSet
-from camerafile.core.Resource import Resource
 from camerafile.fileaccess.FileAccess import CopyMode
-from camerafile.processor.BatchComputeCm import BatchComputeCm
-from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import BatchComputeNecessarySignaturesMultiProcess
-from camerafile.processor.BatchCopy import BatchCopy
-from camerafile.processor.BatchDetectFaces import BatchDetectFaces
-from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
-from camerafile.processor.BatchRecoFaces import BatchRecoFaces
-from camerafile.processor.CompareMediaSets import CompareMediaSets
-from camerafile.processor.SearchForDuplicates import SearchForDuplicates
 
 COMMAND = "command"
 
@@ -93,6 +80,17 @@ def create_main_args_parser():
 
 
 def execute(args):
+    from camerafile.core.MediaSet import MediaSet
+    from camerafile.processor.BatchComputeCm import BatchComputeCm
+    from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import \
+        BatchComputeNecessarySignaturesMultiProcess
+    from camerafile.processor.BatchCopy import BatchCopy
+    from camerafile.processor.BatchDetectFaces import BatchDetectFaces
+    from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
+    from camerafile.processor.BatchRecoFaces import BatchRecoFaces
+    from camerafile.processor.CompareMediaSets import CompareMediaSets
+    from camerafile.processor.SearchForDuplicates import SearchForDuplicates
+
     if args.command == "custom":
         import importlib
         ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.processor), args.processor)
@@ -151,10 +149,13 @@ def main():
         print(os.linesep + "error: no commands supplied")
         sys.exit(1)
 
+    from camerafile.core.Configuration import Configuration
+    from camerafile.core.Logging import init_only_console_logging
+    from camerafile.core.Resource import Resource
+
     Resource.init()
-    if args.command != "custom":
-        init_only_console_logging()
-    LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL (pid: {pid})".format(pid=current_process().pid))
+    init_only_console_logging()
+    LOGGER.info("Starting Camera Files Manager - version 0.2 - DpjL (pid: {pid})".format(pid=current_process().pid))
     Configuration.get().init(args)
     execute(args)
 

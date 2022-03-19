@@ -225,7 +225,7 @@ class ExifTool(object):
             elif arg == MetadataNames.MODEL:
                 result += cls.BEST_CAMERA_MODEL_LIST
 
-            if arg == MetadataNames.WIDTH:
+            elif arg == MetadataNames.WIDTH:
                 result += (cls.WIDTH_METADATA,)
 
             elif arg == MetadataNames.HEIGHT:

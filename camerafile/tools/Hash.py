@@ -1,19 +1,23 @@
 import hashlib
 
-import imagehash
-
 
 class Hash:
+    image_hash_lib = None
 
     @staticmethod
     def image_hash(pil_image):
+
+        if Hash.image_hash_lib is None:
+            import imagehash
+            Hash.image_hash_lib = imagehash
+
         # faster than md5 hash
         # concatenates date to limitate false positives
         # can be a problem for "rafales" ?
         # img_date = datetime.strptime(self.media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
         # date_str = img_date.strftime('-%Y-%m-%d-%H-%M-%S-%f')
 
-        return str(imagehash.phash(pil_image))
+        return str(Hash.image_hash_lib.phash(pil_image))
 
         # doesn't work (why ?)
         # and slower

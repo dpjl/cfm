@@ -62,7 +62,7 @@ class ZipFileAccess(FileAccess):
 
     def read_md(self, args):
         if Configuration.get().exif_tool:
-            return "ExifTool", self.call_exif_tool(args)
+            return self.call_exif_tool("ExifTool", args)
         else:
             if self.is_image():
                 try:

@@ -2,7 +2,11 @@ import glob
 import os
 import shutil
 import stat
+import tarfile
+from pathlib import Path
+
 import PyInstaller.__main__
+from pyzipper import zipfile
 from setuptools import setup, Command
 
 
@@ -54,7 +58,16 @@ class CreatePackage(Command):
             shutil.move("dist/lib/cfm.exe", "dist/cfm/cfm.exe")
         else:
             shutil.move("dist/lib/cfm", "dist/cfm/cfm")
-        shutil.move("dist/lib/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/bin/exiftool/" + self.exiftool)
+        exiftool_path = "dist/lib/camerafile/bin/exiftool/" + self.exiftool
+        if exiftool_path.endswith(".zip"):
+            with zipfile.ZipFile(exiftool_path) as file:
+                file.extractall("dist/cfm/bin/exiftool")
+        elif exiftool_path.endswith(".tar.gz"):
+            with tarfile.open(exiftool_path, "r:gz") as file:
+                file.extractall("dist/cfm/bin/exiftool")
+                file.close()
+        else:
+            shutil.move("dist/lib/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/bin/exiftool/" + self.exiftool)
         for file in glob.glob("dist/lib/imageio_ffmpeg/binaries/ffmpeg*"):
             shutil.move(file, "dist/cfm/bin")
         shutil.move("dist/lib/face_recognition_models/models", "dist/cfm/data")

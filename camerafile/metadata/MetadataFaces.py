@@ -1,12 +1,11 @@
-import numpy
-
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
 
 
 class MetadataFaces(Metadata):
-    face_rec = None
+    face_rec_lib = None
+    numpy_lib = None
 
     def __init__(self, file_access: FileAccess, knn_clf):
         super().__init__(None)
@@ -25,9 +24,11 @@ class MetadataFaces(Metadata):
 
         # We do this to not have to import face_recognition if it's not necessary at the load of the program
         # (but still only one time)
-        if MetadataFaces.face_rec is None:
+        if MetadataFaces.face_rec_lib is None and MetadataFaces.numpy_lib is None:
             import face_recognition
-            MetadataFaces.face_rec = face_recognition
+            import numpy
+            MetadataFaces.face_rec_lib = face_recognition
+            MetadataFaces.numpy_lib = numpy
 
         data = image.image_data
         original_data = data
@@ -37,14 +38,14 @@ class MetadataFaces(Metadata):
             (width, height) = (data.width // frame_resize_scale, data.height // frame_resize_scale)
             data = image.image_data.resize((int(width), int(height)))
 
-        img = numpy.array(data)
+        img = MetadataFaces.numpy_lib.array(data)
 
-        locations = MetadataFaces.face_rec.face_locations(img)
+        locations = MetadataFaces.face_rec_lib.face_locations(img)
         if not Configuration.get().face_detection_keep_image_size:
             locations = [tuple([int(frame_resize_scale * pos) for pos in loc]) for loc in locations]
-            img = numpy.array(original_data)
+            img = MetadataFaces.numpy_lib.array(original_data)
 
-        encoding = MetadataFaces.face_rec.face_encodings(img, known_face_locations=locations)
+        encoding = MetadataFaces.face_rec_lib.face_encodings(img, known_face_locations=locations)
 
         return {"locations": locations, "names": []}, encoding
 

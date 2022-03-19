@@ -2,7 +2,6 @@ import base64
 import io
 
 from PIL import Image
-from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from camerafile.core.Constants import IMAGE_TYPE
 from camerafile.fileaccess.FileAccess import FileAccess
@@ -11,6 +10,7 @@ from camerafile.metadata.Metadata import Metadata
 
 class MetadataThumbnail(Metadata):
     init = False
+    video_clip_lib = None
 
     def __init__(self, file_access: FileAccess):
         super().__init__(None)
@@ -20,6 +20,11 @@ class MetadataThumbnail(Metadata):
 
     def compute_thumbnail(self):
         if self.thumbnail is None:
+
+            if MetadataThumbnail.video_clip_lib is None:
+                from moviepy.video.io.VideoFileClip import VideoFileClip
+                MetadataThumbnail.video_clip_class = VideoFileClip
+
             _, _, _, _, _, _, thumbnail = self.file_access.read_md()
 
             if thumbnail is not None:
@@ -41,7 +46,7 @@ class MetadataThumbnail(Metadata):
                         self.thumbnail = bytes_output.getvalue()
 
             else:
-                with VideoFileClip(self.file_access.get_path()) as clip:
+                with MetadataThumbnail.video_clip_class(self.file_access.get_path()) as clip:
                     frame_at_second = 0
                     frame = clip.get_frame(frame_at_second)
                     new_image = Image.fromarray(frame)
