@@ -130,7 +130,7 @@ class TaskWithProgression:
             custom_owe()
         queue.put(stdout_recorder.stop())
 
-    def update_details(self, queue, progress_bar, max_iter):
+    def update_details(self, queue, progress_bar: ConsoleProgressBar, max_iter):
         iter_nb = 0
         while iter_nb < max_iter and self.in_progress:
             iter_nb += 1
@@ -141,7 +141,7 @@ class TaskWithProgression:
             if isinstance(val, str):
                 worker_stdout = val
                 if worker_stdout != "":
-                    print(worker_stdout.strip())
+                    progress_bar.stdout.writelines_with_lock(worker_stdout.splitlines())
             else:
                 [n, detail] = val
                 progress_bar.set_detail(n, detail)
@@ -156,7 +156,7 @@ class TaskWithProgression:
             if isinstance(val, str):
                 worker_stdout = val
                 if worker_stdout != "":
-                    print(worker_stdout.strip())
+                    progress_bar.stdout.writelines_with_lock(worker_stdout.splitlines())
 
     def update_status(self, progress_bar):
         status_line_stdout = ">> Stdout redirected to {file} ({nb_lines} line(s))"
@@ -178,9 +178,10 @@ class TaskWithProgression:
         else:
             print(error.strip())
 
-    def write_stdout(self, stdout):
+    def write_stdout(self, stdout, progress_bar):
         if stdout and stdout.strip() != "":
-            self.stdout_nb_lines += stdout.count('\n') + 1
+            self.stdout_nb_lines += stdout.count('\n')
+            self.update_status(progress_bar)
             if self.stdout_file:
                 with open(self.stdout_file, "a") as f:
                     f.write(stdout)
@@ -207,7 +208,7 @@ class TaskWithProgression:
             res_list = pool.imap_unordered(self.execute_task, args_list)
             for res in res_list:
                 batch_element, stdout = res
-                self.write_stdout(stdout)
+                self.write_stdout(stdout, progress_bar)
                 if batch_element.error:
                     self.process_error(batch_element, progress_bar)
                 post_task(batch_element.result, progress_bar, replace=True)

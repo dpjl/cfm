@@ -1,6 +1,9 @@
 from camerafile.core.Configuration import Configuration
+from camerafile.core.Logging import Logger
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
+
+LOGGER = Logger(__name__)
 
 
 class MetadataFaces(Metadata):
@@ -25,6 +28,7 @@ class MetadataFaces(Metadata):
         # We do this to not have to import face_recognition if it's not necessary at the load of the program
         # (but still only one time)
         if MetadataFaces.face_rec_lib is None and MetadataFaces.numpy_lib is None:
+            LOGGER.debug("Load face_recognition and numpy modules")
             import face_recognition
             import numpy
             MetadataFaces.face_rec_lib = face_recognition

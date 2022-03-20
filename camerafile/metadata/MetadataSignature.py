@@ -1,5 +1,4 @@
 from camerafile.fileaccess.FileAccess import FileAccess
-from camerafile.tools.Hash import Hash
 from camerafile.metadata.Metadata import Metadata
 
 

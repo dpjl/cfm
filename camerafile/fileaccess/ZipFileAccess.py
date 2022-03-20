@@ -8,8 +8,9 @@ from typing import Tuple, Union
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
 from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
-from camerafile.mdtools.ExifToolReader import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool, ExifToolNotFound
 from camerafile.mdtools.JPEGMdReader import JPEGMdReader
+from camerafile.mdtools.MdException import MdException
 from camerafile.metadata.MetadataFaces import MetadataFaces
 from camerafile.tools.CFMImage import CFMImage
 from camerafile.tools.Hash import Hash
@@ -57,7 +58,9 @@ class ZipFileAccess(FileAccess):
         try:
             with zipfile.ZipFile(self.zip_path) as zip_file:
                 return call_info, ExifTool.get_metadata(zip_file.read(self.file_path), *args)
-        except:
+        except ExifToolNotFound as e:
+            raise e
+        except MdException as e:
             return call_info + " -> Failed", {}
 
     def read_md(self, args):

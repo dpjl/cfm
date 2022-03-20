@@ -4,8 +4,11 @@ import io
 from PIL import Image
 
 from camerafile.core.Constants import IMAGE_TYPE
+from camerafile.core.Logging import Logger
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.metadata.Metadata import Metadata
+
+LOGGER = Logger(__name__)
 
 
 class MetadataThumbnail(Metadata):
@@ -22,6 +25,7 @@ class MetadataThumbnail(Metadata):
         if self.thumbnail is None:
 
             if MetadataThumbnail.video_clip_lib is None:
+                LOGGER.debug("Load VideoFileClip class from moviepy.video.io.VideoFileClip module")
                 from moviepy.video.io.VideoFileClip import VideoFileClip
                 MetadataThumbnail.video_clip_class = VideoFileClip
 

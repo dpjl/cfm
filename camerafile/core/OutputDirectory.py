@@ -23,5 +23,5 @@ class OutputDirectory:
             with open(file_path, 'w') as f:
                 for element in list_of_elements:
                     f.write(str(element) + "\n")
-            return "File saved ({nb_elements} elements): {path}".format(nb_elements=str(len(list_of_elements)),
-                                                                        path=str(file_path.resolve()))
+            return "List ({nb_elements} elements) saved in {path}".format(nb_elements=str(len(list_of_elements)),
+                                                                          path=str(file_path.resolve()))

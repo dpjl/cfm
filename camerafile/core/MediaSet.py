@@ -52,6 +52,8 @@ class MediaSet:
         self.org_format = self.load_format()
         self.load_metadata_to_read()
 
+        LOGGER.debug("New MediaSet object created: " + str(id(self)))
+
     def load_state(self):
         state = None
         if self.state_file.exists():
@@ -133,9 +135,6 @@ class MediaSet:
     def load_media_set(media_set_path):
         LOGGER.write_title_2(str(media_set_path), "Opening media directory")
         return MediaSet(media_set_path)
-
-    def __del__(self):
-        self.close_database()
 
     def __str__(self):
         return str(self.root_path)
@@ -267,7 +266,7 @@ class MediaSet:
                 _, media_list = self.get_first_element(size_map)
                 self.add_duplicates_to_n_copy(n_copy, media_list)
             else:
-                #if date not in self.date_size_map:
+                # if date not in self.date_size_map:
                 #    raise Exception()
                 for media_list in self.date_sig_map[date].values():
                     self.add_duplicates_to_n_copy(n_copy, media_list)
@@ -415,7 +414,10 @@ class MediaSet:
 
     def initialize_file_and_dir_list(self):
         not_loaded_files = self.update_from_disk()
-        LOGGER.info_indent("{l1} media files loaded media set dump".format(l1=len(self.filename_map)), prof=2)
+        dump_file = MediaSetDump.get(self.output_directory).dump_file
+        log_content = "{l1} media files loaded from dump {df}".format(l1=len(self.filename_map),
+                                                                      df=dump_file)
+        LOGGER.info_indent(log_content=log_content, prof=2)
         root_dir = MediaDirectory(self.root_path.as_posix(), None, self)
         self.media_dir_list[self.root_path.as_posix()] = root_dir
         not_loaded_files = MediaSetDatabase.get(self.output_directory).load_all_files(self, not_loaded_files)

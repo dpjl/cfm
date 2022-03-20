@@ -50,14 +50,13 @@ class StdWrapper(object):
 
     def writelines_with_lock(self, datas: List[str], tmp=False):
         threadLock.acquire()
+        self.update_screen_size()
+        for data in datas:
+            self.write_with_blanks(data[0:self.console_width], end="\n")
         if tmp:
-            self.update_screen_size()
-            for data in datas:
-                self.write_with_blanks(data[0:self.console_width], end="\n")
             self.stream.write(len(datas) * CURSOR_UP)
             self.current_tmp_lines = len(datas)
         else:
-            self.write_with_blanks("".join(datas))
             self.current_tmp_lines = 0
 
         threadLock.release()

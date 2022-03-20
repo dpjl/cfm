@@ -17,6 +17,10 @@ from camerafile.mdtools.MdException import MdException
 LOGGER = logging.getLogger(__name__)
 
 
+class ExifToolNotFound(Exception):
+    pass
+
+
 class NonBlockingStreamReader:
 
     def __init__(self, redirected_file_path):
@@ -104,21 +108,25 @@ class ExifTool(object):
     def start(cls):
         if cls.process is None:
             cls.executable = Resource.exiftool_executable
-            LOGGER.debug("Starting %s", cls.executable)
-            cls.process = subprocess.Popen(
-                [cls.executable, "-stay_open", "True", "-@", "-"],
-                universal_newlines=True, bufsize=1,
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                cls.process = subprocess.Popen(
+                    [cls.executable, "-stay_open", "True", "-@", "-"],
+                    universal_newlines=True, bufsize=1,
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except Exception as e:
+                LOGGER.info("Exception: " + str(e))
+                raise ExifToolNotFound(cls.executable)
+            LOGGER.debug("%s started", cls.executable)
             cls.stdout_reader.start_read(cls.process.stdout)
             cls.stderr_reader.start_read(cls.process.stderr)
 
     @classmethod
     def stop(cls):
         if cls.process is not None:
-            LOGGER.debug("Stopping %s", cls.executable)
             cls.process.stdin.write("-stay_open\nFalse\n")
             cls.process.stdin.flush()
             cls.process = None
+            LOGGER.debug("%s stopped", cls.executable)
 
     @classmethod
     def execute_once(cls, *args):
@@ -243,16 +251,19 @@ class ExifTool(object):
 
     @classmethod
     def get_metadata(cls, file, *args):
-        real_args = cls.expand_args(*args)
-        if isinstance(file, str):
-            stdout, stderr = cls.execute("-fast2", "-b", "-j", "-n", *real_args, file)
-        else:
-            stdout = cls.execute_with_bytes(file, "-fast2", "-b", "-j", "-n", *real_args, "-")
+        try:
+            real_args = cls.expand_args(*args)
+            if isinstance(file, str):
+                stdout, stderr = cls.execute("-fast2", "-b", "-j", "-n", *real_args, file)
+            else:
+                stdout = cls.execute_with_bytes(file, "-fast2", "-b", "-j", "-n", *real_args, "-")
 
-        result = json.loads(stdout)
-        if len(result) == 0:
-            return {}
-        return {metadata_name: cls.load_from_result(result, metadata_name) for metadata_name in args}
+            result = json.loads(stdout)
+            if len(result) == 0:
+                return {}
+            return {metadata_name: cls.load_from_result(result, metadata_name) for metadata_name in args}
+        except Exception as e:
+            raise MdException(e)
 
     @classmethod
     def update_model(cls, filename, new_model):

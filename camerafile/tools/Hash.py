@@ -1,5 +1,9 @@
 import hashlib
 
+from camerafile.core.Logging import Logger
+
+LOGGER = Logger(__name__)
+
 
 class Hash:
     image_hash_lib = None
@@ -8,6 +12,7 @@ class Hash:
     def image_hash(pil_image):
 
         if Hash.image_hash_lib is None:
+            LOGGER.debug("Load imagehash module")
             import imagehash
             Hash.image_hash_lib = imagehash
 

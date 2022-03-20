@@ -10,8 +10,9 @@ from typing import Tuple, Union
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
 from camerafile.mdtools.AVIMdReader import AVIMdReader
-from camerafile.mdtools.ExifToolReader import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool, ExifToolNotFound
 from camerafile.mdtools.JPEGMdReader import JPEGMdReader
+from camerafile.mdtools.MdException import MdException
 from camerafile.metadata.MetadataFaces import MetadataFaces
 from camerafile.tools.CFMImage import CFMImage
 from camerafile.tools.Hash import Hash
@@ -63,7 +64,9 @@ class StandardFileAccess(FileAccess):
     def call_exif_tool(self, call_info, args):
         try:
             return call_info, ExifTool.get_metadata(self.path, *args)
-        except:
+        except ExifToolNotFound as e:
+            raise e
+        except MdException as e:
             return call_info + " -> Failed", {}
 
     def read_md(self, args):

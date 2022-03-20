@@ -19,7 +19,7 @@ class Configuration:
         self.org_format = None
         self.debug = False
         self.initialized = False
-        self.exif_tool = True
+        self.exif_tool = False
         self.internal_read = True
 
     @staticmethod

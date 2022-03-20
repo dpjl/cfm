@@ -30,6 +30,7 @@ class MediaSetDump:
             with open(self.dump_file, "rb") as file:
                 LOGGER.info("Restoring dump...")
                 loaded = pickle.load(file)
+                LOGGER.debug("New MediaSet object loaded: " + str(id(self)))
                 media_set.media_file_list = loaded.media_file_list
                 media_set.media_dir_list = loaded.media_dir_list
                 media_set.date_size_map = loaded.date_size_map
