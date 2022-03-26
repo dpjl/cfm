@@ -79,7 +79,7 @@ class ZipFileAccess(FileAccess):
     def hash(self):
         if self.is_image():
             with self.open() as image_file:
-                with CFMImage(image_file) as image:
+                with CFMImage(image_file, self.name) as image:
                     try:
                         return Hash.image_hash(image.image_data)
                     except BaseException as e:
@@ -92,5 +92,11 @@ class ZipFileAccess(FileAccess):
         if self.is_image():
             with zipfile.ZipFile(self.zip_path) as zip_file:
                 with zip_file.open(self.file_path) as zip_file_element:
-                    with CFMImage(zip_file_element) as image:
+                    with CFMImage(zip_file_element, self.name) as image:
                         return MetadataFaces.static_compute_face_boxes(image)
+
+    def get_image(self):
+        if self.is_image():
+            with zipfile.ZipFile(self.zip_path) as zip_file:
+                with zip_file.open(self.file_path) as zip_file_element:
+                    return CFMImage(zip_file_element, self.name)

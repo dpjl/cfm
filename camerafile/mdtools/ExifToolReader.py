@@ -114,7 +114,7 @@ class ExifTool(object):
                     universal_newlines=True, bufsize=1,
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             except Exception as e:
-                LOGGER.info("Exception: " + str(e))
+                LOGGER.info("Exception during ExifTool start: " + str(e))
                 raise ExifToolNotFound(cls.executable)
             LOGGER.debug("%s started", cls.executable)
             cls.stdout_reader.start_read(cls.process.stdout)

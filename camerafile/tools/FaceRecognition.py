@@ -1,13 +1,13 @@
 import hashlib
-import math
 import os
 import pickle
 from pathlib import Path
+
+import math
 from typing import TYPE_CHECKING
 
-from camerafile.tools.CFMImage import CFMImage
 from camerafile.core.Constants import FACES
-
+from camerafile.tools.CFMImage import CFMImage
 
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
@@ -24,6 +24,7 @@ class FaceRecognition:
         self.training_path = output_directory.path / "training_examples"
         self.all_encoding_ids = {}
         self.training_data = {}
+        self.person_list = []
         self.load_training_data()
         self.knn_clf = None
         self.load_model()
@@ -37,6 +38,7 @@ class FaceRecognition:
 
     def load_training_data(self):
         for (name_dir_path, folder_names, file_names) in os.walk(self.training_path):
+            self.person_list += folder_names
             for file_name in file_names:
                 [index, extension] = os.path.splitext(file_name)
                 if extension == ".encoding":
@@ -79,11 +81,13 @@ class FaceRecognition:
                     encoding_content = media_file.metadata[FACES].binary_value[n_face]
                     if self.get_encoding_id(encoding_content) not in self.all_encoding_ids:
                         if self.knn_clf is None or self.predict(encoding_content) == "unrecognized":
-                            image = CFMImage(media_file.path)
-                            face_image = image.display_face(face)
+                            image = CFMImage(media_file.path, media_file.file_access.name)
+                            face_image = image.get_face(face)
+                            image.get_image_with_faces([face]).show()
                             print("Image: {image_path}".format(image_path=media_file.path))
                             print("Face coordinates: {coord}".format(coord=str(face_coord)))
                             print('Enter a name if you want to add this face to training data: ')
+                            print(self.person_list)
                             name = input()
                             if name == "s":
                                 return
@@ -91,6 +95,10 @@ class FaceRecognition:
                                 name = ".ignored"
                             if name not in self.training_data:
                                 self.training_data[name] = {INDEX: [], ENCODINGS: [], IMAGES: []}
+                                self.person_list.append(name)
+                            # if name != ".ignored" and len(self.training_data[name][INDEX]) >= 10:
+                            #    print("enough examples for this person, ignore this one")
+                            #    continue
                             index = 0
                             if len(self.training_data[name][INDEX]) != 0:
                                 index = max(self.training_data[name][INDEX]) + 1
@@ -100,6 +108,12 @@ class FaceRecognition:
                             self.training_data[name][IMAGES].append(face_image)
                         else:
                             print("Automatically recognized")
+                            print(self.predict(encoding_content))
+                            # image = CFMImage(media_file.path)
+                            # face_image = image.display_face(face)
+                            # name = input()
+                    self.save_training_data()
+                    self.train()
                     n_face = n_face + 1
 
     def train(self):

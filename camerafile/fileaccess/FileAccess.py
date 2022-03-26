@@ -100,3 +100,6 @@ class FileAccess:
 
     def compute_face_boxes(self):
         pass
+
+    def get_image(self):
+        pass

@@ -29,9 +29,10 @@ LOGGER = Logger(__name__)
 class MediaSet:
     CFM_TRASH = ".cfm-trash.zip"
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, org_format: str = None, db_file=None):
         self.root_path = Path(path).resolve()
         self.name = self.root_path.name
+        self.db_file = db_file
         self.output_directory = OutputDirectory(self.root_path)
         self.trash_file = (Path(self.root_path) / self.CFM_TRASH).as_posix()
         if not MediaSetDump.get(self.output_directory).load(self):
@@ -49,7 +50,7 @@ class MediaSet:
         self.state = self.load_state()
         self.read_md_needed = False
         self.md_needed = ()
-        self.org_format = self.load_format()
+        self.org_format = self.load_format(org_format)
         self.load_metadata_to_read()
 
         LOGGER.debug("New MediaSet object created: " + str(id(self)))
@@ -65,27 +66,43 @@ class MediaSet:
         with open(self.state_file, "w") as file:
             return yaml.safe_dump(self.state, file)
 
-    def load_format(self):
-        param_format = Configuration.get().org_format
+    def load_format(self, param_format):
         if "format" in self.state:
             existing_format = self.state["format"]
-            if param_format is not None and param_format != "" and param_format != existing_format:
+            if existing_format is not None and param_format and param_format != "" and param_format != existing_format:
                 print("Error: format in argument differs from format save in " + str(self.state_file))
                 print("If you really want to force changing the destination format, please remove this file "
                       "and launch again cfm.")
                 sys.exit(1)
-            else:
+            elif existing_format is not None:
                 org_format = existing_format
+            else:
+                org_format = param_format
+
         else:
             org_format = param_format
 
         if org_format is not None and org_format != "":
-            self.state["format"] = param_format
+            self.state["format"] = org_format
             self.save_state()
             return OrgFormat(org_format)
         else:
             return None
-        # ${creationDate:%Y}/${creationDate:%m[%B]}/{cameraModel:Unknown}
+
+    def get_metadata_needed_by_format(self):
+        args = ()
+        if self.org_format is not None:
+            md_list = self.org_format.get_metadata_list()
+            if not Configuration.get().internal_read:
+                md_list.remove(MetadataNames.CREATION_DATE)
+                if len(md_list) != 0:
+                    raise Exception("Error, some fields of target format cannot be loaded without "
+                                    "internal metadata loading: " + ", ".join(md_list))
+
+            for md in md_list:
+                if md not in args:
+                    args += (md,)
+        return args
 
     def load_metadata_to_read(self):
         previously_loaded_metadata = ()
@@ -98,22 +115,13 @@ class MediaSet:
             print("Warning: only system metadata will be used. It is faster but dates could be different from the"
                   "date of the original date the photos were taken")
 
-        if self.org_format is not None:
-            md_list = self.org_format.get_metadata_list()
-            if not Configuration.get().internal_read:
-                md_list.remove(MetadataNames.CREATION_DATE)
-                if len(md_list) != 0:
-                    raise Exception("Error, some fields of target format cannot be loaded without "
-                                    "internal metadata loading: " + ", ".join(md_list))
-            args += md_list
-
         if Configuration.get().thumbnails:
             args += (MetadataNames.THUMBNAIL,)
 
         for arg in args:
             if arg not in previously_loaded_metadata:
                 self.read_md_needed = True
-                LOGGER.info("This metadata was not already loaded, internal read will be performed: " + str(arg))
+                LOGGER.debug("This metadata was not already loaded, internal read will be performed: " + str(arg))
 
         self.md_needed = args
 
@@ -132,9 +140,9 @@ class MediaSet:
             LOGGER.info_indent("{l1} files detected as deleted [{file}]".format(l1=len(deleted), file=deleted_file))
 
     @staticmethod
-    def load_media_set(media_set_path):
+    def load_media_set(media_set_path, media_set_format=None, db_file=None):
         LOGGER.write_title_2(str(media_set_path), "Opening media directory")
-        return MediaSet(media_set_path)
+        return MediaSet(media_set_path, media_set_format, db_file)
 
     def __str__(self):
         return str(self.root_path)
@@ -164,14 +172,14 @@ class MediaSet:
                 return media_file
 
     def save_on_disk(self):
-        MediaSetDatabase.get(self.output_directory).save(self)
+        MediaSetDatabase.get(self.output_directory, self.db_file).save(self)
         MediaSetDump.get(self.output_directory).save(self)
 
     def intermediate_save_database(self, media_file_list: Iterable[MediaFile]):
-        MediaSetDatabase.get(self.output_directory).save(media_file_list, log=False)
+        MediaSetDatabase.get(self.output_directory, self.db_file).save(media_file_list, log=False)
 
     def close_database(self):
-        MediaSetDatabase.get(self.output_directory).close()
+        MediaSetDatabase.get(self.output_directory, self.db_file).close()
 
     def add_file(self, media_file: MediaFile):
         self.media_file_list.append(media_file)
@@ -420,9 +428,10 @@ class MediaSet:
         LOGGER.info_indent(log_content=log_content, prof=2)
         root_dir = MediaDirectory(self.root_path.as_posix(), None, self)
         self.media_dir_list[self.root_path.as_posix()] = root_dir
-        not_loaded_files = MediaSetDatabase.get(self.output_directory).load_all_files(self, not_loaded_files)
+        not_loaded_files = MediaSetDatabase.get(self.output_directory, self.db_file).load_all_files(self,
+                                                                                                    not_loaded_files)
         self.init_new_media_files(not_loaded_files)
-        MediaSetDatabase.get(self.output_directory).load_all_thumbnails(self)
+        MediaSetDatabase.get(self.output_directory, self.db_file).load_all_thumbnails(self)
 
     def init_new_media_files(self, found_files_map: Dict[str, FileAccess]):
         LOGGER.start("{nb_file} new files that are not already in dump or db", 1000, prof=2)
@@ -457,6 +466,10 @@ class MediaSet:
                         else:
                             size += self.filename_map[relative_path].file_access.file_size
                             self.filename_map[relative_path].exists = True
+                            # Update path in case mount directory changed since last dump of the data
+                            self.filename_map[relative_path].file_access.zip_path = zip_file_path
+                            self.filename_map[relative_path].update_full_path(
+                                (Path(zip_file_path) / file_name).as_posix())
                     else:
                         ignored_files.append(str(self.root_path / zip_file_path))
         return number_of_files, nb_mfiles, size
@@ -491,6 +504,8 @@ class MediaSet:
                     else:
                         self.filename_map[relative_path].exists = True
                         file_size = self.filename_map[relative_path].file_access.file_size
+                        # Update path in case mount directory changed since last dump of the data
+                        self.filename_map[relative_path].update_full_path(file_path.as_posix())
                     nb_files += 1
                     nb_m_files += 1
                     nb_sfiles += 1

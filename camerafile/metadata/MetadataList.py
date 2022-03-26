@@ -35,6 +35,12 @@ class MetadataList:
                               SIGNATURE: MetadataSignature(media_file.file_access),
                               FACES: MetadataFaces(media_file.file_access, media_file.parent_set.face_rec.knn_clf)}
 
+    def update_file_access(self, file_access):
+        self.metadata_list[INTERNAL].file_access = file_access
+        self.metadata_list[THUMBNAIL].file_access = file_access
+        self.metadata_list[SIGNATURE].file_access = file_access
+        self.metadata_list[FACES].file_access = file_access
+
     def __getitem__(self, key):
         return self.metadata_list[key]
 

@@ -1,7 +1,7 @@
 import logging
 from multiprocessing import cpu_count
 
-from camerafile.mdtools.MdConstants import MetadataNames
+from camerafile.core.OutputDirectory import OutputDirectory
 
 
 class Configuration:
@@ -21,6 +21,7 @@ class Configuration:
         self.initialized = False
         self.exif_tool = False
         self.internal_read = True
+        self.first_output_directory = None
 
     @staticmethod
     def get():
@@ -30,6 +31,10 @@ class Configuration:
 
     def init(self, args):
         if not self.initialized:
+
+            if "dir1" in args and args.dir1:
+                self.first_output_directory = OutputDirectory(args.dir1)
+
             if args.workers is not None:
                 self.nb_sub_process = args.workers
 
@@ -65,5 +70,3 @@ class Configuration:
                 self.org_format = args.format
 
             self.initialized = True
-
-

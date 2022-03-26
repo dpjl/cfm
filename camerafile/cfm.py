@@ -1,11 +1,13 @@
-import os
-import sys
 import argparse
 import logging.config
-
-from textwrap import dedent
+import os
 from multiprocessing.process import current_process
 from multiprocessing.spawn import freeze_support
+from textwrap import dedent
+
+import sys
+
+from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import CopyMode
 
 COMMAND = "command"
@@ -99,14 +101,16 @@ def execute(args):
 
     media_set1 = MediaSet.load_media_set(args.dir1)
     media_set2 = None
+    other_md_needed = ()
     if "dir2" in args and args.dir2:
-        media_set2 = MediaSet.load_media_set(args.dir2)
+        media_set2 = MediaSet.load_media_set(args.dir2, Configuration.get().org_format)
+        other_md_needed = media_set2.get_metadata_needed_by_format()
 
-    BatchReadInternalMd(media_set1).execute()
+    BatchReadInternalMd(media_set1, other_md_needed).execute()
     BatchComputeCm(media_set1).execute()
 
     if media_set2:
-        BatchReadInternalMd(media_set2).execute()
+        BatchReadInternalMd(media_set2, ()).execute()
         BatchComputeCm(media_set2).execute()
 
     if args.command == "analyze":
@@ -117,6 +121,13 @@ def execute(args):
             CompareMediaSets.execute(media_set1, media_set2)
 
     if args.command == "organize":
+
+        if media_set2.org_format is None:
+            print("\n!!!!!!!!!!!!!!!!!!!")
+            print("Format is not already configuration for " + args.dir2 + ", you have to define it using -f option.")
+            print("!!!!!!!!!!!!!!!!!!!")
+            sys.exit(1)
+
         copy_mode = args.mode if args.mode is not None else CopyMode.HARD_LINK
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
         BatchCopy(media_set1, media_set2, copy_mode).execute()

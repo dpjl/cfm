@@ -1,4 +1,5 @@
 import logging
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -13,6 +14,7 @@ class Metadata:
         self.media_file = media_file
         self.value = None
         self.binary_value = None
+        self.file_access = None
 
     def __str__(self):
         return self.get()

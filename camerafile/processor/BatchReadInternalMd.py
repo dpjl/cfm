@@ -15,10 +15,11 @@ LOGGER = Logger(__name__)
 
 class BatchReadInternalMd(TaskWithProgression):
 
-    def __init__(self, media_set: MediaSet):
+    def __init__(self, media_set: MediaSet, other_needed_md):
         self.media_set = media_set
         self.stats = {}
         self.call_info = {}
+        self.other_needed_md = other_needed_md
         TaskWithProgression.__init__(self, "Read media exif metadata",
                                      Configuration.get().nb_sub_process,
                                      on_worker_start=BatchReadInternalMd.on_sub_cfm_start,
@@ -33,7 +34,12 @@ class BatchReadInternalMd(TaskWithProgression):
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
-        self.custo_ows_args = (self.media_set.md_needed,)
+        needed_md = ()
+        for md in self.media_set.md_needed + self.other_needed_md:
+            if md not in needed_md:
+                needed_md += (md,)
+        print("Metadata that need to be loaded: " + str(needed_md))
+        self.custo_ows_args = (needed_md,)
 
     def task_getter(self):
         return LoadInternalMetadata.execute

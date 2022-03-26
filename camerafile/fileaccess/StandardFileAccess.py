@@ -94,7 +94,7 @@ class StandardFileAccess(FileAccess):
         if self.is_image():
             with open(self.path, 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
-                    with CFMImage(mmap_obj) as image:
+                    with CFMImage(mmap_obj, self.name) as image:
                         try:
                             return Hash.image_hash(image.image_data)
                         except BaseException as e:
@@ -107,5 +107,11 @@ class StandardFileAccess(FileAccess):
         if self.is_image():
             with open(self.path, 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
-                    with CFMImage(mmap_obj) as image:
+                    with CFMImage(mmap_obj, self.name) as image:
                         return MetadataFaces.static_compute_face_boxes(image)
+
+    def get_image(self):
+        if self.is_image():
+            with open(self.path, 'rb') as f:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
+                    return CFMImage(mmap_obj, self.name)

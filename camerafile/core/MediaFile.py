@@ -6,7 +6,6 @@ from pathlib import Path
 
 from typing import TYPE_CHECKING
 
-from camerafile.core import Constants
 from camerafile.core.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
     DESTINATION_COPY_PATH, CFM_CAMERA_MODEL, ORIGINAL_PATH
 from camerafile.fileaccess.FileAccess import FileAccess
@@ -38,6 +37,11 @@ class MediaFile:
         self.exists_in_db = False
         self.thumbnail_in_db = False
         self.exists = True
+
+    def update_full_path(self, new_full_path):
+        self.path = new_full_path
+        self.file_access.path = new_full_path
+        self.metadata.update_file_access(self.file_access)
 
     def get_path(self):
         return self.relative_path
@@ -117,21 +121,6 @@ class MediaFile:
         extension = splitext[1] if len(splitext) > 1 else ""
         return name_without_extension + suffix + extension
 
-    def add_size_to_filename(self, filename):
-        dimensions = self.get_dimensions()
-        if dimensions is None:
-            print("Width and/or height cannot be found for " + str(self))
-            return filename
-        return self.add_suffix_to_filename(filename, "[" + dimensions + "]")
-
-    def add_date_to_filename(self, filename):
-        date = self.get_date()
-        if date is None:
-            print("Date cannot be found for " + str(self))
-            return filename
-        new_date_format = date.strftime("%Y-%m-%d_%Hh%Mm%Ss")
-        return self.add_suffix_to_filename(filename, "[" + new_date_format + "]")
-
     def is_modified(self):
         date = self.get_date()
         last_modification_date = self.get_last_modification_date()
@@ -140,30 +129,17 @@ class MediaFile:
         if seconds_diff > 60 and int(seconds_diff) % 3600 > 20:
             return True
 
-    def get_organization_path(self, new_media_set, new_path_map):
-        camera_model = self.get_camera_model()
-        if camera_model is not None:
-            camera_model = camera_model.replace(" ", "-")
-        if camera_model is None:
-            camera_model = Constants.UNKNOWN
-
-        date = self.get_date()
-
-        year = date.strftime("%Y")
-        month = date.strftime("%m[%B]")
-        new_dir_path = new_media_set.root_path / year / month / camera_model
+    def get_organization_path(self, new_media_set: "MediaSet", new_path_map):
+        new_dir_path = new_media_set.root_path / new_media_set.org_format.get_formatted_string(self)
         new_file_name = self.file_access.name
         new_file_path = new_dir_path / new_file_name
 
-        # Here, concatenate only [~2], [~3], ...
-
-        if new_file_path in new_path_map:
-            new_file_name = self.add_size_to_filename(new_file_name)
+        original_file_name = new_file_name
+        i = 2
+        while new_file_path in new_path_map:
+            new_file_name = self.add_suffix_to_filename(original_file_name, "~" + str(i))
             new_file_path = new_dir_path / new_file_name
-
-        if new_file_path in new_path_map:
-            new_file_name = self.add_date_to_filename(new_file_name)
-            new_file_path = new_dir_path / new_file_name
+            i += 1
 
         if new_file_path in new_path_map:
             print("Something is wrong: destination still exists " + new_file_path)

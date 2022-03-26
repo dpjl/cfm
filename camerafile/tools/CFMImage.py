@@ -5,9 +5,10 @@ from PIL import Image, ImageDraw, ImageOps
 
 class CFMImage:
 
-    def __init__(self, file):
+    def __init__(self, file, filename):
+        self.filename = filename
         self.file = file
-        self.image_data = None
+        self.image_data: Image.Image = None
         self.model = None
         self.date = None
         self.width = None
@@ -56,11 +57,16 @@ class CFMImage:
             if 0x0112 in exif:
                 self.orientation = exif[0x0112]
 
-    def display_face(self, face):
+    def get_face(self, face):
+        img_copy = self.image_data.copy()
+        top, right, bottom, left = face
+        return img_copy.crop((left + 1, top + 1, right, bottom))
+
+    def get_image_with_faces(self, face_list) -> Image.Image:
         img_copy = self.image_data.copy()
         draw = ImageDraw.Draw(img_copy)
-        top, right, bottom, left = face
-        draw.rectangle(((left, top), (right, bottom)), outline=(0, 0, 255))
+        for face in face_list:
+            top, right, bottom, left = face
+            draw.rectangle(((left, top), (right, bottom)), outline=(255, 0, 0), width=4)
         del draw
-        img_copy.show()
-        return img_copy.crop((left + 1, top + 1, right, bottom))
+        return img_copy
