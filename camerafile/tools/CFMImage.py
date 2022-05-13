@@ -70,3 +70,12 @@ class CFMImage:
             draw.rectangle(((left, top), (right, bottom)), outline=(255, 0, 0), width=4)
         del draw
         return img_copy
+
+    def get_image_with_faces_opencv(self, face_list) -> Image.Image:
+        img_copy = self.image_data.copy()
+        draw = ImageDraw.Draw(img_copy)
+        for face in face_list:
+            x, y, width, height = face
+            draw.rectangle(((x, y), (x + width, y + height)), outline=(255, 0, 0), width=4)
+        del draw
+        return img_copy

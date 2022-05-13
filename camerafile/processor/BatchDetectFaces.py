@@ -68,6 +68,6 @@ class BatchDetectFaces(CFMBatch):
         print("")
         tab = ConsoleTable()
         tab.print_header("Faces detection duration", "Faces encoding duration")
-        tab.print_line(humanize.precisedelta(datetime.timedelta(seconds=self.det_dur)),
-                       humanize.precisedelta(datetime.timedelta(seconds=self.enc_dur)))
+        tab.print_line(str(self.det_dur),
+                       str(self.enc_dur))
         print("")

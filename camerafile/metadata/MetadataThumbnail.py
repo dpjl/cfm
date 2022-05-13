@@ -2,6 +2,8 @@ import base64
 import io
 
 from PIL import Image
+from cv2 import cv2
+from cv2.cv2 import VideoCapture
 
 from camerafile.core.Constants import IMAGE_TYPE
 from camerafile.core.Logging import Logger
@@ -12,8 +14,6 @@ LOGGER = Logger(__name__)
 
 
 class MetadataThumbnail(Metadata):
-    init = False
-    video_clip_lib = None
 
     def __init__(self, file_access: FileAccess):
         super().__init__(None)
@@ -23,11 +23,6 @@ class MetadataThumbnail(Metadata):
 
     def compute_thumbnail(self):
         if self.thumbnail is None:
-
-            if MetadataThumbnail.video_clip_lib is None:
-                LOGGER.debug("Load VideoFileClip class from moviepy.video.io.VideoFileClip module")
-                from moviepy.video.io.VideoFileClip import VideoFileClip
-                MetadataThumbnail.video_clip_class = VideoFileClip
 
             _, _, _, _, _, _, thumbnail = self.file_access.read_md()
 
@@ -50,11 +45,15 @@ class MetadataThumbnail(Metadata):
                         self.thumbnail = bytes_output.getvalue()
 
             else:
-                with MetadataThumbnail.video_clip_class(self.file_access.get_path()) as clip:
-                    frame_at_second = 0
-                    frame = clip.get_frame(frame_at_second)
-                    new_image = Image.fromarray(frame)
-                    new_image.thumbnail((100, 100))
-                    bytes_output = io.BytesIO()
-                    new_image.save(bytes_output, format='JPEG')
-                    self.thumbnail = bytes_output.getvalue()
+                videoCapture = VideoCapture(self.file_access.get_path())
+                success,image = videoCapture.read()
+
+                #TODO
+                #cv2.resize(image, max_size, interpolation=cv2.INTER_AREA)
+
+                #frame = clip.get_frame(frame_at_second)
+                #new_image = Image.fromarray(frame)
+                #new_image.thumbnail((100, 100))
+                #bytes_output = io.BytesIO()
+                #new_image.save(bytes_output, format='JPEG')
+                #self.thumbnail = bytes_output.getvalue()

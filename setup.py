@@ -68,14 +68,11 @@ class CreatePackage(Command):
                 file.close()
         else:
             shutil.move("dist/lib/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/bin/exiftool/" + self.exiftool)
-        for file in glob.glob("dist/lib/imageio_ffmpeg/binaries/ffmpeg*"):
-            shutil.move(file, "dist/cfm/bin")
         shutil.move("dist/lib/face_recognition_models/models", "dist/cfm/data")
         shutil.move("dist/lib/conf", "dist/cfm/conf")
 
         shutil.rmtree("dist/lib/face_recognition_models")
         shutil.rmtree("dist/lib/camerafile")
-        shutil.rmtree("dist/lib/imageio_ffmpeg/binaries")
 
         shutil.move("dist/lib", "dist/cfm")
 

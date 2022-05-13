@@ -22,9 +22,11 @@ class BatchComputeCm(TaskWithProgression):
     def task_getter(self):
         return self.task
 
-    def task(self, current_media):
+    def task(self, batch_element: BatchElement):
+        current_media = batch_element.args
         current_media.metadata[CFM_CAMERA_MODEL].compute_value()
-        return current_media
+        batch_element.result = current_media
+        return batch_element
 
     def arguments(self) -> List[BatchElement]:
         self.status(self.media_set)

@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pyzipper
+from cv2 import cv2
 from typing import Tuple, Union
 
 from camerafile.core.Configuration import Configuration
@@ -115,3 +116,10 @@ class StandardFileAccess(FileAccess):
             with open(self.path, 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
                     return CFMImage(mmap_obj, self.name)
+
+    def get_cv2_image(self):
+        return cv2.imread(self.path)
+        if self.is_image():
+            with open(self.path, 'rb') as f:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
+                    return cv2.imread(mmap_obj)

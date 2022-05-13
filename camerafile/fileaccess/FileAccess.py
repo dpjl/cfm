@@ -103,3 +103,6 @@ class FileAccess:
 
     def get_image(self):
         pass
+
+    def get_cv2_image(self):
+        pass

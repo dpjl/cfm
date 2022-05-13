@@ -87,13 +87,13 @@ class TaskWithProgression:
             self.finalize()
         return None
 
-    def execute_uni_process_batch(self, task, batch_args_list: List[BatchElement], post_task, progress_bar):
+    def execute_uni_process_batch(self, task, args_list: List[BatchElement], post_task, progress_bar):
         pid = current_process().pid
         try:
-            for batch_args in batch_args_list:
-                progress_bar.set_detail(pid, batch_args.info)
-                result = task(batch_args.args)
-                post_task(result, progress_bar, replace=False)
+            for batch_element in args_list:
+                progress_bar.set_detail(pid, batch_element.info)
+                batch_element = task(batch_element)
+                post_task(batch_element.result, progress_bar, replace=False)
         finally:
             progress_bar.stop()
             ExifTool.stop()

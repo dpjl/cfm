@@ -2,6 +2,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+from cv2 import cv2
 from pyzipper import zipfile
 from typing import Tuple, Union
 
@@ -100,3 +102,10 @@ class ZipFileAccess(FileAccess):
             with zipfile.ZipFile(self.zip_path) as zip_file:
                 with zip_file.open(self.file_path) as zip_file_element:
                     return CFMImage(zip_file_element, self.name)
+
+    def get_cv2_image(self):
+        if self.is_image():
+            with zipfile.ZipFile(self.zip_path) as zip_file:
+                with zip_file.open(self.file_path) as zip_file_element:
+                    nb_array = np.asarray(bytearray(zip_file_element.read()), dtype=np.uint8)
+                    return cv2.imdecode(nb_array, cv2.IMREAD_COLOR)

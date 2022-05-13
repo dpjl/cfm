@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from cv2 import cv2
 
 
 class Movie:
@@ -19,8 +19,8 @@ class Movie:
         # self.date = time.ctime(os.path.getmtime(self.path))
         self.date = datetime.fromtimestamp(self.path.stat().st_mtime)
         try:
-            self.movie_data = VideoFileClip(str(self.path))
-            self.width, self.height = self.movie_data.size
+            self.movie_data = cv2.imread(str(self.path))
+            (self.width, self.height, _) = self.movie_data.shape
         except OSError:
             # TODO: add log
             pass

@@ -253,7 +253,15 @@ class MediaSet:
         file_size = item.get_file_size()
         if self.exist_in_x_y_map(self.date_size_map, date, file_size):
             return True
-        # vérifier si la signature devrait être calculée (possibly already exist)
+
+        # Question:
+        # Si même date exactement à la milliseconde près, et hauteur et largeur identiques
+        # (mais tailles des fichiers différentes ?), on pourrait considérer que ce sont les mêmes images ?
+        # Cela évituerait de calculer la signature
+        # Cas des photos de l'iphone exportées par deux outils différents
+        # ---
+
+        # vérifier si la signature devrait être calculée (possibly already exist) ?
         if item.get_signature() is not None:
             if self.exist_in_x_y_map(self.date_sig_map, date, item.get_signature()):
                 return True
