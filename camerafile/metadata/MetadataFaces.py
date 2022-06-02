@@ -3,7 +3,7 @@ import os
 import cv2
 import time
 from PIL.Image import Image
-from deepface.detectors import FaceDetector
+#from deepface.detectors import FaceDetector
 
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import Logger

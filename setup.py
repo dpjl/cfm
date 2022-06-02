@@ -54,10 +54,6 @@ class CreatePackage(Command):
         os.makedirs("dist/cfm/bin/exiftool")
         os.makedirs("dist/cfm/data")
 
-        if os.path.exists("dist/lib/cfm.exe"):
-            shutil.move("dist/lib/cfm.exe", "dist/cfm/cfm.exe")
-        else:
-            shutil.move("dist/lib/cfm", "dist/cfm/cfm")
         exiftool_path = "dist/lib/camerafile/bin/exiftool/" + self.exiftool
         if exiftool_path.endswith(".zip"):
             with zipfile.ZipFile(exiftool_path) as file:
@@ -75,6 +71,13 @@ class CreatePackage(Command):
         shutil.rmtree("dist/lib/camerafile")
 
         shutil.move("dist/lib", "dist/cfm")
+
+        if os.path.exists("dist/cfm/lib/cfm.exe"):
+            os.symlink("./lib/cfm.exe", "dist/cfm/cfm.exe")
+        else:
+            os.symlink("./lib/cfm", "dist/cfm/cfm")
+
+
 
     @staticmethod
     def zip_dir(output_filename, source_dir):
