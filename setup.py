@@ -50,32 +50,32 @@ class CreatePackage(Command):
                 file_on_disk.close()
 
     def reorganize_package(self):
-        shutil.move("dist/cfm", "dist/lib")
-        os.makedirs("dist/cfm/bin/exiftool")
+        shutil.move("dist/cfm", "dist/bin")
+        os.makedirs("dist/cfm/ext-bin/exiftool")
         os.makedirs("dist/cfm/data")
 
-        exiftool_path = "dist/lib/camerafile/bin/exiftool/" + self.exiftool
+        exiftool_path = "dist/bin/camerafile/bin/exiftool/" + self.exiftool
         if exiftool_path.endswith(".zip"):
             with zipfile.ZipFile(exiftool_path) as file:
-                file.extractall("dist/cfm/bin/exiftool")
+                file.extractall("dist/cfm/ext-bin/exiftool")
         elif exiftool_path.endswith(".tar.gz"):
             with tarfile.open(exiftool_path, "r:gz") as file:
-                file.extractall("dist/cfm/bin/exiftool")
+                file.extractall("dist/cfm/ext-bin/exiftool")
                 file.close()
         else:
-            shutil.move("dist/lib/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/bin/exiftool/" + self.exiftool)
-        shutil.move("dist/lib/face_recognition_models/models", "dist/cfm/data")
-        shutil.move("dist/lib/conf", "dist/cfm/conf")
+            shutil.move("dist/bin/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/ext-bin/exiftool/" + self.exiftool)
+        shutil.move("dist/bin/face_recognition_models/models", "dist/cfm/data")
+        shutil.move("dist/bin/conf", "dist/cfm/conf")
 
-        shutil.rmtree("dist/lib/face_recognition_models")
-        shutil.rmtree("dist/lib/camerafile")
+        shutil.rmtree("dist/bin/face_recognition_models")
+        shutil.rmtree("dist/bin/camerafile")
 
-        shutil.move("dist/lib", "dist/cfm")
+        shutil.move("dist/bin", "dist/cfm")
 
-        if os.path.exists("dist/cfm/lib/cfm.exe"):
-            os.symlink("./lib/cfm.exe", "dist/cfm/cfm.exe")
+        if os.path.exists("dist/cfm/bin/cfm.exe"):
+            shutil.copy2("resources/cfm.bat", "dist/cfm/cfm.bat")
         else:
-            os.symlink("./lib/cfm", "dist/cfm/cfm")
+            shutil.copy2("resources/cfm", "dist/cfm/cfm")
 
 
 

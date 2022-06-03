@@ -11,7 +11,7 @@ class LoadInternalMetadata:
             internal_metadata.load_internal_metadata()
         except BaseException as e:
             if Configuration.get().exit_on_error:
-                pass  # TODO : put full stacktrace in batch_element.error
+                raise
             else:
                 batch_element.error = "LoadInternalMetadata: [{info}] - ".format(info=batch_element.info) + str(e)
         batch_element.args = None

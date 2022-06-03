@@ -14,7 +14,7 @@ class ComputeFaceBoxes:
             enc_dur, det_dur = metadata_face.compute_face_boxes()
         except BaseException as e:
             if Configuration.get().exit_on_error:
-                pass  # TODO : put full stacktrace in batch_element.error
+                raise
             else:
                 batch_element.error = "ComputeFaceBoxes: [{info}] - ".format(info=batch_element.info) + str(e)
         batch_element.args = None

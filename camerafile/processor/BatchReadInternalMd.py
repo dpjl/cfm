@@ -39,6 +39,7 @@ class BatchReadInternalMd(TaskWithProgression):
             if md not in needed_md:
                 needed_md += (md,)
         print("Metadata that need to be loaded: " + str(needed_md))
+        MetadataInternal.md_needed = needed_md
         self.custo_ows_args = (needed_md,)
 
     def task_getter(self):
