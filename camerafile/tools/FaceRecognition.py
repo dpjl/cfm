@@ -7,6 +7,7 @@ import math
 from typing import TYPE_CHECKING
 
 from camerafile.core.Constants import FACES
+from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.tools.CFMImage import CFMImage
 
 if TYPE_CHECKING:
@@ -18,16 +19,23 @@ IMAGES = "images"
 
 
 class FaceRecognition:
+    __instance = {}
 
-    def __init__(self, media_set: "MediaSet", output_directory):
+    def __init__(self, media_set: "MediaSet"):
         self.media_set = media_set
-        self.training_path = output_directory.path / "training_examples"
+        self.training_path = OutputDirectory.get(media_set.root_path).path / "training_examples"
         self.all_encoding_ids = {}
         self.training_data = {}
         self.person_list = []
         self.load_training_data()
         self.knn_clf = None
         self.load_model()
+
+    @staticmethod
+    def get(media_set: "MediaSet"):
+        if media_set not in FaceRecognition.__instance:
+            FaceRecognition.__instance[media_set] = FaceRecognition(media_set)
+        return FaceRecognition.__instance[media_set]
 
     @staticmethod
     def get_encoding_id(enc):
@@ -81,7 +89,7 @@ class FaceRecognition:
                     encoding_content = media_file.metadata[FACES].binary_value[n_face]
                     if self.get_encoding_id(encoding_content) not in self.all_encoding_ids:
                         if self.knn_clf is None or self.predict(encoding_content) == "unrecognized":
-                            image = CFMImage(media_file.path, media_file.file_access.name)
+                            image = CFMImage(media_file.path, media_file.file_desc.name)
                             face_image = image.get_face(face)
                             image.get_image_with_faces([face]).show()
                             print("Image: {image_path}".format(image_path=media_file.path))

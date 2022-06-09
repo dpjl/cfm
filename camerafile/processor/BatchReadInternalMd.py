@@ -1,12 +1,11 @@
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import BatchElement, TaskWithProgression
+from camerafile.processor.BatchTool import BatchElement, TaskWithProgression
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Constants import INTERNAL, THUMBNAIL, CFM_CAMERA_MODEL
+from camerafile.core.Constants import INTERNAL, THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
-from camerafile.mdtools.MdConstants import MetadataNames
-from camerafile.metadata.MetadataInternal import MetadataInternal
-from camerafile.metadata.MetadataThumbnail import MetadataThumbnail
+from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.metadata.Metadata import Metadata
 from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.LoadInternalMetadata import LoadInternalMetadata
 
@@ -24,13 +23,13 @@ class BatchReadInternalMd(TaskWithProgression):
                                      Configuration.get().nb_sub_process,
                                      on_worker_start=BatchReadInternalMd.on_sub_cfm_start,
                                      on_worker_end=CFMBatch.on_sub_cfm_end,
-                                     stderr_file=media_set.output_directory.batch_stderr,
-                                     stdout_file=media_set.output_directory.batch_stdout)
+                                     stderr_file=OutputDirectory.get(media_set.root_path).batch_stderr,
+                                     stdout_file=OutputDirectory.get(media_set.root_path).batch_stdout)
 
     @staticmethod
     def on_sub_cfm_start(md_needed):
         CFMBatch.on_sub_cfm_start()
-        MetadataInternal.md_needed = md_needed
+        LoadInternalMetadata.md_needed = md_needed
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
@@ -39,13 +38,13 @@ class BatchReadInternalMd(TaskWithProgression):
             if md not in needed_md:
                 needed_md += (md,)
         print("Metadata that need to be loaded: " + str(needed_md))
-        MetadataInternal.md_needed = needed_md
+        LoadInternalMetadata.md_needed = needed_md
         self.custo_ows_args = (needed_md,)
 
     def task_getter(self):
         return LoadInternalMetadata.execute
 
-    def update_stats(self, metadata_internal: MetadataInternal, metadata_thumbnail: MetadataThumbnail):
+    def update_stats(self, metadata_internal: Metadata, metadata_thumbnail: Metadata):
         if metadata_internal.value:
             for name, value in metadata_internal.value.items():
                 if name not in self.stats:
@@ -66,22 +65,23 @@ class BatchReadInternalMd(TaskWithProgression):
         args_list = []
         for media_file in self.media_set:
             if media_file.metadata[INTERNAL].value is None or self.media_set.read_md_needed:
-                args_list.append(BatchElement(media_file.metadata[INTERNAL], media_file.relative_path))
+                args_list.append(
+                    BatchElement((self.media_set.root_path, media_file.file_desc, media_file.metadata[INTERNAL]),
+                                 media_file.get_path()))
             else:
                 self.update_stats(media_file.metadata[INTERNAL], media_file.metadata[THUMBNAIL])
         return args_list
 
-    def post_task(self, result_internal_metadata: MetadataInternal, progress_bar, replace=False):
-        self.update_call_info(result_internal_metadata.call_info)
-        original_media = self.media_set.get_media(result_internal_metadata.file_access.id)
+    def post_task(self, result, progress_bar, replace=False):
+        media_id, modified_metadata = result
+        self.update_call_info(modified_metadata.call_info)
+        original_media = self.media_set.get_media(media_id)
         if replace:
-            original_media.metadata[INTERNAL] = result_internal_metadata
+            original_media.metadata[INTERNAL] = modified_metadata
         original_media.metadata[THUMBNAIL].thumbnail = original_media.metadata[INTERNAL].thumbnail
         original_media.metadata[INTERNAL].thumbnail = None
-        original_media.metadata[CFM_CAMERA_MODEL].set_value(
-            original_media.metadata[INTERNAL].get_md_value(MetadataNames.MODEL))
         original_media.parent_set.add_to_date_size_name_map(original_media)
-        self.update_stats(result_internal_metadata, original_media.metadata[THUMBNAIL])
+        self.update_stats(modified_metadata, original_media.metadata[THUMBNAIL])
         # in case signature was already existing, but date was not, we update date_sig map
         self.media_set.add_to_date_sig_map(original_media)
         progress_bar.increment()

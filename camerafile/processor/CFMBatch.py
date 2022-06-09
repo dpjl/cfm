@@ -1,6 +1,6 @@
 import os
 
-from camerafile.core.BatchTool import TaskWithProgression
+from camerafile.processor.BatchTool import TaskWithProgression
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import init_only_console_logging, Logger
 from camerafile.core.Resource import Resource

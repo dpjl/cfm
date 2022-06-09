@@ -29,9 +29,9 @@ class CompareDatabases:
             if faces1 and faces2:
                 if len(faces1["locations"]) != len(faces2["locations"]):
                     print("Not same number of faces for : " + filename)
-                    with open(face_debug_path / media1.file_access.name, "wb") as file:
-                        with media1.file_access.get_image() as im1:
-                            with media2.file_access.get_image() as im2:
+                    with open(face_debug_path / media1.file_desc.name, "wb") as file:
+                        with media1.file_desc.get_image() as im1:
+                            with media2.file_desc.get_image() as im2:
                                 im1: Image.Image = im1.get_image_with_faces(faces1["locations"])
                                 im2 = im2.get_image_with_faces(faces2["locations"])
 

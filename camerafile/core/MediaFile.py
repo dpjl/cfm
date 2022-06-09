@@ -1,14 +1,10 @@
-import hashlib
 import logging
-import os
 from datetime import datetime
-from pathlib import Path
-
 from typing import TYPE_CHECKING
 
-from camerafile.core.Constants import INTERNAL, SIGNATURE, ORIGINAL_COPY_PATH, \
-    DESTINATION_COPY_PATH, CFM_CAMERA_MODEL, ORIGINAL_PATH
-from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.core.Constants import INTERNAL, SIGNATURE, CFM_CAMERA_MODEL
+from camerafile.core.MediaDirectory import MediaDirectory
+from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.metadata.MetadataList import MetadataList
 
 if TYPE_CHECKING:
@@ -19,40 +15,31 @@ LOGGER = logging.getLogger(__name__)
 
 class MediaFile:
 
-    def __init__(self, file_access: FileAccess, parent_dir, parent_set: "MediaSet"):
+    def __init__(self, file_desc: FileDescription, parent_dir: MediaDirectory, parent_set: "MediaSet"):
         self.parent_dir = parent_dir
         self.parent_set = parent_set
-
-        self.file_access = file_access
-        self.relative_path = Path(file_access.path).relative_to(parent_set.root_path).as_posix()
-        self.id: str = hashlib.md5(self.relative_path.encode()).hexdigest()
-        file_access.set_id(self.id)
-        file_access.set_relative_path(self.relative_path)
-        self.extension = file_access.extension
-        self.path = file_access.path
-
-        self.metadata = MetadataList(self)
+        self.file_desc: FileDescription = file_desc
+        self.id = self.file_desc.get_id()
+        self.metadata = MetadataList()
         self.db_id = None
         self.date_identifier = None
         self.exists_in_db = False
         self.thumbnail_in_db = False
         self.exists = True
 
-    def update_full_path(self, new_full_path):
-        self.path = new_full_path
-        self.file_access.path = new_full_path
-        self.metadata.update_file_access(self.file_access)
+    def __str__(self):
+        return self.file_desc.relative_path
 
     def get_path(self):
-        return self.relative_path
+        return self.file_desc.relative_path
+
+    def get_extension(self):
+        return self.file_desc.extension
 
     def is_in_trash(self):
-        if self.parent_set.get_trash_file() in self.path:
+        if MediaSet.CFM_TRASH in self.get_path():
             return True
         return False
-
-    def __str__(self):
-        return self.file_access.get_path()
 
     def is_same(self, other):
         # self.metadata.compute_value(SIGNATURE)
@@ -78,7 +65,7 @@ class MediaFile:
         return None
 
     def get_file_size(self):
-        return self.file_access.get_file_size()
+        return self.file_desc.file_size
 
     def get_exif_date(self):
         return self.metadata[INTERNAL].get_date()
@@ -104,61 +91,3 @@ class MediaFile:
             new_date_format = date.strftime("%Y/%m/%d")
             return new_date_format
         return ""
-
-    def update_date_identifier(self):
-        if self.date_identifier is None:
-            date = self.get_exif_date()
-            dimensions = self.get_dimensions()
-            if date is not None and dimensions is not None:
-                self.date_identifier = date + "-" + dimensions
-            elif date is not None:
-                self.date_identifier = date
-
-    @staticmethod
-    def add_suffix_to_filename(filename, suffix):
-        splitext = os.path.splitext(filename)
-        name_without_extension = splitext[0]
-        extension = splitext[1] if len(splitext) > 1 else ""
-        return name_without_extension + suffix + extension
-
-    def is_modified(self):
-        date = self.get_date()
-        last_modification_date = self.get_last_modification_date()
-        seconds_diff = abs((last_modification_date - date).total_seconds())
-        # second test is because of possible timezone diff
-        if seconds_diff > 60 and int(seconds_diff) % 3600 > 20:
-            return True
-
-    def get_organization_path(self, new_media_set: "MediaSet", new_path_map):
-        new_dir_path = new_media_set.root_path / new_media_set.org_format.get_formatted_string(self)
-        new_file_name = self.file_access.name
-        new_file_path = new_dir_path / new_file_name
-
-        original_file_name = new_file_name
-        i = 2
-        while new_file_path in new_path_map:
-            new_file_name = self.add_suffix_to_filename(original_file_name, "~" + str(i))
-            new_file_path = new_dir_path / new_file_name
-            i += 1
-
-        if new_file_path in new_path_map:
-            print("Something is wrong: destination still exists " + new_file_path)
-
-        return new_dir_path, new_file_path
-
-    def copy(self, new_media_set, new_file_access: FileAccess):
-        new_media_file = MediaFile(new_file_access, None, new_media_set)
-        new_media_file.metadata = self.metadata
-        new_media_file.metadata.set_value(ORIGINAL_COPY_PATH, str(self))
-        new_media_file.metadata.set_value(DESTINATION_COPY_PATH, new_file_access.path)
-        new_media_set.add_file(new_media_file)
-        return True
-
-    def move(self, new_file_access: FileAccess):
-        new_media_file = MediaFile(new_file_access, None, self.parent_set)
-        new_media_file.metadata = self.metadata
-        new_media_file.loaded_from_database = True
-        new_media_file.metadata.set_value(ORIGINAL_PATH, str(self))
-        self.parent_set.add_file(new_media_file)
-        self.parent_set.remove_file(self)
-        return True

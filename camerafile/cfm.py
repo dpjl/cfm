@@ -8,6 +8,7 @@ from textwrap import dedent
 import sys
 
 from camerafile.core.Configuration import Configuration
+from camerafile.core.Resource import Resource
 from camerafile.fileaccess.FileAccess import CopyMode
 
 COMMAND = "command"
@@ -124,7 +125,7 @@ def execute(args):
 
         if media_set2.org_format is None:
             print("\n!!!!!!!!!!!!!!!!!!!")
-            print("Format is not already configuration for " + args.dir2 + ", you have to define it using -f option.")
+            print("Format is not already configured for " + args.dir2 + ", you have to define it using -f option.")
             print("!!!!!!!!!!!!!!!!!!!")
             sys.exit(1)
 
@@ -133,6 +134,7 @@ def execute(args):
         BatchCopy(media_set1, media_set2, copy_mode).execute()
 
     if args.command == "recognize":
+        Resource.download_model()
         if args.extract_faces:
             BatchDetectFaces(media_set1).execute()
         if args.learn_faces:

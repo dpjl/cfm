@@ -1,9 +1,9 @@
 import atexit
 import threading
 import traceback
-from multiprocessing import Pool, Manager, cpu_count
+from multiprocessing import Queue
+from multiprocessing import Pool, cpu_count
 from multiprocessing import current_process
-from multiprocessing.queues import Queue
 from queue import Empty
 
 from typing import List
@@ -121,16 +121,20 @@ class TaskWithProgression:
         atexit.register(TaskWithProgression.on_worker_end, queue, custom_owe)
         if custom_ows:
             custom_ows(*custom_ows_args)
-        queue.put(stdout_recorder.stop())
+        if queue is not None:
+            queue.put(stdout_recorder.stop())
 
     @staticmethod
     def on_worker_end(queue, custom_owe=None):
         stdout_recorder = StdoutRecorder().start()
         if custom_owe:
             custom_owe()
-        queue.put(stdout_recorder.stop())
+        if queue is not None:
+            queue.put(stdout_recorder.stop())
 
     def update_details(self, queue, progress_bar: ConsoleProgressBar, max_iter):
+        if queue is None:
+            return
         iter_nb = 0
         while iter_nb < max_iter and self.in_progress:
             iter_nb += 1
@@ -189,17 +193,16 @@ class TaskWithProgression:
                 print(stdout.strip())
 
     def execute_multiprocess_batch(self, nb_process, task, args_list: List[BatchElement], post_task, progress_bar):
-        m = Manager()
-        queue = m.Queue()
+        queue = Queue()
         nb_elements = len(args_list)
         nb_process = min(nb_process, nb_elements)
-        pool = Pool(nb_process, self.on_worker_start,
-                    (task, queue, self.custom_ows, self.custo_ows_args, self.custom_owe))
-        terminate_correctly = False
+        pool = Pool(processes=nb_process,
+                    initializer=self.on_worker_start,
+                    initargs=(task, queue, self.custom_ows, self.custo_ows_args, self.custom_owe))
         self.in_progress = True
-        det_threads = threading.Thread(target=self.update_details,
-                                       args=(queue, progress_bar, 2 * nb_process + nb_elements))
-        det_threads.start()
+        details_thread = threading.Thread(target=self.update_details,
+                                          args=(queue, progress_bar, 2 * nb_process + nb_elements))
+        details_thread.start()
         self.nb_errors = 0
         self.stdout_nb_lines = 0
         self.update_status(progress_bar)
@@ -212,27 +215,10 @@ class TaskWithProgression:
                 if batch_element.error:
                     self.process_error(batch_element, progress_bar)
                 post_task(batch_element.result, progress_bar, replace=True)
-            terminate_correctly = True
-
-        except KeyboardInterrupt:
-            try:
-                print("Interrupted by user (Ctrl-C)")
-                pool.terminate()
-            except KeyboardInterrupt:
-                print("Interrupted by user (Ctrl-C) 2")
         except BaseException as e:
             print("Unexpected exception")
             traceback.print_exc()
         finally:
-            try:
-                pool.close()
-                progress_bar.stop()
-                if terminate_correctly:
-                    pool.join()
-                    self.in_progress = False
-                    det_threads.join()
-                else:
-                    pool.terminate()
-
-            except KeyboardInterrupt:
-                print("Interrupted by user (Ctrl-C) 3")
+            progress_bar.stop()
+            # TODO: put a timeout and a warning if we can't join the thread
+            details_thread.join()

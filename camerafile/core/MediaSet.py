@@ -1,12 +1,12 @@
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
+from typing import List, Dict, Iterable
 
-import sys
 import yaml
 from humanize import naturalsize
 from pyzipper import zipfile
-from typing import List, Dict, Iterable
 
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Constants import MANAGED_TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, THUMBNAIL, ARCHIVE_TYPE
@@ -17,9 +17,9 @@ from camerafile.core.MediaSetDatabase import MediaSetDatabase
 from camerafile.core.MediaSetDump import MediaSetDump
 from camerafile.core.OrgFormat import OrgFormat
 from camerafile.core.OutputDirectory import OutputDirectory
-from camerafile.fileaccess.FileAccess import FileAccess
-from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
-from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
+from camerafile.fileaccess.FileDescription import FileDescription
+from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
+from camerafile.fileaccess.ZipFileDescription import ZipFileDescription
 from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.tools.FaceRecognition import FaceRecognition
 
@@ -30,23 +30,19 @@ class MediaSet:
     CFM_TRASH = ".cfm-trash.zip"
 
     def __init__(self, path: str, org_format: str = None, db_file=None):
-        self.root_path = Path(path).resolve()
-        self.name = self.root_path.name
+        root_path = Path(path).resolve()
+        self.root_path = root_path.as_posix()
+        self.name = root_path.name
+        self.media_file_list = []
+        self.media_dir_list = {}
+        self.date_size_map = {}
+        self.date_sig_map = {}
+        self.id_map = {}
+        self.filename_map: Dict[str, MediaFile] = {}
+
         self.db_file = db_file
-        self.output_directory = OutputDirectory(self.root_path)
-        self.trash_file = (Path(self.root_path) / self.CFM_TRASH).as_posix()
-        if not MediaSetDump.get(self.output_directory).load(self):
-            self.media_file_list = []
-            self.media_dir_list = {}
-            self.date_size_map = {}
-            self.date_sig_map = {}
-            self.id_map = {}
-            self.filename_map: Dict[str, MediaFile] = {}
-        self.face_rec = FaceRecognition(self, self.output_directory)
         self.initialize_file_and_dir_list()
         self.delete_not_existing_media()
-
-        self.state_file = self.output_directory.path / "state.yaml"
         self.state = self.load_state()
         self.read_md_needed = False
         self.md_needed = ()
@@ -55,22 +51,60 @@ class MediaSet:
 
         LOGGER.debug("New MediaSet object created: " + str(id(self)))
 
+    @staticmethod
+    def load_media_set(path: str, org_format: str = None, db_file=None):
+        LOGGER.write_title_2(str(path), "Opening media directory")
+        loaded = MediaSetDump.get(OutputDirectory.get(path)).load()
+        if loaded:
+            # root object is duplicated and then differs from mediaFiles' parent references. Replace it.
+            if len(loaded.media_file_list) >= 1:
+                loaded = loaded.media_file_list[0].parent_set
+            root_path = Path(path).resolve()
+            loaded.root_path = root_path.as_posix()
+
+            loaded.db_file = db_file
+            loaded.initialize_file_and_dir_list()
+            loaded.delete_not_existing_media()
+            loaded.state = loaded.load_state()
+            loaded.read_md_needed = False
+            loaded.md_needed = ()
+            loaded.org_format = loaded.load_format(org_format)
+            loaded.load_metadata_to_read()
+            return loaded
+        else:
+            return MediaSet(path, org_format, db_file)
+
+    def __str__(self):
+        return str(self.root_path)
+
+    def __len__(self):
+        return len(self.media_file_list)
+
+    def __iter__(self) -> MediaFile:
+        for media_file in self.media_file_list:
+            yield media_file
+
+    def get_trash_file(self):
+        return self.root_path + os.sep + self.CFM_TRASH
+
     def load_state(self):
         state = None
-        if self.state_file.exists():
-            with open(self.state_file) as file:
+        if OutputDirectory.get(self.root_path).state_file.exists():
+            with open(OutputDirectory.get(self.root_path).state_file) as file:
                 state = yaml.safe_load(file)
         return state if state is not None else {}
 
     def save_state(self):
-        with open(self.state_file, "w") as file:
+        with open(OutputDirectory.get(self.root_path).state_file, "w") as file:
             return yaml.safe_dump(self.state, file)
 
     def load_format(self, param_format):
         if "format" in self.state:
             existing_format = self.state["format"]
             if existing_format is not None and param_format and param_format != "" and param_format != existing_format:
-                print("Error: format in argument differs from format save in " + str(self.state_file))
+                state_file = OutputDirectory.get(self.root_path).state_file.as_posix()
+                print("Error: format in argument '" + param_format
+                      + "' differs from format saved in " + state_file + " '" + existing_format + "'")
                 print("If you really want to force changing the destination format, please remove this file "
                       "and launch again cfm.")
                 sys.exit(1)
@@ -98,7 +132,6 @@ class MediaSet:
                 if len(md_list) != 0:
                     raise Exception("Error, some fields of target format cannot be loaded without "
                                     "internal metadata loading: " + ", ".join(md_list))
-
             for md in md_list:
                 if md not in args:
                     args += (md,)
@@ -136,35 +169,17 @@ class MediaSet:
                 deleted.append(media_file.path)
                 self.remove_file(media_file)
         if len(deleted) != 0:
-            deleted_file = self.output_directory.save_list(deleted, "deleted-files.json")
+            deleted_file = OutputDirectory.get(self.root_path).save_list(deleted, "deleted-files.json")
             LOGGER.info_indent("{l1} files detected as deleted [{file}]".format(l1=len(deleted), file=deleted_file))
-
-    @staticmethod
-    def load_media_set(media_set_path, media_set_format=None, db_file=None):
-        LOGGER.write_title_2(str(media_set_path), "Opening media directory")
-        return MediaSet(media_set_path, media_set_format, db_file)
-
-    def __str__(self):
-        return str(self.root_path)
-
-    def __len__(self):
-        return len(self.media_file_list)
-
-    def __iter__(self) -> MediaFile:
-        for media_file in self.media_file_list:
-            yield media_file
-
-    def get_trash_file(self):
-        return self.trash_file
 
     def get_date_sorted_media_list(self):
         self.media_file_list.sort(key=MediaFile.get_date)
         return self.media_file_list
 
     def train(self):
-        self.face_rec.add_training_data()
-        self.face_rec.save_training_data()
-        self.face_rec.train()
+        FaceRecognition.get(self).add_training_data()
+        FaceRecognition.get(self).save_training_data()
+        FaceRecognition.get(self).train()
 
     def get_file_from_path(self, file_path):
         for media_file in self.media_file_list:
@@ -172,27 +187,27 @@ class MediaSet:
                 return media_file
 
     def save_on_disk(self):
-        MediaSetDatabase.get(self.output_directory, self.db_file).save(self)
-        MediaSetDump.get(self.output_directory).save(self)
+        MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).save(self)
+        MediaSetDump.get(OutputDirectory.get(self.root_path)).save(self)
 
     def intermediate_save_database(self, media_file_list: Iterable[MediaFile]):
-        MediaSetDatabase.get(self.output_directory, self.db_file).save(media_file_list, log=False)
+        MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).save(media_file_list, log=False)
 
     def close_database(self):
-        MediaSetDatabase.get(self.output_directory, self.db_file).close()
+        MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).close()
 
     def add_file(self, media_file: MediaFile):
         self.media_file_list.append(media_file)
-        self.id_map[media_file.file_access.id] = media_file
-        self.filename_map[media_file.relative_path] = media_file
+        self.id_map[media_file.file_desc.id] = media_file
+        self.filename_map[media_file.get_path()] = media_file
         self.add_to_date_size_name_map(media_file)
         self.add_to_date_sig_map(media_file)
 
     def remove_file(self, media_file: MediaFile):
         self.remove_from_date_size_sig_map(media_file)
         self.remove_from_date_size_name_map(media_file)
-        del self.filename_map[media_file.relative_path]
-        del self.id_map[media_file.file_access.id]
+        del self.filename_map[media_file.get_path()]
+        del self.id_map[media_file.file_desc.id]
         self.media_file_list.remove(media_file)
 
     def get_media(self, media_id):
@@ -401,7 +416,7 @@ class MediaSet:
     @staticmethod
     def filter(media_file: MediaFile, ext_filter, cm_filter):
         if ext_filter is not None:
-            if media_file.file_access.extension not in ext_filter:
+            if media_file.file_desc.extension not in ext_filter:
                 return False
 
         cfm_camera_model = media_file.metadata[CFM_CAMERA_MODEL]
@@ -430,30 +445,29 @@ class MediaSet:
 
     def initialize_file_and_dir_list(self):
         not_loaded_files = self.update_from_disk()
-        dump_file = MediaSetDump.get(self.output_directory).dump_file
+        dump_file = MediaSetDump.get(OutputDirectory.get(self.root_path)).dump_file
         log_content = "{l1} media files loaded from dump {df}".format(l1=len(self.filename_map),
                                                                       df=dump_file)
         LOGGER.info_indent(log_content=log_content, prof=2)
-        root_dir = MediaDirectory(self.root_path.as_posix(), None, self)
-        self.media_dir_list[self.root_path.as_posix()] = root_dir
-        not_loaded_files = MediaSetDatabase.get(self.output_directory, self.db_file).load_all_files(self,
-                                                                                                    not_loaded_files)
+        self.media_dir_list["."] = MediaDirectory(".", None, self)
+        not_loaded_files = MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).load_all_files(self,
+                                                                                                                  not_loaded_files)
         self.init_new_media_files(not_loaded_files)
-        MediaSetDatabase.get(self.output_directory, self.db_file).load_all_thumbnails(self)
+        MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).load_all_thumbnails(self)
 
-    def init_new_media_files(self, found_files_map: Dict[str, FileAccess]):
+    def init_new_media_files(self, found_files_map: Dict[str, FileDescription]):
         LOGGER.start("{nb_file} new files that are not already in dump or db", 1000, prof=2)
         number_of_files = 0
         LOGGER.update(nb_file=number_of_files)
-        for file_path, file_access in found_files_map.items():
-            media_dir = self.create_media_dir_parent(file_access.path)
-            new_media_file = MediaFile(file_access, media_dir, self)
+        for file_path, file_description in found_files_map.items():
+            media_dir = self.create_media_dir_parent(file_description.relative_path)
+            new_media_file = MediaFile(file_description, media_dir, self)
             self.add_file(new_media_file)
             number_of_files += 1
             LOGGER.update(nb_file=number_of_files)
         LOGGER.end(nb_file=number_of_files)
 
-    def import_zip_file(self, zip_file_path, file_map: Dict[str, FileAccess], ignored_files: List[str]):
+    def import_zip_file(self, zip_file_path, file_map: Dict[str, FileDescription], ignored_files: List[str]):
         size = 0
         nb_mfiles = 0
         with zipfile.ZipFile(zip_file_path) as zip_file:
@@ -465,21 +479,18 @@ class MediaSet:
                     number_of_files += 1
                     if extension in MANAGED_TYPE:
                         relative_path = (Path(zip_file_path) / file_name).relative_to(self.root_path).as_posix()
+                        zip_relative_path = Path(zip_file_path).relative_to(self.root_path).as_posix()
                         nb_mfiles += 1
                         if relative_path not in self.filename_map:
                             file_size = file_info.file_size
                             size += file_size
-                            zip_file_access = ZipFileAccess(zip_file_path, file_name, file_size)
-                            file_map[zip_file_access.path] = zip_file_access
+                            zip_file_desc = ZipFileDescription(zip_relative_path, file_name, file_size)
+                            file_map[zip_file_desc.get_relative_path()] = zip_file_desc
                         else:
-                            size += self.filename_map[relative_path].file_access.file_size
+                            size += self.filename_map[relative_path].file_desc.file_size
                             self.filename_map[relative_path].exists = True
-                            # Update path in case mount directory changed since last dump of the data
-                            self.filename_map[relative_path].file_access.zip_path = zip_file_path
-                            self.filename_map[relative_path].update_full_path(
-                                (Path(zip_file_path) / file_name).as_posix())
                     else:
-                        ignored_files.append(str(self.root_path / zip_file_path))
+                        ignored_files.append((Path(self.root_path) / zip_file_path).as_posix())
         return number_of_files, nb_mfiles, size
 
     def update_from_disk(self):
@@ -497,7 +508,7 @@ class MediaSet:
             "{nb_file} files found ({nb_sfiles} standard, {nb_zfiles} zipped in {nb_zip} archive(s)) [{size}]")
         LOGGER.update(nb_file=nb_files, nb_sfiles=nb_sfiles, nb_zfiles=nb_zfiles, nb_zip=nb_zip,
                       size=naturalsize(total_size))
-        not_loaded_files: Dict[str, FileAccess] = {}
+        not_loaded_files: Dict[str, FileDescription] = {}
         ignored_files: List[str] = []
         for path, dir_list, file_list in os.walk(self.root_path, topdown=True):
             for file in file_list:
@@ -507,13 +518,11 @@ class MediaSet:
                     relative_path = file_path.relative_to(self.root_path).as_posix()
                     if relative_path not in self.filename_map:
                         file_size = file_path.stat().st_size
-                        file_access = StandardFileAccess(file_path, file_size)
-                        not_loaded_files[file_access.path] = file_access
+                        file_desc = StandardFileDescription(relative_path, file_size)
+                        not_loaded_files[file_desc.relative_path] = file_desc
                     else:
                         self.filename_map[relative_path].exists = True
-                        file_size = self.filename_map[relative_path].file_access.file_size
-                        # Update path in case mount directory changed since last dump of the data
-                        self.filename_map[relative_path].update_full_path(file_path.as_posix())
+                        file_size = self.filename_map[relative_path].file_desc.file_size
                     nb_files += 1
                     nb_m_files += 1
                     nb_sfiles += 1
@@ -526,7 +535,7 @@ class MediaSet:
                     total_size += size
                     nb_zip += 1
                 else:
-                    ignored_files.append(file_path)
+                    ignored_files.append(file_path.as_posix())
                     nb_files += 1
                     nb_sfiles += 1
             LOGGER.update(nb_file=nb_files, nb_sfiles=nb_sfiles, nb_zfiles=nb_zfiles, nb_zip=nb_zip,
@@ -535,16 +544,8 @@ class MediaSet:
         LOGGER.end(nb_file=nb_files, nb_sfiles=nb_sfiles, nb_zfiles=nb_zfiles, nb_zip=nb_zip,
                    size=naturalsize(total_size))
 
-        saved_file = self.output_directory.save_list(ignored_files, "ignored-files.json")
+        saved_file = OutputDirectory.get(self.root_path).save_list(ignored_files, "ignored-files.json")
         LOGGER.info_indent("{l1} files ignored [{saved}]".format(l1=len(ignored_files), saved=saved_file))
         LOGGER.info_indent("{l1} detected as media files".format(l1=nb_m_files))
 
         return not_loaded_files
-
-
-def get_files_with_thumbnail_errors(self):
-    error_files = []
-    for media_file in self:
-        if media_file.metadata[THUMBNAIL].error:
-            error_files.append(media_file.file_access.path)
-    return error_files

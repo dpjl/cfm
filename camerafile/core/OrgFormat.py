@@ -11,10 +11,10 @@ class OrgFormat:
 
     def __init__(self, format_description: str):
         self.format_description = format_description
-        self.fields = re.findall(r'(\${.*?:.*?})', format_description)
+        self.fields = re.findall(r'({.*?:.*?})', format_description)
         self.contents = []
         for field in self.fields:
-            self.contents.append(re.findall(r'\${(.*?):(.*?)}', field)[0])
+            self.contents.append(re.findall(r'{(.*?):(.*?)}', field)[0])
 
     def get_formatted_string(self, media: MediaFile):
         result = self.format_description
@@ -44,7 +44,7 @@ class OrgFormat:
 
 
 if __name__ == '__main__':
-    org = OrgFormat("${date:%Y}/${date:%m[%B]}/${cm:Unknown}")
+    org = OrgFormat("{date:%Y}/{date:%m[%B]}/{cm:Unknown}")
     with patch("camerafile.core.MediaFile.MediaFile", ) as mock:
         f = mock.return_value
         f.get_camera_model.return_value = "CamCam"

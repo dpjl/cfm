@@ -1,1 +1,5 @@
-cfm.exe %*
+#!/bin/bash
+
+current_path=$(dirname "$0")
+
+$current_path/bin/cfm $@

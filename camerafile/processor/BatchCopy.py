@@ -1,10 +1,13 @@
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import BatchElement
+from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Logging import Logger
+from camerafile.core.MediaFile import MediaFile
 from camerafile.core.MediaSet import MediaSet
-from camerafile.fileaccess.FileAccess import CopyMode, FileAccess
+from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.fileaccess.FileAccess import CopyMode
+from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.CopyFile import CopyFile
 
@@ -24,8 +27,8 @@ class BatchCopy(CFMBatch):
         self.new_media_set = new_media_set
         self.copy_mode = copy_mode
         CFMBatch.__init__(self, batch_title=self.BATCH_TITLE,
-                          stderr_file=old_media_set.output_directory.batch_stderr,
-                          stdout_file=old_media_set.output_directory.batch_stdout)
+                          stderr_file=OutputDirectory.get(self.old_media_set.root_path).batch_stderr,
+                          stdout_file=OutputDirectory.get(self.old_media_set.root_path).batch_stdout)
 
         self.result_stats = {}
         self.not_copied_files = []
@@ -47,20 +50,20 @@ class BatchCopy(CFMBatch):
         new_path_map = {}
         for n_copy in n_copy_list.values():
             for media_list in n_copy:
-                media_file = self.old_media_set.get_oldest_modified_file(media_list)
+                media_file: MediaFile = self.old_media_set.get_oldest_modified_file(media_list)
                 if not self.new_media_set.contains(media_file):
-                    # _, new_path = media_file.get_destination_path(new_media_set)
-                    _, new_path = media_file.get_organization_path(self.new_media_set, new_path_map)
+                    new_root, _, new_path = CopyFile.get_organization_path(media_file, self.new_media_set, new_path_map)
                     new_path_map[new_path] = 0
-                    args_list.append(BatchElement((media_file.file_access, new_path, self.copy_mode),
-                                                  media_file.relative_path))
+                    args_list.append(BatchElement(
+                        (media_file.parent_set.root_path, media_file.file_desc, new_root, new_path, self.copy_mode),
+                        media_file.get_path()))
         return args_list
 
-    def post_task(self, result_copy: Tuple[bool, str, FileAccess, Union[FileAccess, None]], pb, replace=False):
-        success, status, old_file_access, new_file_access = result_copy
-        original_media = self.old_media_set.get_media(old_file_access.id)
+    def post_task(self, result: Tuple[bool, str, FileDescription, Union[FileDescription, None]], pb, replace=False):
+        success, status, old_file_spec, new_file_spec = result
+        original_media: MediaFile = self.old_media_set.get_media(old_file_spec.id)
         if success:
-            original_media.copy(self.new_media_set, new_file_access)
+            CopyFile.copy(original_media, self.new_media_set, new_file_spec)
         else:
             self.not_copied_files.append(original_media)
 
@@ -72,7 +75,8 @@ class BatchCopy(CFMBatch):
         pb.increment()
 
     def finalize(self):
-        LOGGER.info(self.old_media_set.output_directory.save_list(self.not_copied_files, self.NOT_COPIED_FILES_JSON))
+        LOGGER.info(OutputDirectory.get(self.old_media_set.root_path).save_list(self.not_copied_files,
+                                                                                self.NOT_COPIED_FILES_JSON))
 
         print(self.EMPTY_STRING)
         tab = ConsoleTable()

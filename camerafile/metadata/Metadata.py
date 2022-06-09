@@ -1,20 +1,14 @@
 import logging
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from camerafile.core.MediaFile import MediaFile
+from camerafile.mdtools.MdConstants import MetadataNames
 
 LOGGER = logging.getLogger(__name__)
 
 
 class Metadata:
 
-    def __init__(self, media_file: "MediaFile"):
-        self.media_file = media_file
+    def __init__(self):
         self.value = None
         self.binary_value = None
-        self.file_access = None
 
     def __str__(self):
         return self.get()
@@ -30,3 +24,15 @@ class Metadata:
 
     def reset_value(self):
         self.value = None
+
+    def get_md_value(self, md_name):
+        if self.value is not None:
+            if md_name.value in self.value:
+                return self.value[md_name.value]
+        return None
+
+    def get_date(self):
+        return self.get_md_value(MetadataNames.CREATION_DATE)
+
+    def get_last_modification_date(self):
+        return self.get_md_value(MetadataNames.MODIFICATION_DATE)

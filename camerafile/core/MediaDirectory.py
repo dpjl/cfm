@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 
-from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
+from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
 from camerafile.metadata.MetadataList import MetadataList
 
 
@@ -14,8 +14,8 @@ class MediaDirectory:
         self.parent_set = parent_set
         self.id = hashlib.md5(self.path.encode()).hexdigest()
         self.extension = None
-        self.file_access = StandardFileAccess(path),
-        self.metadata = MetadataList(self)
+        self.file_desc = StandardFileDescription(path),
+        self.metadata = MetadataList()
 
     def __str__(self):
         return self.path

@@ -13,6 +13,7 @@ from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
 from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
 from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
 
@@ -144,24 +145,24 @@ class MediaSetDatabase:
         return text, others
 
     @staticmethod
-    def new_media_file(media_set: "MediaSet", file_access: FileAccess, file_id, json_m, binary_m):
+    def new_media_file(media_set: "MediaSet", file_desc: FileDescription, file_id, json_m, binary_m):
 
         metadata = json.loads(json_m) if json_m is not None else "{}"
         binary_metadata = dill.loads(binary_m) if binary_m is not None else "{}"
         try:
-            media_dir = media_set.create_media_dir_parent(file_access.path)
+            media_dir = media_set.create_media_dir_parent(file_desc.relative_path)
 
-            new_media_file = MediaFile(file_access, media_dir, media_set)
+            new_media_file = MediaFile(file_desc, media_dir, media_set)
             new_media_file.metadata.load_from_dict(metadata)
             new_media_file.metadata.load_binary_from_dict(binary_metadata)
             new_media_file.db_id = file_id
             new_media_file.exists_in_db = True
             return new_media_file
         except JSONDecodeError:
-            print("Invalid json in database: %s" % file_access.path)
+            print("Invalid json in database: %s" % file_desc.relative_path)
             return None
 
-    def load_all_files(self, media_set: "MediaSet", not_loaded_files: Dict[str, FileAccess]):
+    def load_all_files(self, media_set: "MediaSet", not_loaded_files: Dict[str, FileDescription]):
 
         if not self.is_active:
             return not_loaded_files

@@ -10,27 +10,27 @@ from typing import Tuple, Union
 
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import FileAccess, CopyMode
+from camerafile.fileaccess.FileDescription import FileDescription
+from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
 from camerafile.mdtools.AVIMdReader import AVIMdReader
 from camerafile.mdtools.ExifToolReader import ExifTool, ExifToolNotFound
 from camerafile.mdtools.JPEGMdReader import JPEGMdReader
 from camerafile.mdtools.MdException import MdException
-from camerafile.metadata.MetadataFaces import MetadataFaces
 from camerafile.tools.CFMImage import CFMImage
 from camerafile.tools.Hash import Hash
 
 
 class StandardFileAccess(FileAccess):
 
-    def __init__(self, path, file_size=None):
-        super().__init__(path)
-        self.file_size = file_size
+    def __init__(self, root_path, file_description: StandardFileDescription):
+        super().__init__(root_path, file_description)
 
     def open(self):
-        return open(self.path, "rb")
+        return open(self.get_path(), "rb")
 
     def get_file_size(self):
-        if self.file_size is None:
-            self.file_size = os.stat(self.path).st_size
+        if self.file_desc.file_size is None:
+            self.file_size = os.stat(self.get_path()).st_size
         return self.file_size
 
     def delete_file(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
@@ -40,31 +40,34 @@ class StandardFileAccess(FileAccess):
             if password is not None:
                 sync_file.setpassword(password)
                 sync_file.setencryption(pyzipper.WZ_AES, nbits=128)
-            sync_file.write(self.path, self.relative_path)
-        os.remove(self.path)
-        return True, "Moved to trash", self, ZipFileAccess(trash_file_path, self.relative_path, self.file_size)
+            sync_file.write(self.get_path(), self.file_desc.relative_path)
+        os.remove(self.get_path())
+        return True, "Moved to trash", self, ZipFileAccess(trash_file_path, self.file_desc.relative_path,
+                                                           self.file_desc.file_size)
 
-    def copy_to(self, new_file_path: str, copy_mode: CopyMode) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
+    def copy_to(self, new_root_path, new_relative_file_path: str, copy_mode: CopyMode) \
+            -> Tuple[bool, str, FileDescription, Union[FileDescription, None]]:
+        new_file_path = new_root_path / new_relative_file_path
         if os.path.exists(new_file_path):
-            return False, "File does not exist", self, None
+            return False, "File does not exist", self.file_desc, None
         os.makedirs(Path(new_file_path).parent, exist_ok=True)
         if copy_mode == CopyMode.COPY:
-            shutil.copy2(self.path, new_file_path)
+            shutil.copy2(self.get_path(), new_file_path)
         elif copy_mode == CopyMode.SOFT_LINK:
-            os.symlink(self.path, new_file_path)
+            os.symlink(self.get_path(), new_file_path)
         elif copy_mode == CopyMode.HARD_LINK:
-            os.link(self.path, new_file_path)
+            os.link(self.get_path(), new_file_path)
         else:
-            return False, "Invalid copy path", self, None
-        return True, "Copied", self, StandardFileAccess(new_file_path, self.file_size)
+            return False, "Invalid copy path", self.file_desc, None
+        return True, "Copied", self.file_desc, StandardFileDescription(new_relative_file_path, self.file_desc.file_size)
 
     def get_last_modification_date(self):
         # round to the nearest even second because of differences between ntfs en fat
-        return self.even_round(datetime.fromtimestamp(Path(self.path).stat().st_mtime))
+        return self.even_round(datetime.fromtimestamp(Path(self.get_path()).stat().st_mtime))
 
     def call_exif_tool(self, call_info, args):
         try:
-            return call_info, ExifTool.get_metadata(self.path, *args)
+            return call_info, ExifTool.get_metadata(self.get_path(), *args)
         except ExifToolNotFound as e:
             raise e
         except MdException as e:
@@ -76,7 +79,7 @@ class StandardFileAccess(FileAccess):
         else:
             if self.is_image():
                 try:
-                    return "JPEGMdReader", JPEGMdReader(self.path).get_metadata(*args)
+                    return "JPEGMdReader", JPEGMdReader(self.get_path()).get_metadata(*args)
                 except:
                     return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
 
@@ -85,7 +88,7 @@ class StandardFileAccess(FileAccess):
             #    return QTMdReader(self.path).get_metadata(*args)
             elif self.is_avi_video():
                 try:
-                    return "AVIMdReader", AVIMdReader(self.path).get_metadata(*args)
+                    return "AVIMdReader", AVIMdReader(self.get_path()).get_metadata(*args)
                 except:
                     return self.call_exif_tool("AVIMdReader -> ExifTool", args)
             else:
@@ -93,32 +96,25 @@ class StandardFileAccess(FileAccess):
 
     def hash(self):
         if self.is_image():
-            with open(self.path, 'rb') as f:
+            with open(self.get_path(), 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
-                    with CFMImage(mmap_obj, self.name) as image:
+                    with CFMImage(mmap_obj, self.file_desc.name) as image:
                         try:
                             return Hash.image_hash(image.image_data)
                         except BaseException as e:
-                            print("image_hash: " + str(e) + " / " + self.relative_path)
+                            print("image_hash: " + str(e) + " / " + self.file_desc.relative_path)
                             return str(self.get_file_size())
         else:
             return str(self.get_file_size())
 
-    def compute_face_boxes(self):
-        if self.is_image():
-            with open(self.path, 'rb') as f:
-                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
-                    with CFMImage(mmap_obj, self.name) as image:
-                        return MetadataFaces.static_compute_face_boxes(image)
-
     def get_image(self):
         if self.is_image():
-            with open(self.path, 'rb') as f:
+            with open(self.get_path(), 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
-                    return CFMImage(mmap_obj, self.name)
+                    return CFMImage(mmap_obj, self.file_desc.name)
 
     def get_cv2_image(self):
-        return cv2.imread(self.path)
+        return cv2.imread(self.get_path())
         if self.is_image():
             with open(self.path, 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:

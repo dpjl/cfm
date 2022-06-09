@@ -1,3 +1,6 @@
 {
-  "exiftool": "bin/exiftool/ExifTool.exe"
+  "exiftool-nt": "bin/exiftool/ExifTool.exe",
+  "exiftool-posix": "bin/exiftool/Image-ExifTool-11.97/exiftool",
+  "dlib-predictor-dir": "data/models",
+  "dlib-predictor": "shape_predictor_68_face_landmarks_GTX.dat"
 }

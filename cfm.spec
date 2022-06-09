@@ -2,17 +2,11 @@
 
 block_cipher = None
 
-face_models = [
-  ('./camerafile/data/models/dlib_face_recognition_resnet_model_v1.dat', './face_recognition_models/models'),
-  ('./camerafile/data/models/mmod_human_face_detector.dat', './face_recognition_models/models'),
-  ('./camerafile/data/models/shape_predictor_5_face_landmarks.dat', './face_recognition_models/models'),
-  ('./camerafile/data/models/shape_predictor_68_face_landmarks.dat', './face_recognition_models/models')
-]
 
 a = Analysis(['./camerafile/cfm.py'],
              pathex=[],
-             binaries=face_models,
-             datas=[('./camerafile/conf/logging.json', 'conf'), ('./camerafile/conf/cfm.json', 'conf'), ('./camerafile/bin/' + os.environ['EXIF_TOOL'], './camerafile/bin/exiftool/')],
+             binaries=[],
+             datas=[('./camerafile/data/models/links.txt', 'data/models'), ('./camerafile/conf/logging.json', 'conf'), ('./camerafile/conf/cfm.json', 'conf'), ('./camerafile/bin/' + os.environ['EXIF_TOOL'], './camerafile/bin/exiftool/')],
              hiddenimports=["camerafile.processor.BatchResetInternalMd"],
              hookspath=["./camerafile/hooks"],
              runtime_hooks=["./camerafile/py_installer_runtime_hook.py"],
@@ -22,24 +16,24 @@ a = Analysis(['./camerafile/cfm.py'],
              cipher=block_cipher,
              noarchive=False)
 
-ignore=["mkl", "libopenblas"]
+#ignore=["mkl", "libopenblas"]
 
 pyz = PYZ(a.pure, a.zipped_data,
              cipher=block_cipher)
 
-def remove_from_list(input, keys):
-    outlist = []
-    for item in input:
-        name, _, _ = item
-        flag = 0
-        for key_word in keys:
-            if name.find(key_word) > -1:
-                flag = 1
-        if flag != 1:
-            outlist.append(item)
-    return outlist
+#def remove_from_list(input, keys):
+#    outlist = []
+#    for item in input:
+#        name, _, _ = item
+#        flag = 0
+#        for key_word in keys:
+#            if name.find(key_word) > -1:
+#                flag = 1
+#        if flag != 1:
+#            outlist.append(item)
+#    return outlist
 
-a.binaries = remove_from_list(a.binaries, ignore)
+#a.binaries = remove_from_list(a.binaries, ignore)
 
 exe = EXE(pyz, 
           a.scripts, 

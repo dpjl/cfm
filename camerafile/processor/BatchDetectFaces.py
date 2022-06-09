@@ -1,13 +1,10 @@
-import datetime
-
-import humanize
-
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import BatchElement
+from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Constants import IMAGE_TYPE, FACES
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
 from camerafile.core.MediaSet import MediaSet
+from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.ComputeFaceBoxes import ComputeFaceBoxes
 
@@ -21,8 +18,8 @@ class BatchDetectFaces(CFMBatch):
         self.media_set = media_set
         self.processed_media_files = []
         CFMBatch.__init__(self, batch_title=self.BATCH_TITLE,
-                          stderr_file=media_set.output_directory.batch_stderr,
-                          stdout_file=media_set.output_directory.batch_stdout)
+                          stderr_file=OutputDirectory.get(media_set.root_path).batch_stderr,
+                          stdout_file=OutputDirectory.get(media_set.root_path).batch_stdout)
         self.number_of_faces = 0
         self.det_dur = 0
         self.enc_dur = 0
@@ -34,21 +31,25 @@ class BatchDetectFaces(CFMBatch):
         return ComputeFaceBoxes.execute
 
     def arguments(self):
+        # Arguments: root_path / file_access
+
         args_list = []
         for media_file in self.media_set:
-            if media_file.extension in IMAGE_TYPE and media_file.metadata[FACES].value is None:
-                args_list.append(BatchElement(media_file.metadata[FACES], media_file.relative_path))
-            elif media_file.extension in IMAGE_TYPE:
+            if media_file.get_extension() in IMAGE_TYPE and media_file.metadata[FACES].value is None:
+                args_list.append(
+                    BatchElement((self.media_set.root_path, media_file.file_desc, media_file.metadata[FACES]),
+                                 media_file.get_path()))
+            elif media_file.get_extension in IMAGE_TYPE:
                 self.number_of_faces += len(media_file.metadata[FACES].value["locations"])
         return args_list
 
     def post_task(self, result, progress_bar, replace=True):
-        result_face_metadata, det_dur, enc_dur = result
+        media_id, result_face_metadata, det_dur, enc_dur = result
         if det_dur is not None:
             self.det_dur += det_dur
         if enc_dur is not None:
             self.enc_dur += enc_dur
-        media_file: MediaFile = self.media_set.get_media(result_face_metadata.file_access.id)
+        media_file: MediaFile = self.media_set.get_media(media_id)
         media_file.metadata[FACES] = result_face_metadata
         self.processed_media_files.append(media_file)
         if result_face_metadata.value is not None and "locations" in result_face_metadata.value:
