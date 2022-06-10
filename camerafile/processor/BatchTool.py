@@ -1,18 +1,20 @@
 import threading
-import time
 import traceback
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, Pipe
 from multiprocessing import Queue
 from multiprocessing import current_process
+from multiprocessing.connection import Connection
 from queue import Empty
 from typing import List
 
 from camerafile.console.ConsoleProgressBar import ConsoleProgressBar
 from camerafile.console.StandardOutputWrapper import StdoutRecorder
+from camerafile.core.Logging import Logger
 from camerafile.mdtools.ExifToolReader import ExifTool
 
 DEFAULT_NB_SUB_PROCESS = cpu_count()
 
+LOGGER = Logger(__name__)
 
 class BatchElement:
 
@@ -26,7 +28,6 @@ class BatchElement:
 class TaskWithProgression:
     current_multiprocess_task = None
     details_queue = None
-    stdout_queue = None
     custom_owe = None
 
     def __init__(self, batch_title="", nb_sub_process=None, on_worker_start=None, on_worker_start_args=(),
@@ -36,7 +37,6 @@ class TaskWithProgression:
         self.custom_ows = on_worker_start
         self.custo_ows_args = on_worker_start_args
         self.custom_owe = on_worker_end
-        self.in_progress = False
         self.stderr_file = stderr_file
         self.stdout_file = stdout_file
         self.nb_errors = 0
@@ -115,12 +115,11 @@ class TaskWithProgression:
             return batch_element, traceback.format_exc()
 
     @staticmethod
-    def on_worker_start(task, details_queue, stdout_queue, custom_ows=None, custom_ows_args=(),
+    def on_worker_start(task, details_queue, custom_ows=None, custom_ows_args=(),
                         custom_owe=None):
         stdout_recorder = StdoutRecorder().start()
         TaskWithProgression.current_multiprocess_task = task
         TaskWithProgression.details_queue = details_queue
-        TaskWithProgression.stdout_queue = stdout_queue
         TaskWithProgression.custom_owe = custom_owe
         if custom_ows:
             custom_ows(*custom_ows_args)
@@ -128,38 +127,25 @@ class TaskWithProgression:
             details_queue.put(stdout_recorder.stop())
 
     @staticmethod
-    def on_worker_end(*args):
+    def on_worker_end(child_connection: Connection):
         stdout_recorder = StdoutRecorder().start()
         if TaskWithProgression.custom_owe:
             TaskWithProgression.custom_owe()
-        if TaskWithProgression.stdout_queue is not None:
-            TaskWithProgression.stdout_queue.put(stdout_recorder.stop())
-        time.sleep(1)
+        if TaskWithProgression.details_queue is not None:
+            TaskWithProgression.details_queue.put(stdout_recorder.stop())
+        child_connection.recv()
 
-    def update_stdout(self, queue: Queue, progress_bar: ConsoleProgressBar):
-        if queue is None:
-            return
-        while self.in_progress:
-            while True:
-                try:
-                    worker_stdout = queue.get(block=False)
-                    if worker_stdout != "":
-                        progress_bar.stdout.writelines_with_lock(worker_stdout.splitlines())
-                except Empty:
-                    break
-            time.sleep(1)
-
-    def update_details(self, queue: Queue, progress_bar: ConsoleProgressBar, max_iter):
+    @staticmethod
+    def update_details(queue: Queue, progress_bar: ConsoleProgressBar, max_iter):
         if queue is None:
             return
         iter_nb = 0
-        while iter_nb < max_iter and self.in_progress:
-            iter_nb += 1
+        while iter_nb < max_iter:
             try:
-                # print(str(iter_nb) + "/" + str(max_iter))
-                val = queue.get(block=True, timeout=5)
+                val = queue.get(block=True, timeout=10)
             except Empty:
                 continue
+            iter_nb += 1
             if isinstance(val, str):
                 worker_stdout = val
                 if worker_stdout != "":
@@ -167,18 +153,6 @@ class TaskWithProgression:
             else:
                 [n, detail] = val
                 progress_bar.set_detail(n, detail)
-
-        # Read all remaining elements and quit
-        while iter_nb < max_iter:
-            iter_nb += 1
-            try:
-                val = queue.get(block=False)
-            except Empty:
-                break
-            if isinstance(val, str):
-                worker_stdout = val
-                if worker_stdout != "":
-                    progress_bar.stdout.writelines_with_lock(worker_stdout.splitlines())
 
     def update_status(self, progress_bar):
         status_line_stdout = ">> Stdout redirected to {file} ({nb_lines} line(s))"
@@ -212,17 +186,14 @@ class TaskWithProgression:
 
     def execute_multiprocess_batch(self, nb_process, task, args_list: List[BatchElement], post_task, progress_bar):
         details_queue = Queue()
-        stdout_queue = Queue()
         nb_elements = len(args_list)
         nb_process = min(nb_process, nb_elements)
         pool = Pool(processes=nb_process,
                     initializer=self.on_worker_start,
-                    initargs=(task, details_queue, stdout_queue, self.custom_ows, self.custo_ows_args, self.custom_owe))
-        self.in_progress = True
-        details_thread = threading.Thread(target=self.update_details, args=(details_queue, progress_bar, nb_elements))
+                    initargs=(task, details_queue, self.custom_ows, self.custo_ows_args, self.custom_owe))
+        details_thread = threading.Thread(target=self.update_details,
+                                          args=(details_queue, progress_bar, 2 * nb_process + nb_elements))
         details_thread.start()
-        stdout_thread = threading.Thread(target=self.update_stdout, args=(stdout_queue, progress_bar))
-        stdout_thread.start()
         self.nb_errors = 0
         self.stdout_nb_lines = 0
         self.update_status(progress_bar)
@@ -234,16 +205,21 @@ class TaskWithProgression:
                 if batch_element.error:
                     self.process_error(batch_element, progress_bar)
                 post_task(batch_element.result, progress_bar, replace=True)
-            pool.map_async(self.on_worker_end, nb_process * [()])
-
-        except BaseException as e:
+        except BaseException:
             print("Unexpected exception")
             traceback.print_exc()
         finally:
+            LOGGER.debug("Send ending tasks to workers")
+            ending_pipes = [Pipe() for _ in range(nb_process)]
+            ending_child_pipes = [child for _, child in ending_pipes]
+            pool.map_async(self.on_worker_end, ending_child_pipes)
+            details_thread.join(timeout=10)
+            if details_thread.is_alive():
+                print("Warning: details_thread could not be stopped.")
+            for parent, _ in ending_pipes:
+                parent.send("STOP")
+                parent.close()
             progress_bar.stop()
-            pool.close()
+            LOGGER.debug("Terminating pool")
+            pool.terminate()
             pool.join()
-            # TODO: put a timeout and a warning if we can't join the thread
-            self.in_progress = False
-            details_thread.join()
-            stdout_thread.join()

@@ -41,8 +41,8 @@ class ConsoleProgressBar:
         self.details = {}
         self.status = []
 
-        thread = threading.Thread(None, self.auto_refresh, None, [], {})
-        thread.start()
+        self.thread = threading.Thread(None, self.auto_refresh, None, [], {})
+        self.thread.start()
 
     @staticmethod
     def get_short_duration_string(duration):
@@ -127,7 +127,9 @@ class ConsoleProgressBar:
     def stop(self):
         self.run = False
         self.processing_time = self.get_duration_string(time.time() - self.start_time)
-        time.sleep(2 * REFRESH_DELAY)
+        self.thread.join(timeout=10)
+        if self.thread.is_alive():
+            print("Warning: ConsoleProgressBar.thread could not be stopped.")
 
     def cut_to_screen_size(self, content, other_content_len=0):
         line_size = len(content) + other_content_len
