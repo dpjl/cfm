@@ -12,15 +12,16 @@ class LoadInternalMetadata:
     @staticmethod
     def execute(batch_element: BatchElement):
         root_dir, file_desc, metadata = batch_element.args
+        thumbnail = None
         try:
-            LoadInternalMetadata.load_internal_metadata(root_dir, file_desc, metadata)
+            thumbnail = LoadInternalMetadata.load_internal_metadata(root_dir, file_desc, metadata)
         except BaseException as e:
             if Configuration.get().exit_on_error:
                 raise
             else:
                 batch_element.error = "LoadInternalMetadata: [{info}] - ".format(info=batch_element.info) + str(e)
         batch_element.args = None
-        batch_element.result = (file_desc.get_id(), metadata)
+        batch_element.result = (file_desc.get_id(), thumbnail, metadata)
         return batch_element
 
     @staticmethod
@@ -55,13 +56,14 @@ class LoadInternalMetadata:
         # if camera_model is not None and camera_model != "" and self.file_access.extension in Constants.VIDEO_TYPE:
         #    print(str(self.file_access.relative_path) + ":" + camera_model)
 
-        metadata.thumbnail = thumbnail
         metadata.value = {MetadataNames.MODEL.value: camera_model,
                           MetadataNames.CREATION_DATE.value: date,
                           MetadataNames.MODIFICATION_DATE.value: last_modified_date,
                           MetadataNames.WIDTH.value: width,
                           MetadataNames.HEIGHT.value: height,
                           MetadataNames.ORIENTATION.value: orientation}
+
+        return thumbnail
 
 
 if __name__ == '__main__':

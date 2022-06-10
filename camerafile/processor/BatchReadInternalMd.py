@@ -1,4 +1,5 @@
 from camerafile.console.ConsoleTable import ConsoleTable
+from camerafile.core.MediaFile import MediaFile
 from camerafile.processor.BatchTool import BatchElement, TaskWithProgression
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Constants import INTERNAL, THUMBNAIL
@@ -73,13 +74,12 @@ class BatchReadInternalMd(TaskWithProgression):
         return args_list
 
     def post_task(self, result, progress_bar, replace=False):
-        media_id, modified_metadata = result
+        media_id, thumbnail, modified_metadata = result
         self.update_call_info(modified_metadata.call_info)
-        original_media = self.media_set.get_media(media_id)
+        original_media: MediaFile = self.media_set.get_media(media_id)
         if replace:
             original_media.metadata[INTERNAL] = modified_metadata
-        original_media.metadata[THUMBNAIL].thumbnail = original_media.metadata[INTERNAL].thumbnail
-        original_media.metadata[INTERNAL].thumbnail = None
+        original_media.metadata[THUMBNAIL].thumbnail = thumbnail
         original_media.parent_set.add_to_date_size_name_map(original_media)
         self.update_stats(modified_metadata, original_media.metadata[THUMBNAIL])
         # in case signature was already existing, but date was not, we update date_sig map

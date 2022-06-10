@@ -85,7 +85,7 @@ def create_main_args_parser():
 def execute(args):
     from camerafile.core.MediaSet import MediaSet
     from camerafile.processor.BatchComputeCm import BatchComputeCm
-    from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import \
+    from camerafile.processor.BatchComputeNecessarySignatures import \
         BatchComputeNecessarySignaturesMultiProcess
     from camerafile.processor.BatchCopy import BatchCopy
     from camerafile.processor.BatchDetectFaces import BatchDetectFaces

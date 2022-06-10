@@ -3,7 +3,7 @@ from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
 from camerafile.core.OutputDirectory import OutputDirectory
-from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import BatchComputeNecessarySignaturesMultiProcess
+from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
 from camerafile.tools.PdfFile import PdfFile
 
 LOGGER = Logger(__name__)
