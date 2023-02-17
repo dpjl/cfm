@@ -4,8 +4,8 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+import cv2
 import pyzipper
-from cv2 import cv2
 from typing import Tuple, Union
 
 from camerafile.core.Configuration import Configuration
@@ -30,8 +30,8 @@ class StandardFileAccess(FileAccess):
 
     def get_file_size(self):
         if self.file_desc.file_size is None:
-            self.file_size = os.stat(self.get_path()).st_size
-        return self.file_size
+            self.file_desc.file_size = os.stat(self.get_path()).st_size
+        return self.file_desc.file_size
 
     def delete_file(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
         from camerafile.fileaccess.ZipFileAccess import ZipFileAccess

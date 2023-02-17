@@ -3,8 +3,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Union
 
+import cv2
 import numpy as np
-from cv2 import cv2
 from pyzipper import zipfile
 
 from camerafile.core.Configuration import Configuration
@@ -31,8 +31,8 @@ class ZipFileAccess(FileAccess):
     def get_file_size(self):
         if self.file_desc.file_size is None:
             with zipfile.ZipFile(self.get_zip_path()) as zip_file:
-                self.file_size = zip_file.getinfo(self.file_desc.file_path).file_size
-        return self.file_size
+                self.file_desc.file_size = zip_file.getinfo(self.file_desc.file_path).file_size
+        return self.file_desc.file_size
 
     def open(self):
         with zipfile.ZipFile(self.get_zip_path()) as zip_file:
