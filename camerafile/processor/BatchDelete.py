@@ -1,9 +1,10 @@
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
-from camerafile.core.BatchTool import BatchArgs
+from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
+from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.processor.CFMBatch import CFMBatch
 from camerafile.task.DeleteFile import DeleteFile
@@ -23,7 +24,10 @@ class BatchDelete(CFMBatch):
         self.media_set_1 = media_set_1
         self.media_set_2 = media_set_2
         self.copy_mode = copy_mode
-        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE)
+        CFMBatch.__init__(self, batch_title=self.BATCH_TITLE,
+                          stderr_file=OutputDirectory.get(self.media_set_1.root_path).batch_stderr,
+                          stdout_file=OutputDirectory.get(self.media_set_1.root_path).batch_stdout)
+
         self.result_stats = {}
         self.not_copied_files = []
 
@@ -44,8 +48,8 @@ class BatchDelete(CFMBatch):
             if not self.media_set_1.contains(media_file):
                 if not media_file.is_in_trash():
                     args_list.append(
-                        BatchArgs((media_file.file_access, self.media_set_2.get_trash_file()),
-                                  media_file.relative_path))
+                        BatchElement((media_file.file_desc, self.media_set_2.get_trash_file()),
+                                     media_file.relative_path))
         return args_list
 
     def post_task(self, result_delete: Tuple[bool, str, FileAccess, Union[FileAccess, None]], pb, replace=False):

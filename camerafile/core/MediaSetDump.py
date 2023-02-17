@@ -1,10 +1,13 @@
 import pickle
 
 import time
+from typing import TYPE_CHECKING
 
 from camerafile.core.Configuration import Configuration as Conf
-from camerafile.core.Constants import THUMBNAIL
+from camerafile.core.Constants import THUMBNAIL, INTERNAL
 from camerafile.core.Logging import Logger
+if TYPE_CHECKING:
+    from camerafile.core.MediaSet import MediaSet
 
 LOGGER = Logger(__name__)
 
@@ -25,23 +28,19 @@ class MediaSetDump:
     def exists(self):
         return self.dump_file.exists()
 
-    def load(self, media_set):
+    def load(self):
         if self.is_active and self.exists():
             with open(self.dump_file, "rb") as file:
                 LOGGER.info("Restoring dump...")
                 loaded = pickle.load(file)
-                media_set.media_file_list = loaded.media_file_list
-                media_set.media_dir_list = loaded.media_dir_list
-                media_set.date_size_map = loaded.date_size_map
-                media_set.date_sig_map = loaded.date_sig_map
-                media_set.id_map = loaded.id_map
-                media_set.filename_map = loaded.filename_map
-                return True
-        return False
+                LOGGER.debug("New MediaSet object loaded: " + str(id(self)))
+                return loaded
+        return None
 
-    def save(self, media_set):
+    def save(self, media_set: "MediaSet"):
         if self.is_active:
             for media_file in media_set:
+                media_file.metadata[INTERNAL].thumbnail = None
                 media_file.metadata[THUMBNAIL].thumbnail = None
             with open(self.dump_file, "wb") as file:
                 LOGGER.start("Writing " + str(self.dump_file) + "... {result}")
@@ -50,3 +49,4 @@ class MediaSetDump:
                 pickle.dump(media_set, file, protocol=pickle.HIGHEST_PROTOCOL)
                 processing_time = str(int(time.time() - start_time)) + " seconds."
                 LOGGER.end(result=processing_time)
+

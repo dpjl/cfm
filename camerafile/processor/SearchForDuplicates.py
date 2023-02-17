@@ -2,7 +2,8 @@ from camerafile.console.ConsoleTable import ConsoleTable
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
-from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import BatchComputeNecessarySignaturesMultiProcess
+from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
 from camerafile.tools.PdfFile import PdfFile
 
 LOGGER = Logger(__name__)
@@ -25,7 +26,7 @@ class SearchForDuplicates:
         tab.print_multi_line(duplicates_report)
 
         if Configuration.get().generate_pdf:
-            pdf_file = PdfFile(str(media_set.output_directory.path / "duplicates.pdf"))
+            pdf_file = PdfFile(str(OutputDirectory.get(media_set.root_path).path / "duplicates.pdf"))
 
             for n_copy, media_list_list in sorted(duplicates.items()):
                 if n_copy != 1:

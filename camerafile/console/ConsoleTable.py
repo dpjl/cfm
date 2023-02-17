@@ -23,6 +23,8 @@ class ConsoleTable:
         remaining = self.width
         #print('█', end='')
         for val in args:
+            if val is None:
+                val = ""
             col_width = min(remaining, int(self.width / number_of_columns))
             line = '|{col: ^{col_width}}'.format(
                 col=val[0:col_width], col_width=str(col_width))

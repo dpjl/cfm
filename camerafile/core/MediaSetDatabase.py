@@ -1,4 +1,3 @@
-import difflib
 import json
 import os
 import sqlite3
@@ -6,7 +5,6 @@ from datetime import datetime
 from json import JSONDecodeError
 
 import dill
-import sys
 from typing import Dict, Iterable
 from typing import TYPE_CHECKING
 
@@ -15,6 +13,9 @@ from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
 from camerafile.fileaccess.FileAccess import FileAccess
+from camerafile.fileaccess.FileDescription import FileDescription
+from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
+from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
 
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
@@ -40,18 +41,27 @@ class DBConnection:
 class MediaSetDatabase:
     __instance = {}
 
-    def __init__(self, output_directory):
-        self.cfm_file = output_directory.path / 'cfm.db'
-        self.thb_file = output_directory.path / 'thb.db'
+    def __init__(self, output_directory, db_file=None, thb_db_file=None):
+        self.cfm_file = db_file
+        self.thb_file = thb_db_file
+        if self.cfm_file is None and output_directory is not None:
+            self.cfm_file = output_directory.path / "cfm.db"
+        if self.thb_file is None and output_directory is not None:
+            self.thb_file = output_directory.path / "thb.db"
         self.cache_db_connection = None
         self.thb_db_connection = None
         self.is_active = Configuration.get().use_db_for_cache or self.exists()
 
     @staticmethod
-    def get(output_directory):
-        if output_directory not in MediaSetDatabase.__instance:
-            MediaSetDatabase.__instance[output_directory] = MediaSetDatabase(output_directory)
-        return MediaSetDatabase.__instance[output_directory]
+    def get(output_directory, db_file=None, thb_db_file=None):
+        db_id = str(output_directory.path) if output_directory is not None else ""
+        if db_file is not None:
+            db_id += db_file
+        if thb_db_file is not None:
+            db_id += thb_db_file
+        if db_id not in MediaSetDatabase.__instance:
+            MediaSetDatabase.__instance[db_id] = MediaSetDatabase(output_directory, db_file, thb_db_file)
+        return MediaSetDatabase.__instance[db_id]
 
     def initialize_cfm_connection(self):
         if self.is_active:
@@ -135,24 +145,24 @@ class MediaSetDatabase:
         return text, others
 
     @staticmethod
-    def new_media_file(media_set: "MediaSet", file_access: FileAccess, file_id, json_m, binary_m):
+    def new_media_file(media_set: "MediaSet", file_desc: FileDescription, file_id, json_m, binary_m):
 
         metadata = json.loads(json_m) if json_m is not None else "{}"
         binary_metadata = dill.loads(binary_m) if binary_m is not None else "{}"
         try:
-            media_dir = media_set.create_media_dir_parent(file_access.path)
+            media_dir = media_set.create_media_dir_parent(file_desc.relative_path)
 
-            new_media_file = MediaFile(file_access, media_dir, media_set)
+            new_media_file = MediaFile(file_desc, media_dir, media_set)
             new_media_file.metadata.load_from_dict(metadata)
             new_media_file.metadata.load_binary_from_dict(binary_metadata)
             new_media_file.db_id = file_id
             new_media_file.exists_in_db = True
             return new_media_file
         except JSONDecodeError:
-            print("Invalid json in database: %s" % file_access.path)
+            print("Invalid json in database: %s" % file_desc.relative_path)
             return None
 
-    def load_all_files(self, media_set: "MediaSet", not_loaded_files: Dict[str, FileAccess]):
+    def load_all_files(self, media_set: "MediaSet", not_loaded_files: Dict[str, FileDescription]):
 
         if not self.is_active:
             return not_loaded_files
@@ -282,6 +292,8 @@ class MediaSetDatabase:
                    values
                         (?, ?, ?, ?)''',
                 (media_file.get_path(), json_data, bin_data, datetime.now()))
+            # TODO: is file_id always the rowid ?
+            media_file.db_id = self.cache_db_connection.cursor.lastrowid
         media_file.exists_in_db = True
 
     def save_thumbnail(self, media_file: MediaFile):
@@ -315,16 +327,36 @@ class MediaSetDatabase:
         for result in result_list:
             if result is not None and len(result) >= 1:
                 data_dict[result[text_fields["file"]]] = json.loads(result[text_fields["jm"]])
+                data_dict[result[text_fields["file"]]]["file"] = result[text_fields["file"]]
+                data_dict[result[text_fields["file"]]]["cfm-cm"] = None
+                # data_dict[result[text_fields["file"]]]["faces"] = None
+                # data_dict[result[text_fields["file"]]]["hash"] = None
+                if "internal" in data_dict[result[text_fields["file"]]]:
+                    data_dict[result[text_fields["file"]]]["internal"]["width"] = None
+                    data_dict[result[text_fields["file"]]]["internal"]["height"] = None
                 data_dict[result[text_fields["file"]]].pop('Faces', None)
         return data_dict
 
     def compare(self, db2):
         db1 = self.load_database_in_dict()
         db2 = db2.load_database_in_dict()
+
         for file_path in db1:
             if file_path not in db2:
                 print(str(file_path) + " is in (1) but not in (2)")
                 continue
-            d1 = json.dumps(db1[file_path], indent=4, sort_keys=True)
-            d2 = json.dumps(db2[file_path], indent=4, sort_keys=True)
-            sys.stdout.writelines(difflib.unified_diff([d1], [d2]))
+            # d1 = json.dumps(db1[file_path], indent=4, sort_keys=True)
+            # d2 = json.dumps(db2[file_path], indent=4, sort_keys=True)
+            # sys.stdout.writelines(difflib.unified_diff([d1], [d2]))
+
+            if "faces" in db1[file_path] and "faces" in db2[file_path]:
+                if len(db1[file_path]["faces"]["locations"]) != len(db2[file_path]["faces"]["locations"]):
+                    print("Not same number of faces for :" + file_path)
+                    file_access = None
+                    if file_path.contains(".zip"):
+                        split = file_path.split(".zip")
+                        file_access = ZipFileAccess(split[0] + ".zip", split[1])
+                    else:
+                        file_access = StandardFileAccess(file_path)
+                    if file_access is not None:
+                        image = file_access.get_image()

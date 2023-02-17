@@ -1,21 +1,24 @@
 import os
 
-from camerafile.core.BatchTool import TaskWithProgression
+from camerafile.processor.BatchTool import TaskWithProgression
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import init_only_console_logging, Logger
 from camerafile.core.Resource import Resource
-from camerafile.tools.ExifTool import ExifTool
+from camerafile.mdtools.ExifToolReader import ExifTool
 
 LOGGER = Logger(__name__)
 
 
 class CFMBatch(TaskWithProgression):
 
-    def __init__(self, batch_title="", nb_sub_process=None):
+    def __init__(self, batch_title="", nb_sub_process=None, stderr_file=None, stdout_file=None):
         if nb_sub_process is None:
             nb_sub_process = Configuration.get().nb_sub_process
         TaskWithProgression.__init__(self, batch_title, nb_sub_process,
-                                     CFMBatch.on_sub_cfm_start, CFMBatch.on_sub_cfm_end)
+                                     on_worker_start=CFMBatch.on_sub_cfm_start,
+                                     on_worker_end=CFMBatch.on_sub_cfm_end,
+                                     stderr_file=stderr_file,
+                                     stdout_file=stdout_file)
 
     @staticmethod
     def init_sub_cfm():

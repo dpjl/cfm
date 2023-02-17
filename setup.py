@@ -1,8 +1,10 @@
-import glob
 import os
 import shutil
 import stat
+import tarfile
+
 import PyInstaller.__main__
+from pyzipper import zipfile
 from setuptools import setup, Command
 
 
@@ -27,44 +29,35 @@ class CreatePackage(Command):
         os.chmod(path, stat.S_IWRITE)
         os.unlink(path)
 
-    @staticmethod
-    def download_model(model_directory):
-
-        import requests
-        from pathlib import Path
-        links_file = open(str(Path(model_directory) / 'links.txt'), 'r')
-        links = links_file.readlines()
-        links_file.close()
-
-        for link in links:
-            new_file_name = str(Path(model_directory) / link.strip().split("/")[-1])
-            if not os.path.exists(new_file_name):
-                print("Download " + new_file_name + ", please wait...")
-                downloaded_file = requests.get(link.strip())
-                file_on_disk = open(new_file_name, 'wb')
-                file_on_disk.write(downloaded_file.content)
-                file_on_disk.close()
-
     def reorganize_package(self):
-        shutil.move("dist/cfm", "dist/lib")
-        os.makedirs("dist/cfm/bin/exiftool")
+        shutil.move("dist/cfm", "dist/bin")
+        os.makedirs("dist/cfm/ext-bin/exiftool")
         os.makedirs("dist/cfm/data")
 
-        if os.path.exists("dist/lib/cfm.exe"):
-            shutil.move("dist/lib/cfm.exe", "dist/cfm/cfm.exe")
+        exiftool_path = "dist/bin/camerafile/bin/exiftool/" + self.exiftool
+        if exiftool_path.endswith(".zip"):
+            with zipfile.ZipFile(exiftool_path) as file:
+                file.extractall("dist/cfm/ext-bin/exiftool")
+        elif exiftool_path.endswith(".tar.gz"):
+            with tarfile.open(exiftool_path, "r:gz") as file:
+                file.extractall("dist/cfm/ext-bin/exiftool")
+                file.close()
         else:
-            shutil.move("dist/lib/cfm", "dist/cfm/cfm")
-        shutil.move("dist/lib/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/bin/exiftool/" + self.exiftool)
-        for file in glob.glob("dist/lib/imageio_ffmpeg/binaries/ffmpeg*"):
-            shutil.move(file, "dist/cfm/bin")
-        shutil.move("dist/lib/face_recognition_models/models", "dist/cfm/data")
-        shutil.move("dist/lib/conf", "dist/cfm/conf")
+            shutil.move("dist/bin/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/ext-bin/exiftool/" + self.exiftool)
+        shutil.move("dist/bin/data/models", "dist/cfm/data")
+        shutil.move("dist/bin/conf", "dist/cfm/conf")
 
-        shutil.rmtree("dist/lib/face_recognition_models")
-        shutil.rmtree("dist/lib/camerafile")
-        shutil.rmtree("dist/lib/imageio_ffmpeg/binaries")
+        shutil.rmtree("dist/bin/data")
+        shutil.rmtree("dist/bin/camerafile")
 
-        shutil.move("dist/lib", "dist/cfm")
+        shutil.move("dist/bin", "dist/cfm")
+
+        if os.path.exists("dist/cfm/bin/cfm.exe"):
+            shutil.copy2("resources/cfm.bat", "dist/cfm/cfm.bat")
+        else:
+            shutil.copy2("resources/cfm", "dist/cfm/cfm")
+
+
 
     @staticmethod
     def zip_dir(output_filename, source_dir):
@@ -86,9 +79,9 @@ class CreatePackage(Command):
 
     def create_archive(self):
         if self.format == "zip":
-            self.zip_dir('cfm.zip', 'dist/cfm')
+            self.zip_dir('dist/cfm.zip', 'dist/cfm')
         elif self.format == "tar.gz":
-            self.tar_dir('cfm.tar.gz', 'dist/cfm')
+            self.tar_dir('dist/cfm.tar.gz', 'dist/cfm')
 
     def delete_existing_package(self):
         os.environ['EXIF_TOOL'] = self.exiftool
@@ -96,7 +89,6 @@ class CreatePackage(Command):
             shutil.rmtree("dist", onerror=self.on_rm_error)
 
     def run(self):
-        self.download_model("camerafile/data/models")
         self.delete_existing_package()
         PyInstaller.__main__.run(["cfm.spec"])
         self.reorganize_package()

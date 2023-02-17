@@ -1,25 +1,15 @@
 import argparse
 import logging.config
 import os
+from multiprocessing.process import current_process
 from multiprocessing.spawn import freeze_support
-from pathlib import Path
 from textwrap import dedent
 
 import sys
 
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Logging import init_logging
-from camerafile.core.MediaSet import MediaSet
 from camerafile.core.Resource import Resource
 from camerafile.fileaccess.FileAccess import CopyMode
-from camerafile.processor.BatchComputeCm import BatchComputeCm
-from camerafile.processor.BatchComputeNecessarySignaturesMultiProcess import BatchComputeNecessarySignaturesMultiProcess
-from camerafile.processor.BatchCopy import BatchCopy
-from camerafile.processor.BatchDetectFaces import BatchDetectFaces
-from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
-from camerafile.processor.BatchRecoFaces import BatchRecoFaces
-from camerafile.processor.CompareMediaSets import CompareMediaSets
-from camerafile.processor.SearchForDuplicates import SearchForDuplicates
 
 COMMAND = "command"
 
@@ -64,6 +54,7 @@ def create_main_args_parser():
     p.add_argument('dir1', metavar='dir1', type=str, help='Check for duplicates')
     p.add_argument('dir2', nargs='?', metavar='dir2', type=str, help='Check for duplicates / differences with dir1')
     p.add_argument('-g', '--generate-pdf', action='store_true', help='Generate pdf reports using thumbnails')
+    p.add_argument('-n', '--no-internal-read', action='store_true', help='Do not read internal metadata at all')
 
     desc = 'Fill and organize <dir2> in order for it to contain exactly one version ' \
            'of each distinct media files of <dir1>'
@@ -85,24 +76,42 @@ def create_main_args_parser():
 
     p = sp_list.add_parser("custom", aliases=["c"], help='Exexute a custom processor')
     p.set_defaults(command="custom")
-    p.add_argument('dir1', metavar='dir1', type=str, help='Delete all duplicates from d1')
-    p.add_argument('dir2', nargs='?', metavar='dir2', type=str, help='Delete from d2 all files that are not in d1')
-    p.add_argument('-x', '--exec', type=str, help='Name of the processor to execute')
+    p.add_argument('processor', type=str, help='Name of the processor to execute')
+    p.add_argument('args', nargs='*', metavar='arguments', type=str, help='Arguments of the custom processor')
 
     return parser
 
 
 def execute(args):
+    from camerafile.core.MediaSet import MediaSet
+    from camerafile.processor.BatchComputeCm import BatchComputeCm
+    from camerafile.processor.BatchComputeNecessarySignatures import \
+        BatchComputeNecessarySignaturesMultiProcess
+    from camerafile.processor.BatchCopy import BatchCopy
+    from camerafile.processor.BatchDetectFaces import BatchDetectFaces
+    from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
+    from camerafile.processor.BatchRecoFaces import BatchRecoFaces
+    from camerafile.processor.CompareMediaSets import CompareMediaSets
+    from camerafile.processor.SearchForDuplicates import SearchForDuplicates
+
+    if args.command == "custom":
+        import importlib
+        ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.processor), args.processor)
+        ProcessorClass(*tuple(args.args))
+        return
+
     media_set1 = MediaSet.load_media_set(args.dir1)
     media_set2 = None
+    other_md_needed = ()
     if "dir2" in args and args.dir2:
-        media_set2 = MediaSet.load_media_set(args.dir2)
+        media_set2 = MediaSet.load_media_set(args.dir2, Configuration.get().org_format)
+        other_md_needed = media_set2.get_metadata_needed_by_format()
 
-    BatchReadInternalMd(media_set1).execute()
+    BatchReadInternalMd(media_set1, other_md_needed).execute()
     BatchComputeCm(media_set1).execute()
 
     if media_set2:
-        BatchReadInternalMd(media_set2).execute()
+        BatchReadInternalMd(media_set2, ()).execute()
         BatchComputeCm(media_set2).execute()
 
     if args.command == "analyze":
@@ -113,25 +122,25 @@ def execute(args):
             CompareMediaSets.execute(media_set1, media_set2)
 
     if args.command == "organize":
+
+        if media_set2.org_format is None:
+            print("\n!!!!!!!!!!!!!!!!!!!")
+            print("Format is not already configured for " + args.dir2 + ", you have to define it using -f option.")
+            print("!!!!!!!!!!!!!!!!!!!")
+            sys.exit(1)
+
         copy_mode = args.mode if args.mode is not None else CopyMode.HARD_LINK
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
         BatchCopy(media_set1, media_set2, copy_mode).execute()
 
     if args.command == "recognize":
+        Resource.download_model()
         if args.extract_faces:
             BatchDetectFaces(media_set1).execute()
         if args.learn_faces:
             media_set1.train()
         if args.identify_faces:
             BatchRecoFaces(media_set1).execute()
-
-    if args.command in ["custom", "c"]:
-        import importlib
-        ProcessorClass = getattr(importlib.import_module("camerafile.processor." + args.exec), args.exec)
-        ProcessorClass(media_set1).execute()
-
-        if media_set2:
-            ProcessorClass(media_set2).execute()
 
     print("")
 
@@ -153,9 +162,13 @@ def main():
         print(os.linesep + "error: no commands supplied")
         sys.exit(1)
 
+    from camerafile.core.Configuration import Configuration
+    from camerafile.core.Logging import init_only_console_logging
+    from camerafile.core.Resource import Resource
+
     Resource.init()
-    init_logging(Path(args.dir1))
-    LOGGER.info("C a m e r a   F i l e s   M a n a g e r - version 0.1 - DpjL")
+    init_only_console_logging()
+    LOGGER.info("Starting Camera Files Manager - version 0.2 - DpjL (pid: {pid})".format(pid=current_process().pid))
     Configuration.get().init(args)
     execute(args)
 
