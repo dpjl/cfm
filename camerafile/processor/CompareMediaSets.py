@@ -50,7 +50,7 @@ class CompareMediaSets:
 
         # pdf_file2.save()
 
-        LOGGER.info(media_set1.output_directory.save_list([item for sublist in only_in_dir1 for item in sublist],
-                                                          "only-left.json"))
-        LOGGER.info(media_set1.output_directory.save_list([item for sublist in only_in_dir2 for item in sublist],
-                                                          "only-right.json"))
+        LOGGER.info(OutputDirectory.get(media_set1.root_path)
+                    .save_list([item for sublist in only_in_dir1 for item in sublist], "only-left.json"))
+        LOGGER.info(OutputDirectory.get(media_set1.root_path)
+                    .save_list([item for sublist in only_in_dir2 for item in sublist], "only-right.json"))

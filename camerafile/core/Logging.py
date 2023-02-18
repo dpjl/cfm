@@ -1,24 +1,13 @@
 import logging
 import shutil
 from datetime import datetime
+from logging.config import dictConfig
 
-from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.core.Resource import Resource
 
 
-def init_logging(base_path):
-    output_directory = OutputDirectory(base_path)
-    logging_handlers = Resource.logging_configuration["handlers"]
-    info_file = logging_handlers["info_file_handler"]["filename"]
-    error_file = logging_handlers["error_file_handler"]["filename"]
-    logging_handlers["info_file_handler"]["filename"] = str(output_directory.path / info_file)
-    logging_handlers["error_file_handler"]["filename"] = str(output_directory.path / error_file)
-    logging.config.dictConfig(Resource.logging_configuration)
-
-
-def init_only_console_logging():
-    Resource.logging_configuration["root"]["handlers"] = ["console"]
-    logging.config.dictConfig(Resource.logging_configuration)
+def init_logging():
+    dictConfig(Resource.logging_configuration)
 
 
 class Logger:
@@ -32,7 +21,7 @@ class Logger:
     def write_title_2(self, directory, step_title):
         self.display_starting_line()
         print("█ [{dir}] > {title}]".format(dir=directory, title=step_title))
-        #self.logger.info("{dir}] > {title}".format(dir=directory, title=step_title))
+        # self.logger.info("{dir}] > {title}".format(dir=directory, title=step_title))
 
     def info(self, log_content):
         # print(datetime.now().strftime("[%H:%M:%S] "), end="")
@@ -49,7 +38,8 @@ class Logger:
         print(self.get_indented_message(log_content, prof))
         # self.logger.info(log_content)
 
-    def get_indented_message(self, message, prof=1):
+    @staticmethod
+    def get_indented_message(message, prof=1):
         result = ""
         if prof != 0:
             for i in range(prof - 1):
@@ -66,14 +56,16 @@ class Logger:
     def end(self, **args):
         self.status_line.end(**args)
 
-    def display_starting_line(self):
+    @staticmethod
+    def display_starting_line():
         # console_width = shutil.get_terminal_size((80, 20)).columns - 1
         # line = '{text:{fill}{align}{width}}'.format(
         #    text='', fill='-', align='<', width=console_width,
         # )
         print("")
 
-    def display_ending_line(self):
+    @staticmethod
+    def display_ending_line():
         console_width = shutil.get_terminal_size((80, 20)).columns - 1
         line = '{text:{fill}{align}{width}}\n'.format(
             text='', fill='-', align='<', width=console_width,

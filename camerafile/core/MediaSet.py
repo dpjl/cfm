@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -9,7 +10,7 @@ from humanize import naturalsize
 from pyzipper import zipfile
 
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Constants import MANAGED_TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, THUMBNAIL, ARCHIVE_TYPE
+from camerafile.core.Constants import MANAGED_TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, ARCHIVE_TYPE
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.core.MediaFile import MediaFile
@@ -41,9 +42,9 @@ class MediaSet:
         self.filename_map: Dict[str, MediaFile] = {}
 
         self.db_file = db_file
+        self.state = self.load_state()
         self.initialize_file_and_dir_list()
         self.delete_not_existing_media()
-        self.state = self.load_state()
         self.read_md_needed = False
         self.md_needed = ()
         self.org_format = self.load_format(org_format)
@@ -52,7 +53,7 @@ class MediaSet:
         LOGGER.debug("New MediaSet object created: " + str(id(self)))
 
     @staticmethod
-    def load_media_set(path: str, org_format: str = None, db_file=None):
+    def load_media_set(path: str, org_format: str = None, db_file=None) -> "MediaSet":
         LOGGER.write_title_2(str(path), "Opening media directory")
         loaded = MediaSetDump.get(OutputDirectory.get(path)).load()
         if loaded:
@@ -164,10 +165,13 @@ class MediaSet:
 
     def delete_not_existing_media(self):
         deleted = []
+        to_be_deleted = []
         for media_file in self:
             if not media_file.exists:
-                deleted.append(media_file.path)
-                self.remove_file(media_file)
+                to_be_deleted.append(media_file)
+        for media_file in to_be_deleted:
+            deleted.append(media_file.get_path())
+            self.remove_file(media_file)
         if len(deleted) != 0:
             deleted_file = OutputDirectory.get(self.root_path).save_list(deleted, "deleted-files.json")
             LOGGER.info_indent("{l1} files detected as deleted [{file}]".format(l1=len(deleted), file=deleted_file))
@@ -450,8 +454,8 @@ class MediaSet:
                                                                       df=dump_file)
         LOGGER.info_indent(log_content=log_content, prof=2)
         self.media_dir_list["."] = MediaDirectory(".", None, self)
-        not_loaded_files = MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).load_all_files(self,
-                                                                                                                  not_loaded_files)
+        not_loaded_files = MediaSetDatabase.get(OutputDirectory.get(self.root_path),
+                                                self.db_file).load_all_files(self, not_loaded_files)
         self.init_new_media_files(not_loaded_files)
         MediaSetDatabase.get(OutputDirectory.get(self.root_path), self.db_file).load_all_thumbnails(self)
 
@@ -477,7 +481,7 @@ class MediaSet:
                 if not file_name.endswith('/'):
                     extension = os.path.splitext(file_name)[1].lower()
                     number_of_files += 1
-                    if extension in MANAGED_TYPE:
+                    if extension in MANAGED_TYPE and not self.is_ignored(Path(file_name).name):
                         relative_path = (Path(zip_file_path) / file_name).relative_to(self.root_path).as_posix()
                         zip_relative_path = Path(zip_file_path).relative_to(self.root_path).as_posix()
                         nb_mfiles += 1
@@ -514,7 +518,7 @@ class MediaSet:
             for file in file_list:
                 file_path = Path(path) / file
                 extension = os.path.splitext(file)[1].lower()
-                if extension in MANAGED_TYPE:
+                if extension in MANAGED_TYPE and not self.is_ignored(file):
                     relative_path = file_path.relative_to(self.root_path).as_posix()
                     if relative_path not in self.filename_map:
                         file_size = file_path.stat().st_size
@@ -549,3 +553,10 @@ class MediaSet:
         LOGGER.info_indent("{l1} detected as media files".format(l1=nb_m_files))
 
         return not_loaded_files
+
+    def is_ignored(self, file_name):
+        if "ignore" in self.state:
+            for regexp in self.state["ignore"]:
+                if re.match(regexp, file_name):
+                    return True
+        return False
