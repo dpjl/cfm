@@ -1,8 +1,8 @@
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 from camerafile.core.Constants import INTERNAL, SIGNATURE, CFM_CAMERA_MODEL
+from camerafile.core.Logging import Logger
 from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.metadata.MetadataList import MetadataList
@@ -10,7 +10,7 @@ from camerafile.metadata.MetadataList import MetadataList
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = Logger(__name__)
 
 
 class MediaFile:
@@ -91,3 +91,9 @@ class MediaFile:
             new_date_format = date.strftime("%Y/%m/%d")
             return new_date_format
         return ""
+
+    def compare_with(self, media_file_2: "MediaFile"):
+        # LOGGER.diff("MediaFile", "parent_dir", str(self.parent_dir), str(media_file_2.parent_dir))
+        LOGGER.diff("MediaFile", "id", self.id, media_file_2.id)
+        self.file_desc.compare_with(media_file_2.file_desc)
+        self.metadata.compare_with(str(self), media_file_2.metadata)

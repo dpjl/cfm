@@ -23,6 +23,10 @@ class Logger:
         print("█ [{dir}] > {title}]".format(dir=directory, title=step_title))
         # self.logger.info("{dir}] > {title}".format(dir=directory, title=step_title))
 
+    def diff(self, class_name, desc, value1, value2):
+        if value1 != value2:
+            self.logger.info(f"{class_name} [{desc}]: '{value1}' <> '{value2}'")
+
     def info(self, log_content):
         # print(datetime.now().strftime("[%H:%M:%S] "), end="")
         # print(log_content)

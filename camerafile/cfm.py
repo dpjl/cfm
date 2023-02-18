@@ -35,6 +35,9 @@ def create_main_args_parser():
                         default=None,
                         metavar="<path>")
 
+    parser.add_argument('-i', '--ignore', action='append', default=None,
+                        help='Specify filename patterns to ignore. This option can be used multiple times.')
+
     parser.add_argument('-n', '--thumbnails', action='store_true',
                         help='load all thumbnails from exif data, and save them in cache')
 
@@ -139,11 +142,10 @@ def execute(args):
             print("Format is not already configured for " + args.dir2 + ", you have to define it using -f option.")
             print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
             print("!!!!!!!!!!!!!!!!!!!")
-            sys.exit(1)
-
-        copy_mode = args.mode if args.mode is not None else CopyMode.HARD_LINK
-        BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
-        BatchCopy(media_set1, media_set2, copy_mode).execute()
+        else:
+            copy_mode = args.mode if args.mode is not None else CopyMode.HARD_LINK
+            BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
+            BatchCopy(media_set1, media_set2, copy_mode).execute()
 
     if args.command == RECOGNIZE_CMD:
         Resource.download_model()

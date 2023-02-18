@@ -1,11 +1,13 @@
 import pickle
 
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from camerafile.core.Configuration import Configuration as Conf
 from camerafile.core.Constants import THUMBNAIL, INTERNAL
 from camerafile.core.Logging import Logger
+
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
 
@@ -15,20 +17,20 @@ LOGGER = Logger(__name__)
 class MediaSetDump:
     __instance = {}
 
-    def __init__(self, output_directory):
-        self.dump_file = output_directory.path / 'cfm.dump'
+    def __init__(self, output_directory_path):
+        self.dump_file = Path(output_directory_path) / 'cfm.dump'
         self.is_active = Conf.get().use_dump_for_cache or self.exists() or not Conf.get().use_db_for_cache
 
     @staticmethod
     def get(output_directory):
         if output_directory not in MediaSetDump.__instance:
-            MediaSetDump.__instance[output_directory] = MediaSetDump(output_directory)
+            MediaSetDump.__instance[output_directory] = MediaSetDump(output_directory.path)
         return MediaSetDump.__instance[output_directory]
 
     def exists(self):
         return self.dump_file.exists()
 
-    def load(self):
+    def load(self) -> "MediaSet":
         if self.is_active and self.exists():
             with open(self.dump_file, "rb") as file:
                 LOGGER.info("Restoring dump...")
@@ -49,4 +51,3 @@ class MediaSetDump:
                 pickle.dump(media_set, file, protocol=pickle.HIGHEST_PROTOCOL)
                 processing_time = str(int(time.time() - start_time)) + " seconds."
                 LOGGER.end(result=processing_time)
-

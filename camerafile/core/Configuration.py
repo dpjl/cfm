@@ -22,6 +22,7 @@ class Configuration:
         self.internal_read = True
         self.first_output_directory = None
         self.cache_path = None
+        self.ignore_list = None
 
     @staticmethod
     def get():
@@ -70,5 +71,8 @@ class Configuration:
 
             if args.cache_path:
                 self.cache_path = args.cache_path
+
+            if args.ignore:
+                self.ignore_list = args.ignore
 
             self.initialized = True

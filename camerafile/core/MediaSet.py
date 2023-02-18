@@ -85,14 +85,26 @@ class MediaSet:
         for media_file in self.media_file_list:
             yield media_file
 
+    def __getitem__(self, file_id) -> MediaFile:
+        return self.id_map[file_id]
+
     def get_trash_file(self):
         return self.root_path + os.sep + self.CFM_TRASH
 
     def load_state(self):
-        state = None
+        state = {}
         if OutputDirectory.get(self.root_path).state_file.exists():
             with open(OutputDirectory.get(self.root_path).state_file) as file:
                 state = yaml.safe_load(file)
+        if Configuration.get().ignore_list is not None:
+            ignore_list = Configuration.get().ignore_list
+            for ignore_pattern in ignore_list:
+                if "ignore" not in state:
+                    state["ignore"] = []
+                if ignore_pattern not in state["ignore"]:
+                    state["ignore"].append(ignore_pattern)
+        if "ignore" in state:
+            LOGGER.info(f'Filename patterns to ignore: {str(state["ignore"])}')
         return state if state is not None else {}
 
     def save_state(self):
@@ -323,13 +335,10 @@ class MediaSet:
         result = []
         for date in self.date_size_map:
             if date in media_set2.date_size_map:
-                if len(self.date_size_map[date]) == 1:
-                    file_size, _ = self.get_first_element(self.date_size_map[date])
-                    if file_size not in media_set2.date_size_map[date]:
+                if len(self.date_size_map[date]) > 1 or len(media_set2.date_size_map[date]) > 1:
+                    for file_size in self.date_size_map[date]:
                         result.append(self.date_size_map[date][file_size][0])
-                if len(media_set2.date_size_map[date]) == 1:
-                    file_size, _ = self.get_first_element(media_set2.date_size_map[date])
-                    if file_size not in self.date_size_map[date]:
+                    for file_size in media_set2.date_size_map[date]:
                         result.append(media_set2.date_size_map[date][file_size][0])
         return result
 

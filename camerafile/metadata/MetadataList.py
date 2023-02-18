@@ -1,11 +1,11 @@
-import logging
 from typing import Dict
 
 from camerafile.core.Constants import INTERNAL, SIGNATURE, FACES, ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, \
     ORIGINAL_MOVE_PATH, DESTINATION_MOVE_PATH, CFM_CAMERA_MODEL, THUMBNAIL, ORIGINAL_PATH
+from camerafile.core.Logging import Logger
 from camerafile.metadata.Metadata import Metadata
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = Logger(__name__)
 
 
 class MetadataList:
@@ -58,3 +58,11 @@ class MetadataList:
         for md_name, md in self.metadata_list.items():
             if md_name in media_file_dict:
                 md.set_value(media_file_dict[md_name])
+
+    def compare_with(self, media_parent, metadata_list_2: "MetadataList"):
+        for metadata_name, metadata in self.metadata_list.items():
+            if metadata_name not in [DESTINATION_COPY_PATH, ORIGINAL_COPY_PATH, CFM_CAMERA_MODEL]:
+                LOGGER.diff(f"MetadataList[{media_parent}]", metadata_name, metadata.value,
+                            metadata_list_2[metadata_name].value)
+                LOGGER.diff(f"MetadataList[{media_parent}]", metadata_name, metadata.binary_value,
+                            metadata_list_2[metadata_name].binary_value)
