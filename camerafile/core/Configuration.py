@@ -1,13 +1,12 @@
 import logging
 from multiprocessing import cpu_count
 
-from camerafile.core.OutputDirectory import OutputDirectory
-
 
 class Configuration:
     __instance = None
 
     def __init__(self):
+        self.args = None
         self.cfm_sync_password = None
         self.nb_sub_process = cpu_count()
         self.generate_pdf = False
@@ -22,6 +21,7 @@ class Configuration:
         self.exif_tool = False
         self.internal_read = True
         self.first_output_directory = None
+        self.cache_path = None
 
     @staticmethod
     def get():
@@ -32,8 +32,7 @@ class Configuration:
     def init(self, args):
         if not self.initialized:
 
-            if "dir1" in args and args.dir1:
-                self.first_output_directory = OutputDirectory(args.dir1)
+            self.args = args
 
             if args.workers is not None:
                 self.nb_sub_process = args.workers
@@ -68,5 +67,8 @@ class Configuration:
 
             if "format" in args and args.format:
                 self.org_format = args.format
+
+            if args.cache_path:
+                self.cache_path = args.cache_path
 
             self.initialized = True

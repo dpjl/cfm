@@ -72,10 +72,12 @@ class ComputeFaceBoxes:
             encodings += [ComputeFaceBoxes.predictor(img, rectangle(d[0], d[1], d[2], d[3]))]
 
         if Configuration.get().debug:
-            face_debug_path = Configuration.get().first_output_directory.path / "face-debug"
-            os.makedirs(face_debug_path, exist_ok=True)
-            with open(face_debug_path / image.filename, "wb") as file:
-                image.get_image_with_faces(locations).save(file)
+            args = Configuration.get().args
+            if "dir1" in args and args.dir1:
+                face_debug_path = args.dir1.path / "face-debug"
+                os.makedirs(face_debug_path, exist_ok=True)
+                with open(face_debug_path / image.filename, "wb") as file:
+                    image.get_image_with_faces(locations).save(file)
 
         metadata_face.value = {"locations": locations, "names": []}
         metadata_face.binary_value = encodings

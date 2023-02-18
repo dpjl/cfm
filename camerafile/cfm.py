@@ -29,6 +29,12 @@ def create_main_args_parser():
                         help="maximum number of CFM workers that can be run simultaneously. 0 means that only main CFM "
                              "process is used. Default: number of CPU.", metavar="N")
 
+    parser.add_argument('-c', '--cache-path', type=str,
+                        help='Specify a cache directory path. Default is empty.'
+                             'If empty, one cache folder called ".cfm" is created in each media set directory',
+                        default=None,
+                        metavar="<path>")
+
     parser.add_argument('-n', '--thumbnails', action='store_true',
                         help='load all thumbnails from exif data, and save them in cache')
 

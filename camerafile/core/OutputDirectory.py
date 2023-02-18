@@ -1,15 +1,28 @@
 import logging
 import os
 from pathlib import Path
+from hashlib import blake2b
+
+from camerafile.core.Configuration import Configuration
+from camerafile.core.Logging import Logger
 
 LOGGER = logging.getLogger(__name__)
+
+LOGGER = Logger(__name__)
 
 
 class OutputDirectory:
     __instance = {}
 
     def __init__(self, media_set_root_path):
-        self.path = Path(media_set_root_path) / ".cfm"
+        if Configuration.get().cache_path:
+            media_set_path = Path(media_set_root_path).as_posix()
+            h = blake2b(digest_size=10)
+            h.update(media_set_path.encode())
+            self.path = Path(Configuration.get().cache_path) / h.hexdigest()
+            LOGGER.info(f"Custom cache directory for {media_set_path}: {self.path}")
+        else:
+            self.path = Path(media_set_root_path) / ".cfm"
         os.makedirs(self.path, exist_ok=True)
         self.state_file = self.path / "state.yaml"
         self.batch_stderr = self.path / "batch_stderr.txt"
