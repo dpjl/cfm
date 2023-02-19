@@ -1,9 +1,12 @@
-from camerafile.processor.BatchTool import BatchElement
+import re
+from datetime import datetime
+
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccessFactory import FileAccessFactory
 from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.metadata.Metadata import Metadata
+from camerafile.processor.BatchTool import BatchElement
 
 
 class LoadInternalMetadata:
@@ -11,22 +14,22 @@ class LoadInternalMetadata:
 
     @staticmethod
     def execute(batch_element: BatchElement):
-        root_dir, file_desc, metadata = batch_element.args
+        root_dir, file_description, metadata = batch_element.args
         thumbnail = None
         try:
-            thumbnail = LoadInternalMetadata.load_internal_metadata(root_dir, file_desc, metadata)
+            thumbnail = LoadInternalMetadata.load_internal_metadata(root_dir, file_description, metadata)
         except BaseException as e:
             if Configuration.get().exit_on_error:
                 raise
             else:
                 batch_element.error = "LoadInternalMetadata: [{info}] - ".format(info=batch_element.info) + str(e)
         batch_element.args = None
-        batch_element.result = (file_desc.get_id(), thumbnail, metadata)
+        batch_element.result = (file_description.get_id(), thumbnail, metadata)
         return batch_element
 
     @staticmethod
-    def load_internal_metadata(root_dir: str, file_desc: FileDescription, metadata: Metadata):
-        file_access = FileAccessFactory.get(root_dir, file_desc)
+    def load_internal_metadata(root_dir: str, file_description: FileDescription, metadata: Metadata):
+        file_access = FileAccessFactory.get(root_dir, file_description)
         args = LoadInternalMetadata.md_needed
         metadata.call_info, result = file_access.read_md(args)
 
@@ -41,6 +44,9 @@ class LoadInternalMetadata:
             old_width = width
             width = height
             height = old_width
+
+        if date is None and camera_model is None:
+            date, camera_model = LoadInternalMetadata.parse_whatsapp_filename(file_description.name)
 
         last_modified_date = file_access.get_last_modification_date()
 
@@ -65,11 +71,24 @@ class LoadInternalMetadata:
 
         return thumbnail
 
+    @staticmethod
+    def parse_whatsapp_filename(file_name):
+        fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', file_name)
+        if len(fields) == 1 and len(fields[0]) == 3:
+            str_date = fields[0][1]
+            date = None
+            try:
+                return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
+            except ValueError:
+                pass
+        return None, None
+
 
 if __name__ == '__main__':
     from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
 
-    m = MetadataInternal()
+    print(LoadInternalMetadata.parse_whatsapp_filename("VID-20210201-WA0000.mp4"))
+    m = Metadata()
     file_desc = StandardFileDescription(
         "2010/photos balade 18\\u00e8me/Photos Iphone/IMG_0158.MOV".encode().decode('unicode-escape'))
     LoadInternalMetadata.load_internal_metadata("E:/data/photos-all/depuis-samsung-T5/photos/", file_desc, m)
