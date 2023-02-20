@@ -15,9 +15,9 @@ jobs:
         python-version: [3.8]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -26,7 +26,7 @@ jobs:
         pip install -r requirements.txt
     - name: Build with pyinstaller
       run: |
-         python setup.py create_package --exiftool exiftool-12.39_64.zip
+        python setup.py create_package --exiftool exiftool-12.39_64.zip
     - name: Upload generated executable
       uses: actions/upload-artifact@v1
       with:

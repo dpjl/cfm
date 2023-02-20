@@ -64,9 +64,9 @@ class MediaSet:
             loaded.root_path = root_path.as_posix()
 
             loaded.db_file = db_file
+            loaded.state = loaded.load_state()
             loaded.initialize_file_and_dir_list()
             loaded.delete_not_existing_media()
-            loaded.state = loaded.load_state()
             loaded.read_md_needed = False
             loaded.md_needed = ()
             loaded.org_format = loaded.load_format(org_format)
