@@ -3,7 +3,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Iterable
+from typing import List, Dict, Iterable, Union
 
 import yaml
 from humanize import naturalsize
@@ -42,7 +42,7 @@ class MediaSet:
         self.filename_map: Dict[str, MediaFile] = {}
 
         self.db_file = db_file
-        self.state = self.load_state()
+        self.state: dict[str, Union[str, list]] = self.load_state()
         self.initialize_file_and_dir_list()
         self.delete_not_existing_media()
         self.read_md_needed = False
@@ -116,8 +116,9 @@ class MediaSet:
             existing_format = self.state["format"]
             if existing_format is not None and param_format and param_format != "" and param_format != existing_format:
                 state_file = OutputDirectory.get(self.root_path).state_file.as_posix()
-                print("Error: format in argument '" + param_format
-                      + "' differs from format saved in " + state_file + " '" + existing_format + "'")
+                print(
+                    f"Error: format in argument '{param_format} ' differs from "
+                    f"format saved in {state_file}: '{existing_format}'")
                 print("If you really want to force changing the destination format, please remove this file "
                       "and launch again cfm.")
                 sys.exit(1)
@@ -480,88 +481,117 @@ class MediaSet:
             LOGGER.update(nb_file=number_of_files)
         LOGGER.end(nb_file=number_of_files)
 
-    def import_zip_file(self, zip_file_path, file_map: Dict[str, FileDescription], ignored_files: List[str]):
-        size = 0
-        nb_mfiles = 0
-        with zipfile.ZipFile(zip_file_path) as zip_file:
-            number_of_files = 0
-            for file_info in zip_file.filelist:
-                file_name = file_info.filename
-                if not file_name.endswith('/'):
-                    extension = os.path.splitext(file_name)[1].lower()
-                    number_of_files += 1
-                    if extension in MANAGED_TYPE and not self.is_ignored(Path(file_name).name):
-                        relative_path = (Path(zip_file_path) / file_name).relative_to(self.root_path).as_posix()
-                        zip_relative_path = Path(zip_file_path).relative_to(self.root_path).as_posix()
-                        nb_mfiles += 1
-                        if relative_path not in self.filename_map:
-                            file_size = file_info.file_size
-                            size += file_size
-                            zip_file_desc = ZipFileDescription(zip_relative_path, file_name, file_size)
-                            file_map[zip_file_desc.get_relative_path()] = zip_file_desc
-                        else:
-                            size += self.filename_map[relative_path].file_desc.file_size
-                            self.filename_map[relative_path].exists = True
-                    else:
-                        ignored_files.append((Path(self.root_path) / zip_file_path).as_posix())
-        return number_of_files, nb_mfiles, size
+    class FilesSummary:
+        def __init__(self):
+            self.all = 0
+            self.standard = 0
+            self.zipped = 0
+            self.managed = 0
+            self.archive = 0
+            self.size = 0
+            LOGGER.start("{all} files found ({standard} standard, {zipped} zipped in {archive} archive(s)) [{size}]")
 
-    def update_from_disk(self):
+        def increment(self, all_files=None, standard=None, zipped=None, managed=None, archive=None, size=None):
+            if all_files is not None:
+                self.all += all_files
+            if standard is not None:
+                self.standard += standard
+            if zipped is not None:
+                self.zipped += zipped
+            if managed is not None:
+                self.managed += managed
+            if archive is not None:
+                self.archive += archive
+            if size is not None:
+                self.size += size
+
+        def log(self):
+            LOGGER.update(all=self.all,
+                          standard=self.standard,
+                          zipped=self.zipped,
+                          archive=self.archive,
+                          size=naturalsize(self.size))
+
+        def end_logging(self):
+            LOGGER.end(all=self.all,
+                       standard=self.standard,
+                       zipped=self.zipped,
+                       archive=self.archive,
+                       size=naturalsize(self.size))
+
+    def update_from_disk(self, root_path=None):
+
+        if root_path is None:
+            root_path = self.root_path
 
         for media_file in self:
             media_file.exists = False
 
-        nb_files = 0
-        nb_sfiles = 0
-        nb_zfiles = 0
-        nb_m_files = 0
-        nb_zip = 0
-        total_size = 0
-        LOGGER.start(
-            "{nb_file} files found ({nb_sfiles} standard, {nb_zfiles} zipped in {nb_zip} archive(s)) [{size}]")
-        LOGGER.update(nb_file=nb_files, nb_sfiles=nb_sfiles, nb_zfiles=nb_zfiles, nb_zip=nb_zip,
-                      size=naturalsize(total_size))
+        files_summary = MediaSet.FilesSummary()
         not_loaded_files: Dict[str, FileDescription] = {}
         ignored_files: List[str] = []
-        for path, dir_list, file_list in os.walk(self.root_path, topdown=True):
-            for file in file_list:
-                file_path = Path(path) / file
-                extension = os.path.splitext(file)[1].lower()
-                if extension in MANAGED_TYPE and not self.is_ignored(file):
-                    relative_path = file_path.relative_to(self.root_path).as_posix()
-                    if relative_path not in self.filename_map:
-                        file_size = file_path.stat().st_size
-                        file_desc = StandardFileDescription(relative_path, file_size)
-                        not_loaded_files[file_desc.relative_path] = file_desc
-                    else:
-                        self.filename_map[relative_path].exists = True
-                        file_size = self.filename_map[relative_path].file_desc.file_size
-                    nb_files += 1
-                    nb_m_files += 1
-                    nb_sfiles += 1
-                    total_size += file_size
+
+        for path, dir_list, file_list in os.walk(root_path, topdown=True):
+            for file_name in file_list:
+                file_path = Path(path) / file_name
+                extension = os.path.splitext(file_name)[1].lower()
+
+                if extension in MANAGED_TYPE and not self.is_ignored(file_name):
+                    file_size = self.register_new_standard_file(file_path, not_loaded_files)
+                    files_summary.increment(all_files=1, managed=1, standard=1, size=file_size)
                 elif extension in ARCHIVE_TYPE:
-                    n_files, n_mfiles, size = self.import_zip_file(file_path, not_loaded_files, ignored_files)
-                    nb_zfiles += n_files
-                    nb_m_files += n_mfiles
-                    nb_files += n_files
-                    total_size += size
-                    nb_zip += 1
+                    self.load_zip_archive(file_path, not_loaded_files, ignored_files, files_summary)
                 else:
                     ignored_files.append(file_path.as_posix())
-                    nb_files += 1
-                    nb_sfiles += 1
-            LOGGER.update(nb_file=nb_files, nb_sfiles=nb_sfiles, nb_zfiles=nb_zfiles, nb_zip=nb_zip,
-                          size=naturalsize(total_size))
-
-        LOGGER.end(nb_file=nb_files, nb_sfiles=nb_sfiles, nb_zfiles=nb_zfiles, nb_zip=nb_zip,
-                   size=naturalsize(total_size))
+                    files_summary.increment(all_files=1, standard=1)
+            files_summary.log()
+        files_summary.end_logging()
 
         saved_file = OutputDirectory.get(self.root_path).save_list(ignored_files, "ignored-files.json")
         LOGGER.info_indent("{l1} files ignored [{saved}]".format(l1=len(ignored_files), saved=saved_file))
-        LOGGER.info_indent("{l1} detected as media files".format(l1=nb_m_files))
+        LOGGER.info_indent("{l1} detected as media files".format(l1=files_summary.managed))
 
         return not_loaded_files
+
+    def load_zip_archive(self, zip_file_path, file_map: Dict[str, FileDescription], ignored_files: List[str],
+                         files_summary: "MediaSet.FilesSummary"):
+
+        files_summary.increment(archive=1)
+        with zipfile.ZipFile(zip_file_path) as zip_file:
+            for file_info in zip_file.filelist:
+                file_name = file_info.filename
+                if not file_name.endswith('/'):
+                    extension = os.path.splitext(file_name)[1].lower()
+                    files_summary.increment(all_files=1, zipped=1)
+
+                    if extension in MANAGED_TYPE and not self.is_ignored(Path(file_name).name):
+                        file_size = self.register_new_zipped_file(file_info, file_map, file_name, zip_file_path)
+                        files_summary.increment(managed=1, size=file_size)
+                    else:
+                        ignored_files.append((Path(self.root_path) / zip_file_path).as_posix())
+
+    def register_new_standard_file(self, file_path, not_loaded_files):
+        relative_path = file_path.relative_to(self.root_path).as_posix()
+        if relative_path not in self.filename_map:
+            file_size = file_path.stat().st_size
+            file_desc = StandardFileDescription(relative_path, file_size)
+            not_loaded_files[file_desc.relative_path] = file_desc
+        else:
+            self.filename_map[relative_path].exists = True
+            file_size = self.filename_map[relative_path].file_desc.file_size
+        return file_size
+
+    def register_new_zipped_file(self, file_info, file_map, file_name, zip_file_path):
+        relative_path = (Path(zip_file_path) / file_name).relative_to(self.root_path).as_posix()
+        zip_relative_path = Path(zip_file_path).relative_to(self.root_path).as_posix()
+        if relative_path not in self.filename_map:
+            file_size = file_info.file_size
+            zip_file_desc = ZipFileDescription(zip_relative_path, file_name, file_size)
+            file_map[zip_file_desc.get_relative_path()] = zip_file_desc
+        else:
+            file_size = self.filename_map[relative_path].file_desc.file_size
+            self.filename_map[relative_path].exists = True
+        return file_size
 
     def is_ignored(self, file_name):
         if "ignore" in self.state:
