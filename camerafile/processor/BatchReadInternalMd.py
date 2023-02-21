@@ -103,4 +103,4 @@ class BatchReadInternalMd(TaskWithProgression):
             tab.print_line(key, str(value))
         print("")
 
-        self.media_set.update_loaded_metadata()
+        self.media_set.state.update_loaded_metadata()

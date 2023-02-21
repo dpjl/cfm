@@ -115,7 +115,7 @@ def execute(args):
     other_md_needed = ()
     if args.dir2 is not None:
         media_set2 = MediaSet.load_media_set(args.dir2, Configuration.get().org_format)
-        other_md_needed = media_set2.get_metadata_needed_by_format()
+        other_md_needed = media_set2.state.get_metadata_needed_by_format()
 
     BatchReadInternalMd(media_set1, other_md_needed).execute()
     BatchComputeCm(media_set1).execute()
@@ -169,6 +169,7 @@ def main():
 
     Resource.init()
     init_logging()
+    Resource.extract_exiftool()
     LOGGER.info("Starting Camera Files Manager - version 0.3 - DpjL (pid: {pid})".format(pid=current_process().pid))
     Configuration.get().init(args)
     execute(args)

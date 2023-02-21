@@ -1,12 +1,9 @@
-import logging
 import os
-from pathlib import Path
 from hashlib import blake2b
+from pathlib import Path
 
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import Logger
-
-LOGGER = logging.getLogger(__name__)
 
 LOGGER = Logger(__name__)
 
@@ -33,7 +30,7 @@ class OutputDirectory:
 
     @staticmethod
     def get(root_directory) -> "OutputDirectory":
-        root_directory = Path(root_directory).as_posix()
+        root_directory = os.path.splitdrive(Path(root_directory).as_posix())[1]
         if str(root_directory) not in OutputDirectory.__instance:
             OutputDirectory.__instance[root_directory] = OutputDirectory(root_directory)
         return OutputDirectory.__instance[root_directory]

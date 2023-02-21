@@ -1,28 +1,24 @@
 import os
-import re
-import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Iterable, Union
+from typing import List, Dict, Iterable
 
-import yaml
-from humanize import naturalsize
+import dhash
 from pyzipper import zipfile
 
-from camerafile.core.Configuration import Configuration
+from camerafile.console.FilesSummary import FilesSummary
 from camerafile.core.Constants import MANAGED_TYPE, INTERNAL, SIGNATURE, CFM_CAMERA_MODEL, ARCHIVE_TYPE
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.core.MediaFile import MediaFile
 from camerafile.core.MediaSetDatabase import MediaSetDatabase
 from camerafile.core.MediaSetDump import MediaSetDump
-from camerafile.core.OrgFormat import OrgFormat
+from camerafile.core.MediaSetState import MediaSetState
 from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
 from camerafile.fileaccess.ZipFileDescription import ZipFileDescription
 from camerafile.mdtools.MdConstants import MetadataNames
-from camerafile.tools.FaceRecognition import FaceRecognition
 
 LOGGER = Logger(__name__)
 
@@ -42,13 +38,11 @@ class MediaSet:
         self.filename_map: Dict[str, MediaFile] = {}
 
         self.db_file = db_file
-        self.state: dict[str, Union[str, list]] = self.load_state()
+        self.state: MediaSetState = MediaSetState(self.root_path)
         self.initialize_file_and_dir_list()
         self.delete_not_existing_media()
-        self.read_md_needed = False
-        self.md_needed = ()
-        self.org_format = self.load_format(org_format)
-        self.load_metadata_to_read()
+        self.state.load_format(org_format)
+        self.state.load_metadata_to_read()
 
         LOGGER.debug("New MediaSet object created: " + str(id(self)))
 
@@ -64,13 +58,11 @@ class MediaSet:
             loaded.root_path = root_path.as_posix()
 
             loaded.db_file = db_file
-            loaded.state = loaded.load_state()
+            loaded.state = MediaSetState(loaded.root_path)
             loaded.initialize_file_and_dir_list()
             loaded.delete_not_existing_media()
-            loaded.read_md_needed = False
-            loaded.md_needed = ()
-            loaded.org_format = loaded.load_format(org_format)
-            loaded.load_metadata_to_read()
+            loaded.state.load_format(org_format)
+            loaded.state.load_metadata_to_read()
             return loaded
         else:
             return MediaSet(path, org_format, db_file)
@@ -91,91 +83,6 @@ class MediaSet:
     def get_trash_file(self):
         return self.root_path + os.sep + self.CFM_TRASH
 
-    def load_state(self):
-        state = {}
-        if OutputDirectory.get(self.root_path).state_file.exists():
-            with open(OutputDirectory.get(self.root_path).state_file) as file:
-                state = yaml.safe_load(file)
-        if Configuration.get().ignore_list is not None:
-            ignore_list = Configuration.get().ignore_list
-            for ignore_pattern in ignore_list:
-                if "ignore" not in state:
-                    state["ignore"] = []
-                if ignore_pattern not in state["ignore"]:
-                    state["ignore"].append(ignore_pattern)
-        if "ignore" in state:
-            LOGGER.info(f'Filename patterns to ignore: {str(state["ignore"])}')
-        return state if state is not None else {}
-
-    def save_state(self):
-        with open(OutputDirectory.get(self.root_path).state_file, "w") as file:
-            return yaml.safe_dump(self.state, file)
-
-    def load_format(self, param_format):
-        if "format" in self.state:
-            existing_format = self.state["format"]
-            if existing_format is not None and param_format and param_format != "" and param_format != existing_format:
-                state_file = OutputDirectory.get(self.root_path).state_file.as_posix()
-                print(
-                    f"Error: format in argument '{param_format} ' differs from "
-                    f"format saved in {state_file}: '{existing_format}'")
-                print("If you really want to force changing the destination format, please remove this file "
-                      "and launch again cfm.")
-                sys.exit(1)
-            elif existing_format is not None:
-                org_format = existing_format
-            else:
-                org_format = param_format
-
-        else:
-            org_format = param_format
-
-        if org_format is not None and org_format != "":
-            self.state["format"] = org_format
-            self.save_state()
-            return OrgFormat(org_format)
-        else:
-            return None
-
-    def get_metadata_needed_by_format(self):
-        args = ()
-        if self.org_format is not None:
-            md_list = self.org_format.get_metadata_list()
-            if not Configuration.get().internal_read:
-                md_list.remove(MetadataNames.CREATION_DATE)
-                if len(md_list) != 0:
-                    raise Exception("Error, some fields of target format cannot be loaded without "
-                                    "internal metadata loading: " + ", ".join(md_list))
-            for md in md_list:
-                if md not in args:
-                    args += (md,)
-        return args
-
-    def load_metadata_to_read(self):
-        previously_loaded_metadata = ()
-        if "loaded_metadata" in self.state:
-            previously_loaded_metadata = tuple([MetadataNames.from_str(arg) for arg in self.state["loaded_metadata"]])
-        args = ()
-        if Configuration.get().internal_read:
-            args += (MetadataNames.CREATION_DATE, MetadataNames.MODEL, MetadataNames.ORIENTATION)
-        else:
-            print("Warning: only system metadata will be used. It is faster but dates could be different from the"
-                  "date of the original date the photos were taken")
-
-        if Configuration.get().thumbnails:
-            args += (MetadataNames.THUMBNAIL,)
-
-        for arg in args:
-            if arg not in previously_loaded_metadata:
-                self.read_md_needed = True
-                LOGGER.debug("This metadata was not already loaded, internal read will be performed: " + str(arg))
-
-        self.md_needed = args
-
-    def update_loaded_metadata(self):
-        self.state["loaded_metadata"] = [str(md) for md in self.md_needed]
-        self.save_state()
-
     def delete_not_existing_media(self):
         deleted = []
         to_be_deleted = []
@@ -192,11 +99,6 @@ class MediaSet:
     def get_date_sorted_media_list(self):
         self.media_file_list.sort(key=MediaFile.get_date)
         return self.media_file_list
-
-    def train(self):
-        FaceRecognition.get(self).add_training_data()
-        FaceRecognition.get(self).save_training_data()
-        FaceRecognition.get(self).train()
 
     def get_file_from_path(self, file_path):
         for media_file in self.media_file_list:
@@ -262,7 +164,15 @@ class MediaSet:
         date = media_file.get_exif_date()
         sig = media_file.get_signature()
         if date is not None and sig is not None:
-            self.add_to_x_y_map(self.date_sig_map, date, sig, media_file)
+            # self.add_to_x_y_map(self.date_sig_map, date, sig, media_file)
+            if date not in self.date_sig_map:
+                self.date_sig_map[date] = {}
+            for existing_sig in self.date_sig_map[date].keys():
+                if dhash.get_num_bits_different(sig, existing_sig) < 4:
+                    if media_file not in self.date_sig_map[date][existing_sig]:
+                        self.date_sig_map[date][existing_sig].append(media_file)
+                    return
+            self.date_sig_map[date][sig] = [media_file]
 
     @staticmethod
     def add_to_x_y_map(map_to_update, x, y, media_file):
@@ -295,8 +205,14 @@ class MediaSet:
 
         # vérifier si la signature devrait être calculée (possibly already exist) ?
         if item.get_signature() is not None:
-            if self.exist_in_x_y_map(self.date_sig_map, date, item.get_signature()):
-                return True
+            # if self.exist_in_x_y_map(self.date_sig_map, date, item.get_signature()):
+            #    return True
+            if date is not None and date in self.date_sig_map:
+                for sig in self.date_sig_map[date]:
+                    if dhash.get_num_bits_different(sig, item.get_signature()) < 4:
+                        return True
+            return False
+
         return False
 
     def get_possibly_duplicates(self):
@@ -319,6 +235,27 @@ class MediaSet:
                 for media_list in self.date_sig_map[date].values():
                     self.add_duplicates_to_n_copy(n_copy, media_list)
         return n_copy
+
+    @staticmethod
+    def add_to_duplicates_map(dup_map, media_list: List[MediaFile]):
+        nb_copy = len(media_list)
+        media_list.sort(key=lambda x: x.file_desc.name)
+        group_id = media_list[0].file_desc.name
+        dup_id = 1
+        for media_file in media_list:
+            dup_map[media_file] = (nb_copy, group_id, dup_id)
+            dup_id += 1
+
+    def duplicates_map(self):
+        dup_map = {}
+        for date, size_map in self.date_size_map.items():
+            if len(size_map) == 1:
+                _, media_list = self.get_first_element(size_map)
+                self.add_to_duplicates_map(dup_map, media_list)
+            else:
+                for media_list in self.date_sig_map[date].values():
+                    self.add_to_duplicates_map(dup_map, media_list)
+        return dup_map
 
     def get_duplicates_report(self, duplicates):
         str_list = ["All media files: " + str(len(self.media_file_list)),
@@ -481,44 +418,6 @@ class MediaSet:
             LOGGER.update(nb_file=number_of_files)
         LOGGER.end(nb_file=number_of_files)
 
-    class FilesSummary:
-        def __init__(self):
-            self.all = 0
-            self.standard = 0
-            self.zipped = 0
-            self.managed = 0
-            self.archive = 0
-            self.size = 0
-            LOGGER.start("{all} files found ({standard} standard, {zipped} zipped in {archive} archive(s)) [{size}]")
-
-        def increment(self, all_files=None, standard=None, zipped=None, managed=None, archive=None, size=None):
-            if all_files is not None:
-                self.all += all_files
-            if standard is not None:
-                self.standard += standard
-            if zipped is not None:
-                self.zipped += zipped
-            if managed is not None:
-                self.managed += managed
-            if archive is not None:
-                self.archive += archive
-            if size is not None:
-                self.size += size
-
-        def log(self):
-            LOGGER.update(all=self.all,
-                          standard=self.standard,
-                          zipped=self.zipped,
-                          archive=self.archive,
-                          size=naturalsize(self.size))
-
-        def end_logging(self):
-            LOGGER.end(all=self.all,
-                       standard=self.standard,
-                       zipped=self.zipped,
-                       archive=self.archive,
-                       size=naturalsize(self.size))
-
     def update_from_disk(self, root_path=None):
 
         if root_path is None:
@@ -527,7 +426,7 @@ class MediaSet:
         for media_file in self:
             media_file.exists = False
 
-        files_summary = MediaSet.FilesSummary()
+        files_summary = FilesSummary()
         not_loaded_files: Dict[str, FileDescription] = {}
         ignored_files: List[str] = []
 
@@ -536,14 +435,17 @@ class MediaSet:
                 file_path = Path(path) / file_name
                 extension = os.path.splitext(file_name)[1].lower()
 
-                if extension in MANAGED_TYPE and not self.is_ignored(file_name):
+                if extension in MANAGED_TYPE and not self.state.should_be_ignored(file_name):
                     file_size = self.register_new_standard_file(file_path, not_loaded_files)
                     files_summary.increment(all_files=1, managed=1, standard=1, size=file_size)
                 elif extension in ARCHIVE_TYPE:
                     self.load_zip_archive(file_path, not_loaded_files, ignored_files, files_summary)
                 else:
-                    ignored_files.append(file_path.as_posix())
                     files_summary.increment(all_files=1, standard=1)
+                    ignored_files.append(file_path.as_posix())
+                    relative_path = file_path.relative_to(self.root_path).as_posix()
+                    if relative_path in self.filename_map:
+                        self.remove_file(self.filename_map[relative_path])
             files_summary.log()
         files_summary.end_logging()
 
@@ -554,7 +456,7 @@ class MediaSet:
         return not_loaded_files
 
     def load_zip_archive(self, zip_file_path, file_map: Dict[str, FileDescription], ignored_files: List[str],
-                         files_summary: "MediaSet.FilesSummary"):
+                         files_summary: FilesSummary):
 
         files_summary.increment(archive=1)
         with zipfile.ZipFile(zip_file_path) as zip_file:
@@ -564,7 +466,7 @@ class MediaSet:
                     extension = os.path.splitext(file_name)[1].lower()
                     files_summary.increment(all_files=1, zipped=1)
 
-                    if extension in MANAGED_TYPE and not self.is_ignored(Path(file_name).name):
+                    if extension in MANAGED_TYPE and not self.state.should_be_ignored(Path(file_name).name):
                         file_size = self.register_new_zipped_file(file_info, file_map, file_name, zip_file_path)
                         files_summary.increment(managed=1, size=file_size)
                     else:
@@ -592,10 +494,3 @@ class MediaSet:
             file_size = self.filename_map[relative_path].file_desc.file_size
             self.filename_map[relative_path].exists = True
         return file_size
-
-    def is_ignored(self, file_name):
-        if "ignore" in self.state:
-            for regexp in self.state["ignore"]:
-                if re.match(regexp, file_name):
-                    return True
-        return False

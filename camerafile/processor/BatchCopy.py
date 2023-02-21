@@ -35,6 +35,7 @@ class BatchCopy(CFMBatch):
 
     def initialize(self):
         LOGGER.write_title(self.new_media_set, self.update_title())
+        self.new_media_set.org_format.init_duplicates(self.old_media_set)
 
     def task_getter(self):
         return CopyFile.execute
@@ -46,17 +47,26 @@ class BatchCopy(CFMBatch):
 
     def arguments(self):
         args_list = []
-        n_copy_list = self.old_media_set.duplicates()
         new_path_map = {}
-        for n_copy in n_copy_list.values():
-            for media_list in n_copy:
-                media_file: MediaFile = self.old_media_set.get_oldest_modified_file(media_list)
-                if not self.new_media_set.contains(media_file):
-                    new_root, _, new_path = CopyFile.get_organization_path(media_file, self.new_media_set, new_path_map)
-                    new_path_map[new_path] = 0
-                    args_list.append(BatchElement(
-                        (media_file.parent_set.root_path, media_file.file_desc, new_root, new_path, self.copy_mode),
-                        media_file.get_path()))
+        if "{dup-" not in self.new_media_set.org_format.format_description:
+            n_copy_list = self.old_media_set.duplicates()
+            for n_copy in n_copy_list.values():
+                for media_list in n_copy:
+                    media_file: MediaFile = self.old_media_set.get_oldest_modified_file(media_list)
+                    if not self.new_media_set.contains(media_file):
+                        new_root, _, new_path = CopyFile.get_organization_path(media_file, self.new_media_set,
+                                                                               new_path_map)
+                        new_path_map[new_path] = 0
+                        args_list.append(BatchElement(
+                            (media_file.parent_set.root_path, media_file.file_desc, new_root, new_path, self.copy_mode),
+                            media_file.get_path()))
+        else:
+            for media_file in self.old_media_set:
+                new_root, _, new_path = CopyFile.get_organization_path(media_file, self.new_media_set, new_path_map)
+                new_path_map[new_path] = 0
+                args_list.append(BatchElement(
+                    (media_file.parent_set.root_path, media_file.file_desc, new_root, new_path, self.copy_mode),
+                    media_file.get_path()))
         return args_list
 
     def post_task(self, result: Tuple[bool, str, FileDescription, Union[FileDescription, None]], pb, replace=False):

@@ -5,7 +5,6 @@ from pathlib import Path
 
 
 class Resource:
-
     exiftool_executable = None
     program_path = None
     logging_configuration = None
@@ -24,7 +23,6 @@ class Resource:
     @staticmethod
     def init():
         Resource.program_path = Resource.get_main_path()
-        os.environ['PAR_GLOBAL_TEMP'] = str(Resource.get_main_path() / "bin/exiftool/tmp_cache")
         logging_configuration_file = Resource.program_path / "conf" / "logging.json"
         cfm_configuration_file = Resource.program_path / "conf" / "cfm.json"
         with open(logging_configuration_file, 'r') as f:
@@ -33,8 +31,26 @@ class Resource:
             Resource.cfm_configuration = json.load(f)
 
         Resource.exiftool_executable = Resource.program_path / Path(Resource.cfm_configuration["exiftool-" + os.name])
-        Resource.dlib_predictor_dir = (Resource.program_path / Path(Resource.cfm_configuration["dlib-predictor-dir"])).resolve()
-        Resource.dlib_predictor = str((Resource.dlib_predictor_dir / Path(Resource.cfm_configuration["dlib-predictor"])).resolve())
+        Resource.dlib_predictor_dir = (
+                    Resource.program_path / Path(Resource.cfm_configuration["dlib-predictor-dir"])).resolve()
+        Resource.dlib_predictor = str(
+            (Resource.dlib_predictor_dir / Path(Resource.cfm_configuration["dlib-predictor"])).resolve())
+
+    @staticmethod
+    def extract_exiftool():
+        if not Resource.exiftool_executable.exists():
+            archive = Resource.program_path / Path(Resource.cfm_configuration["exiftool-archive-" + os.name])
+            destination = Resource.exiftool_executable.parent
+            print(f"Extract exiftool archive {archive} to {destination} (only done the first time)")
+            if str(archive).endswith(".zip"):
+                import zipfile
+                with zipfile.ZipFile(archive) as file:
+                    file.extractall(destination)
+            elif str(archive).endswith(".tar.gz"):
+                import tarfile
+                with tarfile.open(archive, "r:gz") as file:
+                    file.extractall(destination)
+                    file.close()
 
     @staticmethod
     def download_model():

@@ -1,4 +1,4 @@
-import hashlib
+import dhash
 
 from camerafile.core.Logging import Logger
 
@@ -8,36 +8,13 @@ LOGGER = Logger(__name__)
 class Hash:
     image_hash_lib = None
 
+    # Before, imagehash.phash was used but:
+    # - imagehash depends on numpy/scipy that are big libraries (in size in the final package)
+    # - As we only use this hash to compare images that have a same date, it is not necessary to have a very
+    #   optimized image hash.
+    # - As we do not compare each image of one mediaSet to each image of another, we can compute
+    #   distances between two hashes to decide their equality (it remains sufficiently quick).
+    # - After some tests, the result seems as good as before (to be verified more precisely one day)
     @staticmethod
     def image_hash(pil_image):
-
-        if Hash.image_hash_lib is None:
-            LOGGER.debug("Load imagehash module")
-            import imagehash
-            Hash.image_hash_lib = imagehash
-
-        # faster than md5 hash
-        # concatenates date to limitate false positives
-        # can be a problem for "rafales" ?
-        # img_date = datetime.strptime(self.media_file.metadata.get_value(DATE), '%Y/%m/%d %H:%M:%S')
-        # date_str = img_date.strftime('-%Y-%m-%d-%H-%M-%S-%f')
-
-        return str(Hash.image_hash_lib.phash(pil_image))
-
-        # doesn't work (why ?)
-        # and slower
-        # file_hash = hashlib.md5()
-        # file_hash.update(img.tobytes())
-        # result = file_hash.hexdigest()
-
-    def md5_hash(self, file):
-        file_hash = hashlib.md5()
-        while chunk := file.read(8192):
-            file_hash.update(chunk)
-        return file_hash.hexdigest()
-
-    def md5_hash_old(self, file):
-        file_hash = hashlib.md5()
-        while chunk := file.read(65536):
-            file_hash.update(chunk)
-        return file_hash.hexdigest()
+        return dhash.dhash_int(pil_image)

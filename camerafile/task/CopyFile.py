@@ -44,10 +44,8 @@ class CopyFile:
     def get_organization_path(media_file: MediaFile, new_media_set: MediaSet, new_path_map):
         new_root_path = Path(new_media_set.root_path)
         new_dir_path = new_media_set.org_format.get_formatted_string(media_file)
-        new_file_name = media_file.file_desc.name
-        new_file_path = Path(new_dir_path) / new_file_name
-
-        original_file_name = new_file_name
+        new_file_path = Path(new_dir_path)
+        original_file_name = media_file.file_desc.name
         i = 2
         while new_file_path in new_path_map:
             new_file_name = CopyFile.add_suffix_to_filename(original_file_name, "~" + str(i))

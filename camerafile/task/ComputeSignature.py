@@ -12,7 +12,7 @@ class ComputeSignature:
             ComputeSignature.compute_value(root_path, file_desc, signature_metadata)
         except BaseException as e:
             if Configuration.get().exit_on_error:
-                pass  # TODO : put full stacktrace in batch_element.error
+                raise
             else:
                 batch_element.error = "ComputeSignature: [{info}] - ".format(info=batch_element.info) + str(e)
         batch_element.args = None

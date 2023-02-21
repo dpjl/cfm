@@ -13,8 +13,12 @@ class OrgFormat:
         self.format_description = format_description
         self.fields = re.findall(r'({.*?:.*?})', format_description)
         self.contents = []
+        self.duplicates = {}
         for field in self.fields:
             self.contents.append(re.findall(r'{(.*?):(.*?)}', field)[0])
+
+    def init_duplicates(self, media_set: "MediaSet"):
+        self.duplicates = media_set.duplicates_map()
 
     def get_formatted_string(self, media: MediaFile):
         result = self.format_description
@@ -32,6 +36,14 @@ class OrgFormat:
                     media_date = media.get_date()
                 formatted_date = media_date.strftime(argument)
                 result = result.replace(field, formatted_date)
+            elif name == "dup-id":
+                result = result.replace(field, str(self.duplicates[media][2]))
+            elif name == "dup-nb":
+                result = result.replace(field, str(self.duplicates[media][0]))
+            elif name == "dup-group":
+                result = result.replace(field, str(self.duplicates[media][1]))
+            elif name == "extension":
+                result = result.replace(field, media.get_extension())
             else:
                 pass
         return result

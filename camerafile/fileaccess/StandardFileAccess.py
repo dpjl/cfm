@@ -102,9 +102,9 @@ class StandardFileAccess(FileAccess):
                             return Hash.image_hash(image.image_data)
                         except BaseException as e:
                             print("image_hash: " + str(e) + " / " + self.file_desc.relative_path)
-                            return str(self.get_file_size())
+                            return self.get_file_size()
         else:
-            return str(self.get_file_size())
+            return self.get_file_size()
 
     def get_image(self):
         if self.is_image():

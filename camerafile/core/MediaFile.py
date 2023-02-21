@@ -41,28 +41,11 @@ class MediaFile:
             return True
         return False
 
-    def is_same(self, other):
-        # self.metadata.compute_value(SIGNATURE)
-        # other.metadata.compute_value(SIGNATURE)
-        sig1 = self.get_signature()
-        sig2 = other.get_signature()
-        if sig1 == sig2:
-            return True
-        return False
-
     def get_signature(self):
-        # self.metadata.compute_value(SIGNATURE)
         return self.metadata.get_value(SIGNATURE)
 
     def get_camera_model(self):
         return self.metadata[CFM_CAMERA_MODEL].value
-
-    def get_dimensions(self):
-        width = self.metadata[INTERNAL].get_width()
-        height = self.metadata[INTERNAL].get_height()
-        if width is not None and height is not None:
-            return str(width) + "x" + str(height)
-        return None
 
     def get_file_size(self):
         return self.file_desc.file_size

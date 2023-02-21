@@ -15,6 +15,11 @@ class CreatePackage(Command):
         ('format=', 'f', 'Package format (zip or tar.gz)')
     ]
 
+    def __init__(self, dist, **kw):
+        super().__init__(dist, **kw)
+        self.exiftool = None
+        self.format = None
+
     def initialize_options(self):
         self.exiftool = None
         self.format = None
@@ -34,7 +39,7 @@ class CreatePackage(Command):
         os.makedirs("dist/cfm/ext-bin/exiftool")
         os.makedirs("dist/cfm/data")
 
-        exiftool_path = "dist/bin/camerafile/bin/exiftool/" + self.exiftool
+        exiftool_path = "dist/bin/camerafile/ext-bin/exiftool/" + self.exiftool
         if exiftool_path.endswith(".zip"):
             with zipfile.ZipFile(exiftool_path) as file:
                 file.extractall("dist/cfm/ext-bin/exiftool")
@@ -43,11 +48,10 @@ class CreatePackage(Command):
                 file.extractall("dist/cfm/ext-bin/exiftool")
                 file.close()
         else:
-            shutil.move("dist/bin/camerafile/bin/exiftool/" + self.exiftool, "dist/cfm/ext-bin/exiftool/" + self.exiftool)
-        shutil.move("dist/bin/data/models", "dist/cfm/data")
+            shutil.move("dist/bin/camerafile/ext-bin/exiftool/" + self.exiftool,
+                        "dist/cfm/ext-bin/exiftool/" + self.exiftool)
         shutil.move("dist/bin/conf", "dist/cfm/conf")
 
-        shutil.rmtree("dist/bin/data")
         shutil.rmtree("dist/bin/camerafile")
 
         shutil.move("dist/bin", "dist/cfm")
@@ -56,8 +60,6 @@ class CreatePackage(Command):
             shutil.copy2("resources/cfm.bat", "dist/cfm/cfm.bat")
         else:
             shutil.copy2("resources/cfm", "dist/cfm/cfm")
-
-
 
     @staticmethod
     def zip_dir(output_filename, source_dir):
@@ -98,13 +100,11 @@ class CreatePackage(Command):
 setup(name='camerafile',
       version='0.1',
       description='Camera File Manager',
-      url='https://github.com/vivi-18133/vivi-cfm',
+      url='https://github.com/dpjl',
       author='dpjl',
       author_email='dpjl@gmail.com',
       license='MIT',
       packages=['camerafile'],
-      package_data={'camerafile': ["bin/exiftool-11.94.exe", 'conf/logging.json']},
-      data_files=[('bin', ['bin/exiftool-11.94.exe']), ('conf', ['conf/logging.json'])],
       entry_points={'console_scripts': ['cfm=camerafile.cfm:main']},
       cmdclass={'create_package': CreatePackage},
       zip_safe=False)
