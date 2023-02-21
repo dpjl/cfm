@@ -4,7 +4,6 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-import cv2
 import pyzipper
 from typing import Tuple, Union
 
@@ -112,10 +111,3 @@ class StandardFileAccess(FileAccess):
             with open(self.get_path(), 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
                     return CFMImage(mmap_obj, self.file_desc.name)
-
-    def get_cv2_image(self):
-        return cv2.imread(self.get_path())
-        if self.is_image():
-            with open(self.path, 'rb') as f:
-                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
-                    return cv2.imread(mmap_obj)

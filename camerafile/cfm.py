@@ -1,14 +1,12 @@
 import argparse
 import logging.config
 import os
+import sys
 from multiprocessing.process import current_process
 from multiprocessing.spawn import freeze_support
 from textwrap import dedent
 
-import sys
-
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Resource import Resource
 from camerafile.fileaccess.FileAccess import CopyMode
 
 COMMAND = "command"
@@ -102,9 +100,7 @@ def execute(args):
     from camerafile.processor.BatchComputeNecessarySignatures import \
         BatchComputeNecessarySignaturesMultiProcess
     from camerafile.processor.BatchCopy import BatchCopy
-    from camerafile.processor.BatchDetectFaces import BatchDetectFaces
     from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
-    from camerafile.processor.BatchRecoFaces import BatchRecoFaces
     from camerafile.processor.CompareMediaSets import CompareMediaSets
     from camerafile.processor.SearchForDuplicates import SearchForDuplicates
 
@@ -146,15 +142,6 @@ def execute(args):
             copy_mode = args.mode if args.mode is not None else CopyMode.HARD_LINK
             BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
             BatchCopy(media_set1, media_set2, copy_mode).execute()
-
-    if args.command == RECOGNIZE_CMD:
-        Resource.download_model()
-        if args.extract_faces:
-            BatchDetectFaces(media_set1).execute()
-        if args.learn_faces:
-            media_set1.train()
-        if args.identify_faces:
-            BatchRecoFaces(media_set1).execute()
 
     print("")
 

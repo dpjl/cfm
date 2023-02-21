@@ -3,8 +3,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Union
 
-import cv2
-import numpy as np
 from pyzipper import zipfile
 
 from camerafile.core.Configuration import Configuration
@@ -100,10 +98,3 @@ class ZipFileAccess(FileAccess):
             with zipfile.ZipFile(self.get_zip_path()) as zip_file:
                 with zip_file.open(self.file_desc.file_path) as zip_file_element:
                     return CFMImage(zip_file_element, self.file_desc.name)
-
-    def get_cv2_image(self):
-        if self.is_image():
-            with zipfile.ZipFile(self.get_zip_path()) as zip_file:
-                with zip_file.open(self.file_desc.file_path) as zip_file_element:
-                    nb_array = np.asarray(bytearray(zip_file_element.read()), dtype=np.uint8)
-                    return cv2.imdecode(nb_array, cv2.IMREAD_COLOR)
