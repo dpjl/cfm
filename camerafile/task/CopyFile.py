@@ -1,8 +1,8 @@
 import os
+from enum import Enum
 from pathlib import Path
 from typing import Tuple
 
-from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Constants import ORIGINAL_COPY_PATH, DESTINATION_COPY_PATH, ORIGINAL_PATH
 from camerafile.core.MediaFile import MediaFile
@@ -10,6 +10,27 @@ from camerafile.core.MediaSet import MediaSet
 from camerafile.fileaccess.FileAccess import CopyMode
 from camerafile.fileaccess.FileAccessFactory import FileAccessFactory
 from camerafile.fileaccess.FileDescription import FileDescription
+from camerafile.processor.BatchCopyElement import BatchCopyElement
+from camerafile.processor.BatchTool import BatchElement
+
+
+class CollisionPolicy(Enum):
+    RENAME = 1
+    RENAME_PARENT = 2
+    IGNORE = 3
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return str(self)
+
+    @staticmethod
+    def argparse(s):
+        try:
+            return CollisionPolicy[s.upper()]
+        except KeyError:
+            return s
 
 
 class CopyFile:
@@ -40,22 +61,35 @@ class CopyFile:
         extension = splitext[1] if len(splitext) > 1 else ""
         return name_without_extension + suffix + extension
 
-    @staticmethod
-    def get_organization_path(media_file: MediaFile, new_media_set: MediaSet, new_path_map):
-        new_root_path = Path(new_media_set.root_path)
-        new_dir_path = new_media_set.org_format.get_formatted_string(media_file)
-        new_file_path = Path(new_dir_path)
-        original_file_name = media_file.file_desc.name
-        i = 2
-        while new_file_path in new_path_map:
-            new_file_name = CopyFile.add_suffix_to_filename(original_file_name, "~" + str(i))
-            new_file_path = Path(new_dir_path) / new_file_name
-            i += 1
+    @classmethod
+    def add_new_copy_element(cls, copy_elements_map, copy_element, new_media_set, nb_collisions=0):
+        copy_element: BatchCopyElement
+        new_path = Path(new_media_set.state.org_format.get_formatted_string(copy_element.media))
+        collision_policy = None
+        if nb_collisions != 0:
+            configured_collision_policy = Configuration.get().collision_policy
+            copy_element.collision_policy = configured_collision_policy
+            if configured_collision_policy == CollisionPolicy.RENAME_PARENT:
+                new_path = new_path.parent.parent / (new_path.parent.name + f"~{nb_collisions + 1}") / new_path.name
+            elif configured_collision_policy == CollisionPolicy.RENAME:
+                new_path = new_path.parent / cls.add_suffix_to_filename(new_path.name, f"~{nb_collisions + 1}")
+            elif configured_collision_policy == CollisionPolicy.IGNORE:
+                return
 
-        if new_file_path in new_path_map:
-            print("Something is wrong: destination still exists " + new_file_path)
-
-        return new_root_path, new_dir_path, new_file_path
+        if new_path in copy_elements_map:
+            nb_collisions += 1
+            other_element: BatchCopyElement = copy_elements_map[new_path]
+            if copy_element.modification_date >= other_element.modification_date:
+                cls.add_new_copy_element(copy_elements_map, copy_element, new_media_set, nb_collisions)
+            else:
+                copy_element.collision_policy = collision_policy
+                copy_element.destination = new_path
+                copy_elements_map[new_path] = copy_element
+                cls.add_new_copy_element(copy_elements_map, other_element, new_media_set, nb_collisions)
+        else:
+            copy_element.collision_policy = collision_policy
+            copy_element.destination = new_path
+            copy_elements_map[new_path] = copy_element
 
     @staticmethod
     def copy(media_file: MediaFile, new_media_set: MediaSet, new_file_desc: FileDescription):

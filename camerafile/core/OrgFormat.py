@@ -44,6 +44,8 @@ class OrgFormat:
                 result = result.replace(field, str(self.duplicates[media][1]))
             elif name == "extension":
                 result = result.replace(field, media.get_extension())
+            elif name == "filename":
+                result = result.replace(field, media.file_desc.name)
             else:
                 pass
         return result
@@ -51,7 +53,9 @@ class OrgFormat:
     def get_metadata_list(self):
         result = []
         for name, argument in self.contents:
-            result.append(MetadataNames.from_str(name))
+            m = MetadataNames.from_str(name)
+            if m is not None:
+                result.append(m)
         return result
 
 

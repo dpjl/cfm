@@ -16,6 +16,7 @@ DEFAULT_NB_SUB_PROCESS = cpu_count()
 
 LOGGER = Logger(__name__)
 
+
 class BatchElement:
 
     def __init__(self, args, info):
@@ -165,7 +166,7 @@ class TaskWithProgression:
         self.nb_errors += 1
         self.update_status(progress_bar)
         if batch_element.error:
-            self.write_error(batch_element.error)
+            self.write_error(f"{batch_element.info}: {batch_element.error}")
 
     def write_error(self, error):
         if self.stderr_file:
@@ -204,7 +205,11 @@ class TaskWithProgression:
                 self.write_stdout(stdout, progress_bar)
                 if batch_element.error:
                     self.process_error(batch_element, progress_bar)
-                post_task(batch_element.result, progress_bar, replace=True)
+                try:
+                    post_task(batch_element.result, progress_bar, replace=True)
+                except BaseException:
+                    batch_element.error = traceback.format_exc()
+                    self.process_error(batch_element, progress_bar)
         except BaseException:
             print("Unexpected exception")
             traceback.print_exc()

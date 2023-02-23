@@ -1,7 +1,6 @@
 import logging
 from multiprocessing import cpu_count
 
-
 class Configuration:
     __instance = None
 
@@ -23,6 +22,8 @@ class Configuration:
         self.first_output_directory = None
         self.cache_path = None
         self.ignore_list = None
+        self.collision_policy = None
+        self.ignore_duplicates = False
 
     @staticmethod
     def get():
@@ -74,5 +75,12 @@ class Configuration:
 
             if args.ignore:
                 self.ignore_list = args.ignore
+
+            if "collision_policy" in args and args.collision_policy:
+                from camerafile.task.CopyFile import CollisionPolicy
+                self.collision_policy = CollisionPolicy(args.collision_policy)
+
+            if "ignore_duplicates" in args and args.ignore_duplicates:
+                self.ignore_duplicates = args.ignore_duplicates
 
             self.initialized = True

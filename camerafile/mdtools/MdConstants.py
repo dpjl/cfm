@@ -38,4 +38,4 @@ class MetadataNames(Enum):
         elif md_name == "thumbnail":
             return MetadataNames.THUMBNAIL
         else:
-            return md_name
+            return None

@@ -3,6 +3,7 @@ import os
 import sqlite3
 from datetime import datetime
 from json import JSONDecodeError
+from pathlib import Path
 
 import dill
 from typing import Dict, Iterable
@@ -186,12 +187,10 @@ class MediaSetDatabase:
             text_fields, other_fields = self.get_columns_ids(cursor.description)
             for result in cursor:
                 if result is not None and len(result) >= 1:
-                    file = result[text_fields["file"]]
-                    file_path = (media_set.root_path / file).as_posix()
+                    file_path = result[text_fields["file"]]
                     nb_total += 1
-
-                    if file in media_set.filename_map:
-                        media_set.filename_map[file].exists_in_db = True
+                    if file_path in media_set.filename_map:
+                        media_set.filename_map[file_path].exists_in_db = True
 
                     elif file_path in not_loaded_files:
                         file_id = result[text_fields["file_id"]]

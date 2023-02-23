@@ -13,6 +13,9 @@ class Metadata:
     def __str__(self):
         return self.get()
 
+    def __repr__(self):
+        return str(self.get())
+
     def get(self):
         return self.value
 

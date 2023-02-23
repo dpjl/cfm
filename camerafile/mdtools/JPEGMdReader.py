@@ -52,6 +52,9 @@ class JPEGMdReader(object):
         else:
             self.metadata = exifread.process_file(self.file, details=details)
 
+        if self.metadata == {}:
+            raise Exception(f"JPEGMdReader cannot parse {self.filename}")
+
     def get_first_of(self, field_list, default=None):
         for field in field_list:
             if field in self.metadata:
@@ -129,8 +132,9 @@ if __name__ == '__main__':
     # m = JPEGMdReader(
     #    r"E:\data\photos-all\depuis-samsung-T5/photos divers/2007-07-04/repas avec Natacha et Diminga/100_0084.jpg")
     # m = JPEGMdReader(r"E:\data\photos-all\téléphone_samsung/albums/Balade Saacy/20180819_221155.jpg") # can't be parsed
-    #m = JPEGMdReader(r"E:\data\photos-all\honor/DCIM-sd-av-guillaume/Camera/IMG_20160522_000548.jpg")
-    m = JPEGMdReader(r"E:\data\photos-all\depuis-samsung-T5/sauvegarde photos surface pro (surement en double d'autres sauvegardes)/photos/Canon PowerShot G9 X Mark II/20180819_221155.jpg")
+    # m = JPEGMdReader(r"E:\data\photos-all\honor/DCIM-sd-av-guillaume/Camera/IMG_20160522_000548.jpg")
+    m = JPEGMdReader(
+        r"E:\data\photos-all\depuis-samsung-T5/sauvegarde photos surface pro (surement en double d'autres sauvegardes)/photos/Canon PowerShot G9 X Mark II/20180819_221155.jpg")
 
     m = m.get_metadata(MetadataNames.CREATION_DATE, MetadataNames.HEIGHT, MetadataNames.WIDTH,
                        MetadataNames.ORIENTATION, MetadataNames.MODEL)

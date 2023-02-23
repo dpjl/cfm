@@ -33,7 +33,7 @@ class MediaSetDump:
     def load(self) -> "MediaSet":
         if self.is_active and self.exists():
             with open(self.dump_file, "rb") as file:
-                LOGGER.info("Restoring dump...")
+                LOGGER.info("Restoring cache...")
                 loaded = pickle.load(file)
                 LOGGER.debug("New MediaSet object loaded: " + str(id(self)))
                 return loaded

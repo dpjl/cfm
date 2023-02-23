@@ -8,7 +8,9 @@ from textwrap import dedent
 
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import CopyMode
+from camerafile.task.CopyFile import CollisionPolicy
 
+VERSION = 0.3
 COMMAND = "command"
 ANALYZE_CMD = "analyze"
 ORGANIZE_CMD = "organize"
@@ -19,16 +21,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 def create_main_args_parser():
-    parser = argparse.ArgumentParser(description=dedent("This command line tool can be used to easily execute some "
+    parser = argparse.ArgumentParser(add_help=False,
+                                     description=dedent("This command line tool can be used to easily execute some "
                                                         "actions on media files. CFM includes and calls "
                                                         "three external free tools: exiftool, ffmpeg and dlib."))
 
     parser.add_argument('-w', '--workers', type=int,
-                        help="maximum number of CFM workers that can be run simultaneously. 0 means that only main CFM "
+                        help="Maximum number of CFM workers that can be run simultaneously. 0 means that only main CFM "
                              "process is used. Default: number of CPU.", metavar="N")
 
     parser.add_argument('-c', '--cache-path', type=str,
-                        help='Specify a cache directory path. Default is empty.'
+                        help='Specify a cache directory path. Default is empty. '
                              'If empty, one cache folder called ".cfm" is created in each media set directory',
                         default=None,
                         metavar="<path>")
@@ -37,59 +40,72 @@ def create_main_args_parser():
                         help='Specify filename patterns to ignore. This option can be used multiple times.')
 
     parser.add_argument('-n', '--thumbnails', action='store_true',
-                        help='load all thumbnails from exif data, and save them in cache')
+                        help='Load all thumbnails from exif data, and save them in cache.')
 
     parser.add_argument('-b', '--use-db', action='store_true',
-                        help='use sqlite db to store media set information')
+                        help='Use sqlite db to store media set information.')
 
     parser.add_argument('-u', '--use-dump', action='store_true',
-                        help='use python dump to store media set informmation (faster than db)')
+                        help='Use python dump to store media set informmation (faster than db).')
 
     parser.add_argument('-x', '--exit-on-error', action='store_true',
-                        help='exit current process in case of error (should be used only to debug)')
+                        help='Exit current process in case of error (should be used only to debug).')
 
     parser.add_argument('-d', '--debug', action='store_true',
-                        help='display debug information')
+                        help='Display debug information.')
 
     parser.add_argument('-p', '--password', type=str,
-                        help='password of the CFM zip sync file (contains deleted and unknown files)', metavar="**")
+                        help='Password of the CFM zip sync file (contains deleted and unknown files).', metavar="**")
 
-    parser.add_argument('-v', '--version', action='store_true', help='print version number')
+    parser.add_argument('-v', '--version', action='version',
+                        version=f'%(prog)s {VERSION}', help="Show program's version number and exit.")
+
+    parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                        help='Show this help message and exit.')
 
     sp_list = parser.add_subparsers(title="Commands list",
                                     description="Use 'cfm <command> -h' to display the help of a specific command",
                                     metavar="<command>")
 
-    p = sp_list.add_parser(ANALYZE_CMD, aliases=["a"], help='Analyze a media set')
+    p = sp_list.add_parser(ANALYZE_CMD, add_help=False, aliases=["a"], help='Analyze a media set.')
     p.set_defaults(command=ANALYZE_CMD)
     p.add_argument('dir1', metavar='dir1', type=str, default=None, help='Check for duplicates')
     p.add_argument('dir2', nargs='?', metavar='dir2', type=str, default=None,
-                   help='Check for duplicates / differences with dir1')
-    p.add_argument('-g', '--generate-pdf', action='store_true', help='Generate pdf reports using thumbnails')
-    p.add_argument('-n', '--no-internal-read', action='store_true', help='Do not read internal metadata at all')
+                   help='Check for duplicates / differences with dir1.')
+    p.add_argument('-g', '--generate-pdf', action='store_true', help='Generate pdf reports using thumbnails.')
+    p.add_argument('-n', '--no-internal-read', action='store_true', help='Do not read internal metadata at all.')
+    p.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                   help='Show this help message and exit.')
 
-    desc = 'Fill and organize <dir2> in order for it to contain exactly one version ' \
-           'of each distinct media files of <dir1>'
-    p = sp_list.add_parser(ORGANIZE_CMD, aliases=["o"], description=desc, help=desc)
+    desc = 'Copy all media files of <dir1> into <dir2>, using a customizable organization format.'
+    p = sp_list.add_parser(ORGANIZE_CMD, add_help=False, aliases=["o"], description=desc, help=desc)
     p.set_defaults(command=ORGANIZE_CMD)
-    p.add_argument('dir1', metavar='dir1', type=str, default=None, help='Origin media set directory')
-    p.add_argument('dir2', metavar='dir2', type=str, default=None, help='Destination media set directory')
-    p.add_argument('-f', '--format', metavar='<format>', type=str, help='format to use for organization')
+    p.add_argument('dir1', metavar='dir1', type=str, default=None, help='Origin media set directory.')
+    p.add_argument('dir2', metavar='dir2', type=str, default=None, help='Destination media set directory.')
+    p.add_argument('-f', '--format', metavar='<format>', type=str, help='Format to use for organization.')
+    p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),
-                   help='S: Soft Link, H: Hard Link, C: Copy. Default: H (Hard Link)')
+                   help=f'{list(CopyMode)} - Default: {CopyMode.HARD_LINK}. '
+                        f'Warning: {CopyMode.HARD_LINK} and {CopyMode.SOFT_LINK} modes are not available '
+                        f'on some file systems, notably fat32. '
+                        f'Also, these two modes are not available if <dir1> and <dir2> are not on the same drive. '
+                        f'In these two cases, only {CopyMode.COPY} can be used but it can be very long, so always '
+                        f'prefer default mode when possible (for example, organize first on the same drive, and then '
+                        f'copy/paste the organized folder when you are satisfied.)')
+    p.add_argument('-c', '--collision-policy', metavar='<policy>', type=CollisionPolicy.argparse,
+                   choices=list(CollisionPolicy), default=str(CollisionPolicy.RENAME_PARENT),
+                   help=f'{list(CollisionPolicy)} - Default: {CollisionPolicy.RENAME_PARENT}. '
+                        f'For {CollisionPolicy.RENAME} and {CollisionPolicy.RENAME_PARENT}, "~i" is added to the '
+                        f'file/directory name, where i is a number incremented for each collision.')
+    p.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                   help='Show this help message and exit.')
 
-    p = sp_list.add_parser(RECOGNIZE_CMD, aliases=["r"], help="Recognize faces on images")
-    p.set_defaults(command=RECOGNIZE_CMD)
-    p.add_argument('dir1', metavar='dir1', type=str, default=None, help='Delete all duplicates from d1')
-    p.add_argument('-e', '--extract-faces', action='store_true', help='Extract the faces from the images')
-    p.add_argument('-l', '--learn-faces', action='store_true', help='Learn to recognize the extracted faces')
-    p.add_argument('-i', '--identify-faces', action='store_true', help='Identity the extracted faces')
-    p.add_argument('-k', '--keep-size', action='store_true', help='Keep original size for face detection')
-
-    p = sp_list.add_parser(CUSTOM_CMD, aliases=["c"], help='Execute a custom processor')
+    p = sp_list.add_parser(CUSTOM_CMD, add_help=False, aliases=["c"], help='Execute a custom processor.')
     p.set_defaults(command=CUSTOM_CMD)
-    p.add_argument('processor', type=str, help='Name of the processor to execute')
-    p.add_argument('args', nargs='*', metavar='arguments', type=str, help='Arguments of the custom processor')
+    p.add_argument('processor', type=str, help='Name of the processor to execute.')
+    p.add_argument('args', nargs='*', metavar='arguments', type=str, help='Arguments of the custom processor.')
+    p.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
+                   help='Show this help message and exit.')
 
     return parser
 
@@ -133,7 +149,7 @@ def execute(args):
 
     if args.command == ORGANIZE_CMD:
 
-        if media_set2.org_format is None:
+        if media_set2.state.org_format is None:
             print("\n!!!!!!!!!!!!!!!!!!!")
             print("Format is not already configured for " + args.dir2 + ", you have to define it using -f option.")
             print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
@@ -164,13 +180,10 @@ def main():
         sys.exit(1)
 
     from camerafile.core.Configuration import Configuration
-    from camerafile.core.Logging import init_logging
     from camerafile.core.Resource import Resource
 
+    LOGGER.info(f"Starting Camera Files Manager - version {VERSION} - DpjL (pid: {current_process().pid})")
     Resource.init()
-    init_logging()
-    Resource.extract_exiftool()
-    LOGGER.info("Starting Camera Files Manager - version 0.3 - DpjL (pid: {pid})".format(pid=current_process().pid))
     Configuration.get().init(args)
     execute(args)
 

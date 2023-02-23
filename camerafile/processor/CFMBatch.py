@@ -2,7 +2,7 @@ import os
 
 from camerafile.processor.BatchTool import TaskWithProgression
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Logging import init_logging, Logger
+from camerafile.core.Logging import Logger
 from camerafile.core.Resource import Resource
 from camerafile.mdtools.ExifToolReader import ExifTool
 
@@ -27,7 +27,6 @@ class CFMBatch(TaskWithProgression):
             parser = create_main_args_parser()
             args = parser.parse_args()
             Resource.init()
-            init_logging()
             Configuration.get().init(args)
 
     @staticmethod

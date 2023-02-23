@@ -47,6 +47,8 @@ class ZipFileAccess(FileAccess):
         with zipfile.ZipFile(self.get_zip_path()) as origin:
             with open(new_file_path, 'wb') as destination:
                 destination.write(origin.read(self.file_desc.file_path))
+            date_time = self.get_last_modification_date().timestamp()
+            os.utime(new_file_path, (date_time, date_time))
         return True, "Extracted", self.file_desc, StandardFileDescription(new_relative_file_path,
                                                                           self.file_desc.file_size)
 
@@ -85,13 +87,9 @@ class ZipFileAccess(FileAccess):
         if self.is_image():
             with self.open() as image_file:
                 with CFMImage(image_file, self.file_desc.name) as image:
-                    try:
-                        return Hash.image_hash(image.image_data)
-                    except BaseException as e:
-                        print("image_hash: " + str(e) + " / " + self.file_desc.relative_path)
-                        return str(self.get_file_size())
+                    return Hash.image_hash(image)
         else:
-            return str(self.get_file_size())
+            return self.get_file_size()
 
     def get_image(self):
         if self.is_image():

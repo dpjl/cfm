@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Iterable
 
@@ -69,6 +68,12 @@ class MediaSet:
 
     def __str__(self):
         return str(self.root_path)
+
+    def __repr__(self):
+        result = "-------------\nRoot path: " + str(self.root_path) + "\nFiles:\n"
+        for media in self.media_file_list:
+            result += repr(media) + "\n"
+        return result
 
     def __len__(self):
         return len(self.media_file_list)
@@ -350,12 +355,11 @@ class MediaSet:
         date = None
         media_result = None
         for media_file in media_list:
-            media_date = datetime.strptime(media_file.metadata[INTERNAL].get_last_modification_date(),
-                                           '%Y/%m/%d %H:%M:%S.%f')
+            media_date = media_file.get_last_modification_date()
             if date is None or media_date < date:
                 date = media_date
                 media_result = media_file
-        return media_result
+        return media_result, date
 
     def get_file_list(self, ext=None, cm=None):
         result = []

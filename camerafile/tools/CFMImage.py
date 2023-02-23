@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
 
@@ -22,6 +23,14 @@ class CFMImage:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.image_data is not None:
             self.image_data.close()
+
+    def get_bytes(self):
+        if isinstance(self.file, (bytes, str, Path)):
+            with open(self.filename) as file:
+                return file.read()
+        else:
+            self.file.seek(0, 0)
+            return self.file.read()
 
     def read_image(self):
         try:

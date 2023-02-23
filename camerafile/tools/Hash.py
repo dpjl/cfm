@@ -1,6 +1,10 @@
+import hashlib
+
 import dhash
+from PIL.Image import Image
 
 from camerafile.core.Logging import Logger
+from camerafile.tools.CFMImage import CFMImage
 
 LOGGER = Logger(__name__)
 
@@ -16,5 +20,10 @@ class Hash:
     #   distances between two hashes to decide their equality (it remains sufficiently quick).
     # - After some tests, the result seems as good as before (to be verified more precisely one day)
     @staticmethod
-    def image_hash(pil_image):
-        return dhash.dhash_int(pil_image)
+    def image_hash(cfm_image: CFMImage):
+        try:
+            return dhash.dhash_int(cfm_image.image_data)
+        except BaseException as e:
+            print("image_hash: " + str(e) + " / " + cfm_image.filename)
+            md5_hash = hashlib.md5(cfm_image.get_bytes()).hexdigest()
+            return int(md5_hash, 16)

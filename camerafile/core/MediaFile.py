@@ -30,6 +30,12 @@ class MediaFile:
     def __str__(self):
         return self.file_desc.relative_path
 
+    def __repr__(self):
+        result = self.file_desc.relative_path + "\n"
+        for metadata_name, metadata in self.metadata.metadata_list.items():
+            result += metadata_name + "=" + repr(metadata) + "\n"
+        return result
+
     def get_path(self):
         return self.file_desc.relative_path
 

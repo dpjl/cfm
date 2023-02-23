@@ -35,7 +35,7 @@ class BatchReadInternalMd(TaskWithProgression):
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
         needed_md = ()
-        for md in self.media_set.md_needed + self.other_needed_md:
+        for md in self.media_set.state.md_needed + self.other_needed_md:
             if md not in needed_md:
                 needed_md += (md,)
         print("Metadata that need to be loaded: " + str(needed_md))
@@ -52,7 +52,7 @@ class BatchReadInternalMd(TaskWithProgression):
                     self.stats[name] = 0
                 if value is not None:
                     self.stats[name] += 1
-        if metadata_thumbnail.thumbnail:
+        if metadata_thumbnail.binary_value:
             if "thumbnail" not in self.stats:
                 self.stats["thumbnail"] = 0
             self.stats["thumbnail"] += 1
@@ -65,7 +65,7 @@ class BatchReadInternalMd(TaskWithProgression):
     def arguments(self):
         args_list = []
         for media_file in self.media_set:
-            if media_file.metadata[INTERNAL].value is None or self.media_set.read_md_needed:
+            if media_file.metadata[INTERNAL].value is None or self.media_set.state.read_md_needed:
                 args_list.append(
                     BatchElement((self.media_set.root_path, media_file.file_desc, media_file.metadata[INTERNAL]),
                                  media_file.get_path()))
@@ -79,7 +79,7 @@ class BatchReadInternalMd(TaskWithProgression):
         original_media: MediaFile = self.media_set.get_media(media_id)
         if replace:
             original_media.metadata[INTERNAL] = modified_metadata
-        original_media.metadata[THUMBNAIL].thumbnail = thumbnail
+        original_media.metadata[THUMBNAIL].binary_value = thumbnail
         original_media.parent_set.add_to_date_size_name_map(original_media)
         self.update_stats(modified_metadata, original_media.metadata[THUMBNAIL])
         # in case signature was already existing, but date was not, we update date_sig map

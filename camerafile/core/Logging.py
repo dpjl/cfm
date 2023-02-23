@@ -3,11 +3,35 @@ import shutil
 from datetime import datetime
 from logging.config import dictConfig
 
-from camerafile.core.Resource import Resource
+LOGGING_CONFIGURATION = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "console": {
+            "format": "[%(asctime)s] %(message)s",
+            "datefmt": "%H:%M:%S"
+        },
+        "simple": {
+            "format": "[%(asctime)s] %(message)s"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+            "formatter": "console",
+            "stream": "ext://sys.stdout"
+        }
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": [
+            "console"
+        ]
+    }
+}
 
-
-def init_logging():
-    dictConfig(Resource.logging_configuration)
+dictConfig(LOGGING_CONFIGURATION)
 
 
 class Logger:

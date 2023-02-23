@@ -70,6 +70,7 @@ class StandardFileAccess(FileAccess):
         except ExifToolNotFound as e:
             raise e
         except MdException as e:
+            print(f"{self.get_path()} : {e}")
             return call_info + " -> Failed", {}
 
     def read_md(self, args):
@@ -98,11 +99,7 @@ class StandardFileAccess(FileAccess):
             with open(self.get_path(), 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
                     with CFMImage(mmap_obj, self.file_desc.name) as image:
-                        try:
-                            return Hash.image_hash(image.image_data)
-                        except BaseException as e:
-                            print("image_hash: " + str(e) + " / " + self.file_desc.relative_path)
-                            return self.get_file_size()
+                        return Hash.image_hash(image)
         else:
             return self.get_file_size()
 

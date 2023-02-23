@@ -19,7 +19,14 @@ class MediaSetState:
         self.state: dict[str, Union[str, list]] = {}
         self.read_md_needed = False
         self.md_needed = ()
-        self.org_format: OrgFormat
+        self.org_format = None
+        self.load()
+
+    def __getitem__(self, item):
+        return self.state[item]
+
+    def __setitem__(self, key, value):
+        self.state[key] = value
 
     def load(self):
         if self.state_file.exists():
@@ -40,7 +47,6 @@ class MediaSetState:
             return yaml.safe_dump(self.state, file)
 
     def load_format(self, param_format):
-        self.org_format = None
         if "format" in self.state:
             existing_format = self.state["format"]
             if existing_format is not None and param_format and param_format != "" and param_format != existing_format:
@@ -52,16 +58,17 @@ class MediaSetState:
                       "and launch again cfm.")
                 sys.exit(1)
             elif existing_format is not None:
-                self.org_format = existing_format
+                org_format_str = existing_format
             else:
-                self.org_format = param_format
+                org_format_str = param_format
 
         else:
-            self.org_format = param_format
+            org_format_str = param_format
 
-        if self.org_format is not None and self.org_format != "":
-            self.state["format"] = self.org_format
+        if org_format_str is not None and org_format_str != "":
+            self.state["format"] = org_format_str
             self.save()
+            self.org_format = OrgFormat(org_format_str)
 
     def load_metadata_to_read(self):
         previously_loaded_metadata = ()

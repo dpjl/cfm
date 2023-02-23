@@ -1,6 +1,9 @@
+from datetime import datetime
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
+from camerafile.core.Configuration import Configuration
+from camerafile.processor.BatchCopyElement import BatchCopyElement
 from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
@@ -9,7 +12,7 @@ from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.fileaccess.FileAccess import CopyMode
 from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.processor.CFMBatch import CFMBatch
-from camerafile.task.CopyFile import CopyFile
+from camerafile.task.CopyFile import CopyFile, CollisionPolicy
 
 LOGGER = Logger(__name__)
 
@@ -35,7 +38,7 @@ class BatchCopy(CFMBatch):
 
     def initialize(self):
         LOGGER.write_title(self.new_media_set, self.update_title())
-        self.new_media_set.org_format.init_duplicates(self.old_media_set)
+        self.new_media_set.state.org_format.init_duplicates(self.old_media_set)
 
     def task_getter(self):
         return CopyFile.execute
@@ -47,26 +50,46 @@ class BatchCopy(CFMBatch):
 
     def arguments(self):
         args_list = []
-        new_path_map = {}
-        if "{dup-" not in self.new_media_set.org_format.format_description:
+        copy_elements_map = {}
+        ignore = 0
+        LOGGER.info("Create copy list...")
+        if Configuration.get().ignore_duplicates:
             n_copy_list = self.old_media_set.duplicates()
             for n_copy in n_copy_list.values():
                 for media_list in n_copy:
-                    media_file: MediaFile = self.old_media_set.get_oldest_modified_file(media_list)
-                    if not self.new_media_set.contains(media_file):
-                        new_root, _, new_path = CopyFile.get_organization_path(media_file, self.new_media_set,
-                                                                               new_path_map)
-                        new_path_map[new_path] = 0
-                        args_list.append(BatchElement(
-                            (media_file.parent_set.root_path, media_file.file_desc, new_root, new_path, self.copy_mode),
-                            media_file.get_path()))
+                    media: MediaFile
+                    date: datetime
+                    media, date = self.old_media_set.get_oldest_modified_file(media_list)
+                    if not self.new_media_set.contains(media):
+                        cp_element = BatchCopyElement(media, date)
+                        CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
+                        if cp_element.collision_policy == CollisionPolicy.IGNORE:
+                            ignore += 1
         else:
-            for media_file in self.old_media_set:
-                new_root, _, new_path = CopyFile.get_organization_path(media_file, self.new_media_set, new_path_map)
-                new_path_map[new_path] = 0
-                args_list.append(BatchElement(
-                    (media_file.parent_set.root_path, media_file.file_desc, new_root, new_path, self.copy_mode),
-                    media_file.get_path()))
+            for media in self.old_media_set:
+                date: datetime = media.get_last_modification_date()
+                cp_element = BatchCopyElement(media, date)
+                CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
+                if cp_element.collision_policy == CollisionPolicy.IGNORE:
+                    ignore += 1
+
+        LOGGER.info(f"{ignore} collisions ignored")
+        stats = {col: 0 for col in CollisionPolicy}
+        cp_element: BatchCopyElement
+        for cp_element in copy_elements_map.values():
+            if cp_element.collision_policy is not None:
+                stats[cp_element.collision_policy] += 1
+            media = cp_element.media
+            cp_args = (media.parent_set.root_path,
+                       media.file_desc,
+                       self.new_media_set.root_path,
+                       cp_element.destination,
+                       self.copy_mode)
+            batch_element = BatchElement(cp_args, media.get_path())
+            args_list.append(batch_element)
+        for collision_policy, nb in stats.items():
+            LOGGER.info(f"{nb} files will be copied with collision policy '{collision_policy}'")
+
         return args_list
 
     def post_task(self, result: Tuple[bool, str, FileDescription, Union[FileDescription, None]], pb, replace=False):
@@ -85,6 +108,8 @@ class BatchCopy(CFMBatch):
         pb.increment()
 
     def finalize(self):
+        self.new_media_set.state["loaded_metadata"] = self.old_media_set.state["loaded_metadata"]
+        self.new_media_set.state.save()
         LOGGER.info(OutputDirectory.get(self.old_media_set.root_path).save_list(self.not_copied_files,
                                                                                 self.NOT_COPIED_FILES_JSON))
 
