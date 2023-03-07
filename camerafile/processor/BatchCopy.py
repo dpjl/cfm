@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
@@ -35,6 +36,7 @@ class BatchCopy(CFMBatch):
 
         self.result_stats = {}
         self.not_copied_files = []
+        self.target_modified_paths = []
 
     def initialize(self):
         LOGGER.write_title(self.new_media_set, self.update_title())
@@ -95,10 +97,24 @@ class BatchCopy(CFMBatch):
 
         return args_list
 
+    def add_target_modified_path(self, new_path):
+        found = False
+        for i, path in enumerate(self.target_modified_paths):
+            if new_path == path:
+                found = True
+            elif new_path in path:
+                self.target_modified_paths[i] = new_path
+                found = True
+            elif path in new_path:
+                found = True
+        if not found:
+            self.target_modified_paths.append(new_path)
+
     def post_task(self, result: Tuple[bool, str, FileDescription, Union[FileDescription, None]], pb, replace=False):
         success, status, old_file_spec, new_file_spec = result
         original_media: MediaFile = self.old_media_set.get_media(old_file_spec.id)
         if success:
+            self.add_target_modified_path(Path(new_file_spec.relative_path).parent)
             CopyFile.copy(original_media, self.new_media_set, new_file_spec)
         else:
             self.not_copied_files.append(original_media)

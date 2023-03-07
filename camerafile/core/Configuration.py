@@ -28,6 +28,7 @@ class Configuration:
         self.watch = False
         self.copy_mode = None
         self.progress = True
+        self.pp_script = None
 
     @staticmethod
     def get():
@@ -93,5 +94,8 @@ class Configuration:
 
             if "no_progress" in args and args.no_progress:
                 self.progress = not args.no_progress
+
+            if "post_processing_script" in args and args.post_processing_script:
+                self.pp_script = args.post_processing_script
 
             self.initialized = True

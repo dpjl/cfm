@@ -87,6 +87,8 @@ def create_main_args_parser():
                    help='Format to use for organization.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
+    p.add_argument('-pps', '--post-processing-script', metavar="<path>", type=str, default=os.getenv("PP_SCRIPT"),
+                   help=f'Script that will be called at the end of each process triggered when watching.')
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),
                    default=str(CopyMode.HARD_LINK),
                    help=f'{list(CopyMode)} - Default: {CopyMode.HARD_LINK}. '

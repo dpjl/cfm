@@ -1,3 +1,4 @@
+import os
 from threading import Event, Thread, Lock
 
 from camerafile.core.Configuration import Configuration
@@ -72,9 +73,24 @@ class Watcher(Thread):
                 BatchComputeCm(media_set).execute()
 
         BatchComputeNecessarySignaturesMultiProcess(self.media_set1, self.media_set2).execute()
-        BatchCopy(self.media_set1, self.media_set2, Configuration.get().copy_mode).execute()
-
+        bc = BatchCopy(self.media_set1, self.media_set2, Configuration.get().copy_mode)
+        bc.execute()
         print("")
+
+        pp_script = Configuration.get().pp_script
+        for path in to_update[self.media_set1]:
+            LOGGER.info(f"This path has been modified in origin media set: {path}")
+            if pp_script is not None:
+                cmd_to_execute = f"{pp_script} o {path}"
+                LOGGER.info(cmd_to_execute)
+                os.system(cmd_to_execute)
+
+        for path in bc.target_modified_paths:
+            LOGGER.info(f"This path has been modified in target media set: {path}")
+            if pp_script is not None:
+                cmd_to_execute = f"{pp_script} d {path}"
+                LOGGER.info(cmd_to_execute)
+                os.system(cmd_to_execute)
 
         self.media_set1.save_on_disk()
         self.media_set1.close_database()
