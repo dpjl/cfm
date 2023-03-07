@@ -8,6 +8,7 @@ import sys
 import time
 
 from camerafile.console.StandardOutputWrapper import StdoutWrapper, StderrWrapper
+from camerafile.core.Configuration import Configuration
 
 REFRESH_DELAY = 0.1
 SPACE = ' '
@@ -18,7 +19,7 @@ DEFIL_CHARACTERS = ["/", "-", "\\", "|"]
 class ConsoleProgressBar:
 
     def __init__(self, max_count, title="", clear_screen=False):
-
+        self.activated = Configuration.get().progress
         try:
             self.console_width = os.get_terminal_size().columns - 1
         except OSError:
@@ -34,31 +35,19 @@ class ConsoleProgressBar:
         self.item_text = None
         self.clear_screen = clear_screen
         self.lock_increment = threading.Lock()
-        self.stdout = StdoutWrapper(self.console_width)
-        self.stderr = StderrWrapper(self.console_width)
-        self.stdout.wrap()
-        self.stderr.wrap()
         self.details = {}
         self.status = []
 
-        self.thread = threading.Thread(None, self.auto_refresh, None, [], {})
-        self.thread.start()
+        if self.activated:
+            self.stdout = StdoutWrapper(self.console_width)
+            self.stderr = StderrWrapper(self.console_width)
+            self.stdout.wrap()
+            self.stderr.wrap()
+            self.thread = threading.Thread(None, self.auto_refresh, None, [], {})
+            self.thread.start()
 
     @staticmethod
-    def get_short_duration_string(duration):
-        hours = int(duration / 3600)
-        minutes = int((duration - hours * 3600) / 60)
-        seconds = int((duration - hours * 3600) % 60)
-
-        if hours != 0:
-            return "{num: >4}h".format(num=hours)
-        elif minutes != 0:
-            return "{num: >4}m".format(num=minutes)
-        else:
-            return "{num: >4}s".format(num=seconds)
-
-    @staticmethod
-    def get_duration_string(duration):
+    def __get_duration_string(duration):
         result = ""
         hours = int(duration / 3600)
         minutes = int((duration - hours * 3600) / 60)
@@ -72,7 +61,7 @@ class ConsoleProgressBar:
             result += "{num}s".format(num=seconds)
         return result
 
-    def compute_remaining_time(self):
+    def __compute_remaining_time(self):
         if self.position > 0:
             current_time = time.time()
             rem_time = ((current_time - self.start_time) / self.position) * (self.max - self.position)
@@ -94,7 +83,7 @@ class ConsoleProgressBar:
     def increment(self):
         with self.lock_increment:
             self.position += 1
-            self.compute_remaining_time()
+            self.__compute_remaining_time()
 
             if self.position >= self.max:
                 self.run = False
@@ -126,10 +115,11 @@ class ConsoleProgressBar:
 
     def stop(self):
         self.run = False
-        self.processing_time = self.get_duration_string(time.time() - self.start_time)
-        self.thread.join(timeout=10)
-        if self.thread.is_alive():
-            print("Warning: ConsoleProgressBar.thread could not be stopped.")
+        self.processing_time = self.__get_duration_string(time.time() - self.start_time)
+        if self.activated:
+            self.thread.join(timeout=10)
+            if self.thread.is_alive():
+                print("Warning: ConsoleProgressBar.thread could not be stopped.")
 
     def cut_to_screen_size(self, content, other_content_len=0):
         line_size = len(content) + other_content_len

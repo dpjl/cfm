@@ -398,8 +398,10 @@ class MediaSet:
             self.media_dir_list[parent] = new_media_dir
         return self.media_dir_list[parent]
 
-    def initialize_file_and_dir_list(self):
-        not_loaded_files = self.update_from_disk()
+    def initialize_file_and_dir_list(self, root_path=None):
+        if root_path is None:
+            root_path = self.root_path
+        not_loaded_files = self.update_from_disk(root_path)
         dump_file = MediaSetDump.get(OutputDirectory.get(self.root_path)).dump_file
         log_content = "{l1} media files loaded from dump {df}".format(l1=len(self.filename_map),
                                                                       df=dump_file)

@@ -8,6 +8,7 @@ from textwrap import dedent
 
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccess import CopyMode
+from camerafile.monitor.Watcher import Watcher
 from camerafile.task.CopyFile import CollisionPolicy
 
 VERSION = 0.3
@@ -39,6 +40,9 @@ def create_main_args_parser():
     parser.add_argument('-i', '--ignore', action='append', default=None,
                         help='Specify filename patterns to ignore. This option can be used multiple times.')
 
+    parser.add_argument('-np', '--no-progress', action='store_true',
+                        help='Do not display progress bar with tasks progression.')
+
     parser.add_argument('-n', '--thumbnails', action='store_true',
                         help='Load all thumbnails from exif data, and save them in cache.')
 
@@ -53,9 +57,6 @@ def create_main_args_parser():
 
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Display debug information.')
-
-    parser.add_argument('-p', '--password', type=str,
-                        help='Password of the CFM zip sync file (contains deleted and unknown files).', metavar="**")
 
     parser.add_argument('-v', '--version', action='version',
                         version=f'%(prog)s {VERSION}', help="Show program's version number and exit.")
@@ -82,9 +83,12 @@ def create_main_args_parser():
     p.set_defaults(command=ORGANIZE_CMD)
     p.add_argument('dir1', metavar='dir1', type=str, default=None, help='Origin media set directory.')
     p.add_argument('dir2', metavar='dir2', type=str, default=None, help='Destination media set directory.')
-    p.add_argument('-f', '--format', metavar='<format>', type=str, help='Format to use for organization.')
+    p.add_argument('-f', '--format', metavar='<format>', type=str, default=os.getenv("ORG_FORMAT"),
+                   help='Format to use for organization.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
+    p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),
+                   default=str(CopyMode.HARD_LINK),
                    help=f'{list(CopyMode)} - Default: {CopyMode.HARD_LINK}. '
                         f'Warning: {CopyMode.HARD_LINK} and {CopyMode.SOFT_LINK} modes are not available '
                         f'on some file systems, notably fat32. '
@@ -151,14 +155,14 @@ def execute(args):
 
         if media_set2.state.org_format is None:
             print("\n!!!!!!!!!!!!!!!!!!!")
-            print("Format is not already configured for " + args.dir2 + ", you have to define it using -f option.")
+            print(f"Format is not already configured for {args.dir2}, you have to define it using -f option "
+                  f"or by defining ORG_FORMAT environment variable.")
             print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
             print("!!!!!!!!!!!!!!!!!!!")
         else:
-            copy_mode = args.mode if args.mode is not None else CopyMode.HARD_LINK
+            copy_mode = Configuration.get().copy_mode
             BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
             BatchCopy(media_set1, media_set2, copy_mode).execute()
-
     print("")
 
     media_set1.save_on_disk()
@@ -167,6 +171,16 @@ def execute(args):
     if media_set2:
         media_set2.save_on_disk()
         media_set2.close_database()
+
+    if Configuration.get().watch and media_set2.state.org_format is not None:
+        watcher = Watcher(media_set1, media_set2)
+        watcher.start()
+        try:
+            while True:
+                watcher.join(60)
+        finally:
+            watcher.stop()
+            watcher.join()
 
 
 def main():

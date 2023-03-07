@@ -85,11 +85,12 @@ class TaskWithProgression:
             self.finalize()
             self.display_final_status(pb)
         else:
-            print("Nothing to do")
+            LOGGER.info("Nothing to do")
             self.finalize()
         return None
 
-    def execute_uni_process_batch(self, task, args_list: List[BatchElement], post_task, progress_bar):
+    def execute_uni_process_batch(self, task, args_list: List[BatchElement], post_task,
+                                  progress_bar: ConsoleProgressBar):
         pid = current_process().pid
         try:
             for batch_element in args_list:

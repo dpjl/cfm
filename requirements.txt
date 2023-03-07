@@ -15,4 +15,4 @@ pyyaml==6.0
 dill==0.3.6
 dhash==1.4
 #opencv-python==4.7.0.68
-
+watchdog==2.3.1

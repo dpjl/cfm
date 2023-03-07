@@ -52,7 +52,8 @@ class BatchCopy(CFMBatch):
         args_list = []
         copy_elements_map = {}
         ignore = 0
-        LOGGER.info("Create copy list...")
+        if not Configuration.get().watch:
+            LOGGER.info("Create copy list...")
         if Configuration.get().ignore_duplicates:
             n_copy_list = self.old_media_set.duplicates()
             for n_copy in n_copy_list.values():
@@ -73,7 +74,8 @@ class BatchCopy(CFMBatch):
                 if cp_element.collision_policy == CollisionPolicy.IGNORE:
                     ignore += 1
 
-        LOGGER.info(f"{ignore} collisions ignored")
+        if ignore != 0:
+            LOGGER.info(f"{ignore} collisions ignored")
         stats = {col: 0 for col in CollisionPolicy}
         cp_element: BatchCopyElement
         for cp_element in copy_elements_map.values():
@@ -88,7 +90,8 @@ class BatchCopy(CFMBatch):
             batch_element = BatchElement(cp_args, media.get_path())
             args_list.append(batch_element)
         for collision_policy, nb in stats.items():
-            LOGGER.info(f"{nb} files will be copied with collision policy '{collision_policy}'")
+            if nb != 0:
+                LOGGER.info(f"{nb} files will be copied with collision policy '{collision_policy}'")
 
         return args_list
 
@@ -110,12 +113,15 @@ class BatchCopy(CFMBatch):
     def finalize(self):
         self.new_media_set.state["loaded_metadata"] = self.old_media_set.state["loaded_metadata"]
         self.new_media_set.state.save()
-        LOGGER.info(OutputDirectory.get(self.old_media_set.root_path).save_list(self.not_copied_files,
-                                                                                self.NOT_COPIED_FILES_JSON))
 
-        print(self.EMPTY_STRING)
-        tab = ConsoleTable()
-        tab.print_header(self.RESULT_COLUMN__STATUS, self.RESULT_COLUMN__NUMBER)
-        for status in self.result_stats:
-            tab.print_line(status, str(self.result_stats[status]))
-        print(self.EMPTY_STRING)
+        if len(self.not_copied_files) != 0:
+            LOGGER.info(OutputDirectory.get(self.old_media_set.root_path).save_list(self.not_copied_files,
+                                                                                    self.NOT_COPIED_FILES_JSON))
+
+        if len(self.result_stats) != 0:
+            print(self.EMPTY_STRING)
+            tab = ConsoleTable()
+            tab.print_header(self.RESULT_COLUMN__STATUS, self.RESULT_COLUMN__NUMBER)
+            for status in self.result_stats:
+                tab.print_line(status, str(self.result_stats[status]))
+            print(self.EMPTY_STRING)

@@ -1,3 +1,4 @@
+from camerafile.core.MediaFile import MediaFile
 from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Constants import SIGNATURE
 from camerafile.core.Logging import Logger
@@ -41,21 +42,20 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
 
         # Optimization: in file_list_2, inutile d'ajouter les dupliqués potentiels dont
         # le nom de fichier est déjà dans dans file_list_1 ?
-
-        for media_file in file_list_1 + file_list_2 + file_list_3:
-            if media_file.metadata[SIGNATURE].value is None:
-                args_list.append(
-                    BatchElement((media_file.parent_set.root_path, media_file.file_desc, media_file.metadata[SIGNATURE]),
-                                 media_file.get_path()))
+        media: MediaFile
+        for media in file_list_1 + file_list_2 + file_list_3:
+            if media.metadata[SIGNATURE].value is None:
+                args = (media.parent_set.root_path, media.file_desc, media.metadata[SIGNATURE])
+                args_list.append(BatchElement(args, media.get_path()))
         return args_list
 
     def post_task(self, result, progress_bar, replace=False):
         media_id, result_signature_metadata = result
-        original_media = self.media_set.get_media(media_id)
-        if original_media is None:
-            original_media = self.media_set2.get_media(media_id)
-        original_media.metadata[SIGNATURE] = result_signature_metadata
-        original_media.parent_set.add_to_date_sig_map(original_media)
+        for media_set in [self.media_set, self.media_set2]:
+            original_media = media_set.get_media(media_id)
+            if original_media is not None:
+                original_media.metadata[SIGNATURE] = result_signature_metadata
+                original_media.parent_set.add_to_date_sig_map(original_media)
         progress_bar.increment()
 
     def finalize(self):

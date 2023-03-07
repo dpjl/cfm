@@ -38,7 +38,8 @@ class BatchReadInternalMd(TaskWithProgression):
         for md in self.media_set.state.md_needed + self.other_needed_md:
             if md not in needed_md:
                 needed_md += (md,)
-        print("Metadata that need to be loaded: " + str(needed_md))
+        if not Configuration.get().watch:
+            print("Metadata that need to be loaded: " + str(needed_md))
         LoadInternalMetadata.md_needed = needed_md
         self.custo_ows_args = (needed_md,)
 
@@ -88,19 +89,21 @@ class BatchReadInternalMd(TaskWithProgression):
 
     def finalize(self):
 
-        print("")
-        tab = ConsoleTable()
-        tab.print_header("Metadata", "Number of files")
-        for key, value in self.stats.items():
-            if value != 0:
-                tab.print_line(key, str(value))
-        print("")
+        if len(self.call_info.items()) != 0:
+            if not Configuration.get().watch:
+                print("")
+                tab = ConsoleTable()
+                tab.print_header("Metadata", "Number of files")
+                for key, value in self.stats.items():
+                    if value != 0:
+                        tab.print_line(key, str(value))
+                print("")
 
-        print("")
-        tab = ConsoleTable()
-        tab.print_header("Call", "Number of files")
-        for key, value in self.call_info.items():
-            tab.print_line(key, str(value))
-        print("")
+            print("")
+            tab = ConsoleTable()
+            tab.print_header("Call", "Number of files")
+            for key, value in self.call_info.items():
+                tab.print_line(key, str(value))
+            print("")
 
         self.media_set.state.update_loaded_metadata()

@@ -1,6 +1,7 @@
 import logging
 from multiprocessing import cpu_count
 
+
 class Configuration:
     __instance = None
 
@@ -24,6 +25,9 @@ class Configuration:
         self.ignore_list = None
         self.collision_policy = None
         self.ignore_duplicates = False
+        self.watch = False
+        self.copy_mode = None
+        self.progress = True
 
     @staticmethod
     def get():
@@ -44,9 +48,6 @@ class Configuration:
 
             if args.use_dump:
                 self.use_dump_for_cache = True
-
-            if args.password:
-                self.cfm_sync_password = args.password.encode()
 
             if args.exit_on_error:
                 self.exit_on_error = True
@@ -82,5 +83,15 @@ class Configuration:
 
             if "ignore_duplicates" in args and args.ignore_duplicates:
                 self.ignore_duplicates = args.ignore_duplicates
+
+            if "watch" in args and args.watch:
+                self.watch = args.watch
+
+            if "mode" in args and args.mode:
+                from camerafile.fileaccess.FileAccess import CopyMode
+                self.copy_mode = CopyMode(args.mode)
+
+            if "no_progress" in args and args.no_progress:
+                self.progress = not args.no_progress
 
             self.initialized = True
