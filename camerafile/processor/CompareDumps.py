@@ -1,4 +1,3 @@
-from camerafile.core.MediaSetDatabase import MediaSetDatabase
 from camerafile.core.MediaSetDump import MediaSetDump
 
 

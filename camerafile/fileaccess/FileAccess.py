@@ -1,8 +1,6 @@
 import os
 from datetime import timedelta
 from enum import IntEnum
-from pathlib import Path
-
 from typing import Tuple, Union
 
 from camerafile.core import Constants

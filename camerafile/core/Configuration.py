@@ -1,4 +1,5 @@
 import logging
+from argparse import Namespace
 from multiprocessing import cpu_count
 
 
@@ -36,66 +37,44 @@ class Configuration:
             Configuration.__instance = Configuration()
         return Configuration.__instance
 
+    def load(self, key):
+        pass
+
     def init(self, args):
         if not self.initialized:
+            from camerafile.cfm import ANALYZE_CMD
+            from camerafile.cfm import ORGANIZE_CMD
 
-            self.args = args
-
-            if args.workers is not None:
-                self.nb_sub_process = args.workers
-
-            if args.use_db:
-                self.use_db_for_cache = True
-
-            if args.use_dump:
-                self.use_dump_for_cache = True
-
-            if args.exit_on_error:
-                self.exit_on_error = True
-
-            if "generate_pdf" in args and args.generate_pdf:
-                self.generate_pdf = True
-
-            if "no_internal_read" in args and args.no_internal_read:
-                self.internal_read = False
-
-            if args.thumbnails:
-                self.thumbnails = True
-
-            if "keep_size" in args and args.keep_size:
-                self.face_detection_keep_image_size = True
+            self.args: Namespace = args
 
             if args.debug:
                 self.debug = True
                 logging.getLogger("camerafile").setLevel(logging.DEBUG)
 
-            if "format" in args and args.format:
-                self.org_format = args.format
+            if args.workers is not None:
+                self.nb_sub_process = args.workers
 
-            if args.cache_path:
-                self.cache_path = args.cache_path
+            self.use_db_for_cache = args.use_db
+            self.use_dump_for_cache = args.use_dump
+            self.exit_on_error = args.exit_on_error
+            self.thumbnails = args.thumbnails
+            self.cache_path = args.cache_path
+            self.ignore_list = args.ignore
 
-            if args.ignore:
-                self.ignore_list = args.ignore
+            if args.command == ANALYZE_CMD:
+                self.generate_pdf = args.generate_pdf
+                self.internal_read = not args.no_internal_read
 
-            if "collision_policy" in args and args.collision_policy:
+            if args.command == ORGANIZE_CMD:
                 from camerafile.task.CopyFile import CollisionPolicy
-                self.collision_policy = CollisionPolicy(args.collision_policy)
-
-            if "ignore_duplicates" in args and args.ignore_duplicates:
-                self.ignore_duplicates = args.ignore_duplicates
-
-            if "watch" in args and args.watch:
-                self.watch = args.watch
-
-            if "mode" in args and args.mode:
                 from camerafile.fileaccess.FileAccess import CopyMode
+
+                self.org_format = args.format
+                self.collision_policy = CollisionPolicy(args.collision_policy)
+                self.ignore_duplicates = args.ignore_duplicates
                 self.copy_mode = CopyMode(args.mode)
-
-            if "no_progress" in args and args.no_progress:
+                self.watch = args.watch
                 self.progress = not args.no_progress
-
-            if "post_processing_script" in args and args.post_processing_script:
                 self.pp_script = args.post_processing_script
 
             self.initialized = True

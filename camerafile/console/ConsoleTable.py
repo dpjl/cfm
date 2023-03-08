@@ -10,7 +10,7 @@ class ConsoleTable:
     def print_bar(self, char, *args):
         number_of_columns = len(args)
         remaining = self.width
-        #print('█', end='')
+        # print('█', end='')
         for _ in args:
             bar = '+{col:{fill}^{col_width}}'.format(
                 col='', fill=char, col_width=str(min(remaining, int(self.width / number_of_columns))))
@@ -21,7 +21,7 @@ class ConsoleTable:
     def print_line_content(self, *args):
         number_of_columns = len(args)
         remaining = self.width
-        #print('█', end='')
+        # print('█', end='')
         for val in args:
             if val is None:
                 val = ""

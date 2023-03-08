@@ -19,7 +19,7 @@ class ComputeThumbnail:
         try:
             ComputeThumbnail.compute_thumbnail(root_path, file_desc, metadata_thumbnail)
             return file_desc.id, True, metadata_thumbnail
-        except:
+        except Exception:
             return file_desc.id, False, metadata_thumbnail
 
     @staticmethod

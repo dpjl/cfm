@@ -76,7 +76,6 @@ class LoadInternalMetadata:
         fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', file_name)
         if len(fields) == 1 and len(fields[0]) == 3:
             str_date = fields[0][1]
-            date = None
             try:
                 return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
             except ValueError:

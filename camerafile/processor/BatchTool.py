@@ -113,7 +113,7 @@ class TaskWithProgression:
                 return None, stdout_recorder.stop()
             batch_element = TaskWithProgression.current_multiprocess_task(batch_element)
             return batch_element, stdout_recorder.stop()
-        except BaseException as e:
+        except BaseException:
             return batch_element, traceback.format_exc()
 
     @staticmethod
@@ -169,6 +169,12 @@ class TaskWithProgression:
         if batch_element.error:
             self.write_error(f"{batch_element.info}: {batch_element.error}")
 
+    def process_stdout(self, batch_element: BatchElement, stdout, progress_bar):
+        if stdout and stdout.strip() != "":
+            self.stdout_nb_lines += stdout.count('\n')
+            self.update_status(progress_bar)
+            self.write_stdout(f"{batch_element.info}: {stdout}")
+
     def write_error(self, error):
         if self.stderr_file:
             with open(self.stderr_file, "a") as f:
@@ -176,15 +182,12 @@ class TaskWithProgression:
         else:
             print(error.strip())
 
-    def write_stdout(self, stdout, progress_bar):
-        if stdout and stdout.strip() != "":
-            self.stdout_nb_lines += stdout.count('\n')
-            self.update_status(progress_bar)
-            if self.stdout_file:
-                with open(self.stdout_file, "a") as f:
-                    f.write(stdout)
-            else:
-                print(stdout.strip())
+    def write_stdout(self, stdout):
+        if self.stdout_file:
+            with open(self.stdout_file, "a") as f:
+                f.write(stdout)
+        else:
+            print(stdout.strip())
 
     def execute_multiprocess_batch(self, nb_process, task, args_list: List[BatchElement], post_task, progress_bar):
         details_queue = Queue()
@@ -203,7 +206,7 @@ class TaskWithProgression:
             res_list = pool.imap_unordered(self.execute_task, args_list)
             for res in res_list:
                 batch_element, stdout = res
-                self.write_stdout(stdout, progress_bar)
+                self.process_stdout(batch_element, stdout, progress_bar)
                 if batch_element.error:
                     self.process_error(batch_element, progress_bar)
                 try:

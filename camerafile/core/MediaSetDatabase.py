@@ -3,20 +3,16 @@ import os
 import sqlite3
 from datetime import datetime
 from json import JSONDecodeError
-from pathlib import Path
-
-import dill
 from typing import Dict, Iterable
 from typing import TYPE_CHECKING
+
+import dill
 
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Constants import THUMBNAIL
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
-from camerafile.fileaccess.FileAccess import FileAccess
 from camerafile.fileaccess.FileDescription import FileDescription
-from camerafile.fileaccess.StandardFileAccess import StandardFileAccess
-from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
 
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
@@ -276,8 +272,8 @@ class MediaSetDatabase:
             try:
                 self.cache_db_connection.cursor.execute(
                     '''update
-                            metadata 
-                       set 
+                            metadata
+                       set
                             file = ?, jm = ?, bm = ?, last_update_date = ?
                        where
                             file_id = ? and (jm is not ? or bm is not ?)''',
@@ -286,7 +282,7 @@ class MediaSetDatabase:
                 print("Integrity error when updating media " + str(media_file))
         else:
             self.cache_db_connection.cursor.execute(
-                '''insert into 
+                '''insert into
                         metadata(file, jm, bm, last_update_date)
                    values
                         (?, ?, ?, ?)''',
@@ -301,8 +297,8 @@ class MediaSetDatabase:
             try:
                 self.thb_db_connection.cursor.execute(
                     '''update
-                            thb 
-                       set 
+                            thb
+                       set
                             file = ?, thb = ?
                        where
                             file_id = ? and thb is not ?''',
@@ -311,7 +307,7 @@ class MediaSetDatabase:
                 print("Integrity error when updating media " + str(media_file))
         else:
             self.thb_db_connection.cursor.execute(
-                '''insert into 
+                '''insert into
                         thb(file_id, file, thb)
                    values
                         (?, ?, ?)''',
@@ -337,6 +333,9 @@ class MediaSetDatabase:
         return data_dict
 
     def compare(self, db2):
+        import sys
+        import difflib
+
         db1 = self.load_database_in_dict()
         db2 = db2.load_database_in_dict()
 
@@ -344,18 +343,6 @@ class MediaSetDatabase:
             if file_path not in db2:
                 print(str(file_path) + " is in (1) but not in (2)")
                 continue
-            # d1 = json.dumps(db1[file_path], indent=4, sort_keys=True)
-            # d2 = json.dumps(db2[file_path], indent=4, sort_keys=True)
-            # sys.stdout.writelines(difflib.unified_diff([d1], [d2]))
-
-            if "faces" in db1[file_path] and "faces" in db2[file_path]:
-                if len(db1[file_path]["faces"]["locations"]) != len(db2[file_path]["faces"]["locations"]):
-                    print("Not same number of faces for :" + file_path)
-                    file_access = None
-                    if file_path.contains(".zip"):
-                        split = file_path.split(".zip")
-                        file_access = ZipFileAccess(split[0] + ".zip", split[1])
-                    else:
-                        file_access = StandardFileAccess(file_path)
-                    if file_access is not None:
-                        image = file_access.get_image()
+            d1 = json.dumps(db1[file_path], indent=4, sort_keys=True)
+            d2 = json.dumps(db2[file_path], indent=4, sort_keys=True)
+            sys.stdout.writelines(difflib.unified_diff([d1], [d2]))

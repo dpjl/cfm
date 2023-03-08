@@ -80,16 +80,13 @@ class StandardFileAccess(FileAccess):
             if self.is_image():
                 try:
                     return "JPEGMdReader", JPEGMdReader(self.get_path()).get_metadata(*args)
-                except:
+                except Exception:
+                    print("Failed with JPEGMdReader, try with ExifTool")
                     return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
-
-            # This code is not ready (QTMdReader is much less compatible with different brands than ExifTool)
-            # elif self.is_qt_video():
-            #    return QTMdReader(self.path).get_metadata(*args)
             elif self.is_avi_video():
                 try:
                     return "AVIMdReader", AVIMdReader(self.get_path()).get_metadata(*args)
-                except:
+                except Exception:
                     return self.call_exif_tool("AVIMdReader -> ExifTool", args)
             else:
                 return self.call_exif_tool("ExifTool", args)

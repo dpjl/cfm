@@ -111,11 +111,11 @@ class Avi(KaitaiStruct):
                 i += 1
 
     class AvihBody(KaitaiStruct):
-        """Main header of an AVI file, defined as AVIMAINHEADER structure.
-        
-        .. seealso::
-           Source - https://docs.microsoft.com/en-us/previous-versions/ms779632(v=vs.85)
-        """
+        # """Main header of an AVI file, defined as AVIMAINHEADER structure.
+        #
+        # .. seealso::
+        #   Source - https://docs.microsoft.com/en-us/previous-versions/ms779632(v=vs.85)
+        # """
 
         def __init__(self, _io, _parent=None, _root=None):
             self._io = _io
@@ -167,11 +167,11 @@ class Avi(KaitaiStruct):
                 self.data = None
 
     class StrhBody(KaitaiStruct):
-        """Stream header (one header per stream), defined as AVISTREAMHEADER structure.
-        
-        .. seealso::
-           Source - https://docs.microsoft.com/en-us/previous-versions/ms779638(v=vs.85)
-        """
+        # """Stream header (one header per stream), defined as AVISTREAMHEADER structure.
+        #
+        # .. seealso::
+        #    Source - https://docs.microsoft.com/en-us/previous-versions/ms779638(v=vs.85)
+        # """
 
         def __init__(self, _io, _parent=None, _root=None):
             self._io = _io

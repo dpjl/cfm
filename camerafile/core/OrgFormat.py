@@ -1,10 +1,13 @@
 import re
 from datetime import datetime
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-import camerafile
 from camerafile.core.MediaFile import MediaFile
 from camerafile.mdtools.MdConstants import MetadataNames
+
+if TYPE_CHECKING:
+    from camerafile.core.MediaSet import MediaSet
 
 
 class OrgFormat:
@@ -22,33 +25,54 @@ class OrgFormat:
 
     def get_formatted_string(self, media: MediaFile):
         result = self.format_description
-        media_date = None
         for field, (name, argument) in zip(self.fields, self.contents):
             if name == "cm":
-                cm = media.get_camera_model()
-                if cm is None:
-                    cm = argument
-                else:
-                    cm = cm.replace(" ", "-")
-                result = result.replace(field, cm)
+                result = result.replace(field, self.__get_cm(media, argument))
             elif name == "date":
-                if media_date is None:
-                    media_date = media.get_date()
-                formatted_date = media_date.strftime(argument)
-                result = result.replace(field, formatted_date)
+                result = result.replace(field, self.__get_date(media, argument))
             elif name == "dup-id":
-                result = result.replace(field, str(self.duplicates[media][2]))
+                result = result.replace(field, self.__get_dup_id(media, argument))
             elif name == "dup-nb":
-                result = result.replace(field, str(self.duplicates[media][0]))
+                result = result.replace(field, self.__get_dup_nb(media, argument))
             elif name == "dup-group":
-                result = result.replace(field, str(self.duplicates[media][1]))
+                result = result.replace(field, self.__get_dup_group(media, argument))
             elif name == "extension":
-                result = result.replace(field, media.get_extension())
+                result = result.replace(field, self.__get_extension(media, argument))
             elif name == "filename":
-                result = result.replace(field, media.file_desc.name)
+                result = result.replace(field, self.__get_filename(media, argument))
             else:
                 pass
         return result
+
+    @staticmethod
+    def __get_extension(media, arg):
+        return media.get_extension()
+
+    @staticmethod
+    def __get_filename(media, arg):
+        return media.file_desc.name
+
+    def __get_dup_id(self, media, arg):
+        return str(self.duplicates[media][2])
+
+    def __get_dup_nb(self, media, arg):
+        return str(self.duplicates[media][0])
+
+    def __get_dup_group(self, media, arg):
+        return str(self.duplicates[media][1])
+
+    @staticmethod
+    def __get_cm(media, arg):
+        cm = media.get_camera_model()
+        if cm is None:
+            cm = arg
+        else:
+            cm = cm.replace(" ", "-")
+        return cm
+
+    @staticmethod
+    def __get_date(media, arg):
+        return media.get_date().strftime(arg)
 
     def get_metadata_list(self):
         result = []
@@ -65,4 +89,4 @@ if __name__ == '__main__':
         f = mock.return_value
         f.get_camera_model.return_value = "CamCam"
         f.get_date.return_value = datetime.now()
-        print(org.get_formatted_string(camerafile.core.MediaFile.MediaFile(None, None, None)))
+        # print(org.get_formatted_string(camerafile.core.MediaFile.MediaFile(None, None, None)))

@@ -60,7 +60,7 @@ class AVIMdReader:
         if metadata_name == MetadataNames.CREATION_DATE and 'DateTimeOriginal' in self.metadata:
             try:
                 return datetime.strptime(self.metadata['DateTimeOriginal'], "%a %b %d %H:%M:%S %Y")
-            except:
+            except Exception:
                 return datetime.strptime(self.metadata['DateTimeOriginal'], "%Y:%m:%d %H:%M:%S")
         if metadata_name == MetadataNames.THUMBNAIL:
             return self.read_thumbnail()
@@ -77,9 +77,3 @@ class AVIMdReader:
 
     def get_metadata(self, *args):
         return {metadata_name: self.load_from_result(metadata_name) for metadata_name in args}
-
-
-if __name__ == '__main__':
-    #r = AVIMdReader(r"P:\arbo\perso\cfm\tests\data/camera4/15mai 071.avi")
-    r = AVIMdReader(r"P:\arbo\perso\cfm\tmp\test-data\mada - avril 2012\113___04\MVI_1768.AVI")
-    print(str(r.metadata))

@@ -1,6 +1,8 @@
 import os
 from threading import Event, Thread, Lock
 
+from watchdog.observers import Observer
+
 from camerafile.core.Configuration import Configuration
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaSet import MediaSet
@@ -9,7 +11,6 @@ from camerafile.processor.BatchComputeCm import BatchComputeCm
 from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
 from camerafile.processor.BatchCopy import BatchCopy
 from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
-from watchdog.observers import Observer
 
 LOGGER = Logger(__name__)
 
@@ -39,7 +40,7 @@ class Watcher(Thread):
         observer.start()
         LOGGER.info("Observer initiated correctly.")
 
-    def wake_up(self, media_set: MediaSet, new_path):
+    def wake_up(self, media_set: MediaSet, new_path: str):
         with self.lock:
             found = False
             for i, path in enumerate(self.modified_paths[media_set]):
@@ -100,16 +101,16 @@ class Watcher(Thread):
         return True
 
     def run(self):
-        LOGGER.info(f"Start thread in charge of watching changes")
+        LOGGER.info("Start thread in charge of watching changes")
         self.something_happened.wait()
         self.something_happened.clear()
 
         while True:
             if self.stop_required:
-                LOGGER.info(f"Stop thread in charge of watching changes")
+                LOGGER.info("Stop thread in charge of watching changes")
                 return
             sync_delay = 10
-            LOGGER.info(f"Watcher has been alerted of at least one change. "
+            LOGGER.info("Watcher has been alerted of at least one change. "
                         f"Wait {sync_delay} seconds and update.")
             if not self.something_happened.wait(sync_delay):
                 if self.__execute_cfm():
@@ -119,6 +120,6 @@ class Watcher(Thread):
                     self.something_happened.wait()
                 else:
                     LOGGER.info(
-                        f"CFM call failed. Wait another iteration before retrying to call it.")
+                        "CFM call failed. Wait another iteration before retrying to call it.")
                     continue
             self.something_happened.clear()

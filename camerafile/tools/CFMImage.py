@@ -38,7 +38,7 @@ class CFMImage:
             self.get_metadata_with_pil()
             self.rotate_if_necessary()
             self.width, self.height = self.image_data.size
-        except:
+        except Exception:
             self.image_data = None
 
     def rotate_if_necessary(self):

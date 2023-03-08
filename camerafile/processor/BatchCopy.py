@@ -57,24 +57,9 @@ class BatchCopy(CFMBatch):
         if not Configuration.get().watch:
             LOGGER.info("Create copy list...")
         if Configuration.get().ignore_duplicates:
-            n_copy_list = self.old_media_set.duplicates()
-            for n_copy in n_copy_list.values():
-                for media_list in n_copy:
-                    media: MediaFile
-                    date: datetime
-                    media, date = self.old_media_set.get_oldest_modified_file(media_list)
-                    if not self.new_media_set.contains(media):
-                        cp_element = BatchCopyElement(media, date)
-                        CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
-                        if cp_element.collision_policy == CollisionPolicy.IGNORE:
-                            ignore += 1
+            ignore = self.__create_copy_list_without_duplicates(copy_elements_map, ignore)
         else:
-            for media in self.old_media_set:
-                date: datetime = media.get_last_modification_date()
-                cp_element = BatchCopyElement(media, date)
-                CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
-                if cp_element.collision_policy == CollisionPolicy.IGNORE:
-                    ignore += 1
+            ignore = self.__create_copy_list(copy_elements_map, ignore)
 
         if ignore != 0:
             LOGGER.info(f"{ignore} collisions ignored")
@@ -97,7 +82,30 @@ class BatchCopy(CFMBatch):
 
         return args_list
 
-    def add_target_modified_path(self, new_path):
+    def __create_copy_list(self, copy_elements_map, ignore):
+        for media in self.old_media_set:
+            date: datetime = media.get_last_modification_date()
+            cp_element = BatchCopyElement(media, date)
+            CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
+            if cp_element.collision_policy == CollisionPolicy.IGNORE:
+                ignore += 1
+        return ignore
+
+    def __create_copy_list_without_duplicates(self, copy_elements_map, ignore):
+        n_copy_list = self.old_media_set.duplicates()
+        for n_copy in n_copy_list.values():
+            for media_list in n_copy:
+                media: MediaFile
+                date: datetime
+                media, date = self.old_media_set.get_oldest_modified_file(media_list)
+                if not self.new_media_set.contains(media):
+                    cp_element = BatchCopyElement(media, date)
+                    CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
+                    if cp_element.collision_policy == CollisionPolicy.IGNORE:
+                        ignore += 1
+        return ignore
+
+    def add_target_modified_path(self, new_path: str):
         found = False
         for i, path in enumerate(self.target_modified_paths):
             if new_path == path:
@@ -114,7 +122,7 @@ class BatchCopy(CFMBatch):
         success, status, old_file_spec, new_file_spec = result
         original_media: MediaFile = self.old_media_set.get_media(old_file_spec.id)
         if success:
-            self.add_target_modified_path(Path(new_file_spec.relative_path).parent)
+            self.add_target_modified_path(Path(new_file_spec.relative_path).parent.as_posix())
             CopyFile.copy(original_media, self.new_media_set, new_file_spec)
         else:
             self.not_copied_files.append(original_media)

@@ -122,26 +122,3 @@ class JPEGMdReader(object):
         details = True if MetadataNames.THUMBNAIL in args else False
         self.open(details=details)
         return {metadata_name: self.load_from_result(metadata_name) for metadata_name in args}
-
-
-if __name__ == '__main__':
-    # m = JPEGMdReader(r"P:\arbo\perso\cfm\tests\data\camera6-honor\IMG_20151118_123300.jpg")
-    # m = JPEGMdReader(r"P:\arbo\perso\cfm\tests\data\whatsapp/Media/WhatsApp Images/Sent/IMG-20210111-WA0001.jpg")
-    # m = JPEGMdReader(r"P:\arbo\perso\cfm\tests\data\camera1-samsung/20171118_172416.jpg")
-    # m = JPEGMdReader(r"P:\arbo\perso\cfm\tests\data\camera4/8mai 039.jpg")
-    # m = JPEGMdReader(
-    #    r"E:\data\photos-all\depuis-samsung-T5/photos divers/2007-07-04/repas avec Natacha et Diminga/100_0084.jpg")
-    # m = JPEGMdReader(r"E:\data\photos-all\téléphone_samsung/albums/Balade Saacy/20180819_221155.jpg") # can't be parsed
-    # m = JPEGMdReader(r"E:\data\photos-all\honor/DCIM-sd-av-guillaume/Camera/IMG_20160522_000548.jpg")
-    m = JPEGMdReader(
-        r"E:\data\photos-all\depuis-samsung-T5/sauvegarde photos surface pro (surement en double d'autres sauvegardes)/photos/Canon PowerShot G9 X Mark II/20180819_221155.jpg")
-
-    m = m.get_metadata(MetadataNames.CREATION_DATE, MetadataNames.HEIGHT, MetadataNames.WIDTH,
-                       MetadataNames.ORIENTATION, MetadataNames.MODEL)
-
-    # from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
-    # access = ZipFileAccess("./tests/data/zip/wetransfer-4a1f94-escrime.zip", "DSC04403.JPG")
-    # m = access.read_md((MetadataNames.CREATION_DATE, MetadataNames.HEIGHT, MetadataNames.WIDTH,
-    #                    MetadataNames.ORIENTATION, MetadataNames.MODEL))
-
-    print(str(m))

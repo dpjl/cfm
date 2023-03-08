@@ -10,14 +10,6 @@ class MetadataNames(Enum):
     MODIFICATION_DATE = "date-lm"
     THUMBNAIL = "thumbnail"
 
-    # MODEL = "Model"
-    # WIDTH = "Width"
-    # HEIGHT = "Height"
-    # ORIENTATION = "Orientation"
-    # CREATION_DATE = "CreationDate"
-    # MODIFICATION_DATE = "ModifyDate"
-    # THUMBNAIL = "thumbnail"
-
     def __str__(self):
         return self.value
 

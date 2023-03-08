@@ -46,13 +46,13 @@ def create_main_args_parser():
     parser.add_argument('-n', '--thumbnails', action='store_true',
                         help='Load all thumbnails from exif data, and save them in cache.')
 
-    parser.add_argument('-b', '--use-db', action='store_true',
+    parser.add_argument('-b', '--use-db', action='store_true', default=False,
                         help='Use sqlite db to store media set information.')
 
-    parser.add_argument('-u', '--use-dump', action='store_true',
+    parser.add_argument('-u', '--use-dump', action='store_true', default=True,
                         help='Use python dump to store media set informmation (faster than db).')
 
-    parser.add_argument('-x', '--exit-on-error', action='store_true',
+    parser.add_argument('-x', '--exit-on-error', action='store_true', default=False,
                         help='Exit current process in case of error (should be used only to debug).')
 
     parser.add_argument('-d', '--debug', action='store_true',
@@ -73,7 +73,8 @@ def create_main_args_parser():
     p.add_argument('dir1', metavar='dir1', type=str, default=None, help='Check for duplicates')
     p.add_argument('dir2', nargs='?', metavar='dir2', type=str, default=None,
                    help='Check for duplicates / differences with dir1.')
-    p.add_argument('-g', '--generate-pdf', action='store_true', help='Generate pdf reports using thumbnails.')
+    p.add_argument('-g', '--generate-pdf', action='store_true', default=False,
+                   help='Generate pdf reports using thumbnails.')
     p.add_argument('-n', '--no-internal-read', action='store_true', help='Do not read internal metadata at all.')
     p.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                    help='Show this help message and exit.')
@@ -88,7 +89,7 @@ def create_main_args_parser():
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
     p.add_argument('-pps', '--post-processing-script', metavar="<path>", type=str, default=os.getenv("PP_SCRIPT"),
-                   help=f'Script that will be called at the end of each process triggered when watching.')
+                   help="Script that will be called at the end of each process triggered when watching.")
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),
                    default=str(CopyMode.HARD_LINK),
                    help=f'{list(CopyMode)} - Default: {CopyMode.HARD_LINK}. '
@@ -119,9 +120,6 @@ def create_main_args_parser():
 def execute(args):
     from camerafile.core.MediaSet import MediaSet
     from camerafile.processor.BatchComputeCm import BatchComputeCm
-    from camerafile.processor.BatchComputeNecessarySignatures import \
-        BatchComputeNecessarySignaturesMultiProcess
-    from camerafile.processor.BatchCopy import BatchCopy
     from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
     from camerafile.processor.CompareMediaSets import CompareMediaSets
     from camerafile.processor.SearchForDuplicates import SearchForDuplicates
@@ -154,26 +152,14 @@ def execute(args):
             CompareMediaSets.execute(media_set1, media_set2)
 
     if args.command == ORGANIZE_CMD:
+        execute_organize(args, media_set1, media_set2)
 
-        if media_set2.state.org_format is None:
-            print("\n!!!!!!!!!!!!!!!!!!!")
-            print(f"Format is not already configured for {args.dir2}, you have to define it using -f option "
-                  f"or by defining ORG_FORMAT environment variable.")
-            print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
-            print("!!!!!!!!!!!!!!!!!!!")
-        else:
-            copy_mode = Configuration.get().copy_mode
-            BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
-            BatchCopy(media_set1, media_set2, copy_mode).execute()
     print("")
+    save(media_set1, media_set2)
+    watch_if_required(media_set1, media_set2)
 
-    media_set1.save_on_disk()
-    media_set1.close_database()
 
-    if media_set2:
-        media_set2.save_on_disk()
-        media_set2.close_database()
-
+def watch_if_required(media_set1, media_set2):
     if Configuration.get().watch and media_set2.state.org_format is not None:
         watcher = Watcher(media_set1, media_set2)
         watcher.start()
@@ -183,6 +169,30 @@ def execute(args):
         finally:
             watcher.stop()
             watcher.join()
+
+
+def save(media_set1, media_set2):
+    media_set1.save_on_disk()
+    media_set1.close_database()
+    if media_set2:
+        media_set2.save_on_disk()
+        media_set2.close_database()
+
+
+def execute_organize(args, media_set1, media_set2):
+    if media_set2.state.org_format is None:
+        print("\n!!!!!!!!!!!!!!!!!!!")
+        print(f"Format is not already configured for {args.dir2}, you have to define it using -f option "
+              f"or by defining ORG_FORMAT environment variable.")
+        print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
+        print("!!!!!!!!!!!!!!!!!!!")
+    else:
+        from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
+        from camerafile.processor.BatchCopy import BatchCopy
+
+        copy_mode = Configuration.get().copy_mode
+        BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
+        BatchCopy(media_set1, media_set2, copy_mode).execute()
 
 
 def main():

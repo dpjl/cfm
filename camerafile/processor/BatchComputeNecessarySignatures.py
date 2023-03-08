@@ -52,10 +52,11 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
     def post_task(self, result, progress_bar, replace=False):
         media_id, result_signature_metadata = result
         for media_set in [self.media_set, self.media_set2]:
-            original_media = media_set.get_media(media_id)
-            if original_media is not None:
-                original_media.metadata[SIGNATURE] = result_signature_metadata
-                original_media.parent_set.add_to_date_sig_map(original_media)
+            if media_set is not None:
+                original_media = media_set.get_media(media_id)
+                if original_media is not None:
+                    original_media.metadata[SIGNATURE] = result_signature_metadata
+                    original_media.parent_set.add_to_date_sig_map(original_media)
         progress_bar.increment()
 
     def finalize(self):

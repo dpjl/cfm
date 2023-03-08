@@ -1,7 +1,6 @@
 import hashlib
 
 import dhash
-from PIL.Image import Image
 
 from camerafile.core.Logging import Logger
 from camerafile.tools.CFMImage import CFMImage

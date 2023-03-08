@@ -8,7 +8,7 @@ from datetime import datetime
 from queue import Queue, Empty
 from threading import Thread
 
-from PIL.Image import Image
+from PIL import Image
 
 from camerafile.core.Resource import Resource
 from camerafile.mdtools.MdConstants import MetadataNames
@@ -170,7 +170,7 @@ class ExifTool(object):
                 return None
 
     @classmethod
-    def read_date(cls, exif_tool_result):
+    def __get_date_metadata(cls, exif_tool_result):
         date = cls.parse_date(exif_tool_result, cls.SUB_SEC_DATE_TIME_ORIGINAL, '%Y:%m:%d %H:%M:%S.%f')
         if date is None:
             date = cls.parse_date(exif_tool_result, cls.SUB_SEC_CREATE_DATE, '%Y:%m:%d %H:%M:%S.%f')
@@ -181,6 +181,27 @@ class ExifTool(object):
         return date
 
     @classmethod
+    def __get_model_metadata(cls, metadata):
+        if cls.MODEL_METADATA in metadata:
+            return metadata[cls.MODEL_METADATA]
+        elif cls.SOURCE_METADATA in metadata:
+            return metadata[cls.SOURCE_METADATA]
+        return None
+
+    @classmethod
+    def __get_thumbnail_metadata(cls, metadata):
+        if cls.THUMBNAIL_METADATA in metadata:
+            thumbnail = metadata[cls.THUMBNAIL_METADATA]
+            if thumbnail is not None:
+                thumbnail = base64.b64decode(thumbnail[7:])
+                thb = Image.open(io.BytesIO(thumbnail))
+                thb.thumbnail((100, 100))
+                bytes_output = io.BytesIO()
+                thb.save(bytes_output, format='JPEG')
+                return bytes_output.getvalue()
+        return None
+
+    @classmethod
     def load_from_result(cls, result, metadata_name):
 
         if len(result) == 0:
@@ -189,32 +210,21 @@ class ExifTool(object):
         metadata = result[0]
 
         if metadata_name == MetadataNames.MODEL:
-            if cls.MODEL_METADATA in metadata:
-                return metadata[cls.MODEL_METADATA]
-            elif cls.SOURCE_METADATA in metadata:
-                return metadata[cls.SOURCE_METADATA]
+            return cls.__get_model_metadata(metadata)
 
         elif metadata_name == MetadataNames.CREATION_DATE:
-            return cls.read_date(result)
+            return cls.__get_date_metadata(result)
 
         elif metadata_name == MetadataNames.THUMBNAIL or metadata_name == cls.THUMBNAIL_METADATA:
-            if cls.THUMBNAIL_METADATA in metadata:
-                thumbnail = metadata[cls.THUMBNAIL_METADATA]
-                if thumbnail is not None:
-                    thumbnail = base64.b64decode(thumbnail[7:])
-                    thb = Image.open(io.BytesIO(thumbnail))
-                    thb.thumbnail((100, 100))
-                    bytes_output = io.BytesIO()
-                    thb.save(bytes_output, format='JPEG')
-                    return bytes_output.getvalue()
+            return cls.__get_thumbnail_metadata(metadata)
 
-        if metadata_name == MetadataNames.WIDTH and cls.WIDTH_METADATA in metadata:
+        elif metadata_name == MetadataNames.WIDTH and cls.WIDTH_METADATA in metadata:
             return metadata[cls.WIDTH_METADATA]
 
-        if metadata_name == MetadataNames.HEIGHT and cls.HEIGHT_METADATA in metadata:
+        elif metadata_name == MetadataNames.HEIGHT and cls.HEIGHT_METADATA in metadata:
             return metadata[cls.HEIGHT_METADATA]
 
-        if metadata_name == MetadataNames.ORIENTATION and cls.ORIENTATION_METADATA in metadata:
+        elif metadata_name == MetadataNames.ORIENTATION and cls.ORIENTATION_METADATA in metadata:
             return metadata[cls.ORIENTATION_METADATA]
 
         elif metadata_name in metadata:

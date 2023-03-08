@@ -67,7 +67,7 @@ class ZipFileAccess(FileAccess):
                 return call_info, ExifTool.get_metadata(zip_file.read(self.file_desc.file_path), *args)
         except ExifToolNotFound as e:
             raise e
-        except MdException as e:
+        except MdException:
             return call_info + " -> Failed", {}
 
     def read_md(self, args):
@@ -78,7 +78,7 @@ class ZipFileAccess(FileAccess):
                 try:
                     with zipfile.ZipFile(self.get_zip_path()) as zip_file:
                         return "JPEGMdReader", JPEGMdReader(zip_file.open(self.file_desc.file_path)).get_metadata(*args)
-                except:
+                except BaseException:
                     return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
             else:
                 return self.call_exif_tool("ExifTool", args)

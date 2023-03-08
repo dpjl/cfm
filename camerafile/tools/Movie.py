@@ -14,7 +14,7 @@ class Movie:
         self.read_movie()
 
     def read_movie(self):
-        
+
         # TODO: Check performances of different methods to get modification date
         # self.date = time.ctime(os.path.getmtime(self.path))
         self.date = datetime.fromtimestamp(self.path.stat().st_mtime)
