@@ -441,7 +441,7 @@ class MediaSet:
                 file_path = Path(path) / file_name
                 extension = os.path.splitext(file_name)[1].lower()
 
-                if extension in MANAGED_TYPE and not self.state.should_be_ignored(file_name):
+                if extension in MANAGED_TYPE and not self.state.should_be_ignored(file_path):
                     file_size = self.register_new_standard_file(file_path, not_loaded_files)
                     files_summary.increment(all_files=1, managed=1, standard=1, size=file_size)
                 elif extension in ARCHIVE_TYPE:
@@ -472,7 +472,7 @@ class MediaSet:
                     extension = os.path.splitext(file_name)[1].lower()
                     files_summary.increment(all_files=1, zipped=1)
 
-                    if extension in MANAGED_TYPE and not self.state.should_be_ignored(Path(file_name).name):
+                    if extension in MANAGED_TYPE and not self.state.should_be_ignored(file_name):
                         file_size = self.register_new_zipped_file(file_info, file_map, file_name, zip_file_path)
                         files_summary.increment(managed=1, size=file_size)
                     else:
