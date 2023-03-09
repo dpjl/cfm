@@ -1,4 +1,5 @@
 import logging
+import os
 from argparse import Namespace
 from multiprocessing import cpu_count
 
@@ -76,5 +77,17 @@ class Configuration:
                 self.watch = args.watch
                 self.progress = not args.no_progress
                 self.pp_script = args.post_processing_script
+
+                if os.getenv("WATCH") is not None:
+                    if os.getenv("WATCH").lower() in ["1", "true"]:
+                        self.watch = True
+                    else:
+                        self.watch = False
+
+                if os.getenv("PROGRESS") is not None:
+                    if os.getenv("PROGRESS").lower() in ["1", "true"]:
+                        self.progress = True
+                    else:
+                        self.progress = False
 
             self.initialized = True
