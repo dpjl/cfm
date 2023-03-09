@@ -47,7 +47,7 @@ class Resource:
             elif str(archive).endswith(".tar.gz"):
                 import tarfile
                 with tarfile.open(archive, "r:gz") as file:
-                    file.extractall(destination)
+                    file.extractall(destination.parent)
                     file.close()
 
     @staticmethod
