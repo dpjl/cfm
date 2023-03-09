@@ -7,4 +7,4 @@ COPY camerafile ./camerafile
 COPY setup.py ./setup.py
 RUN pip install -e .
 
-CMD [ "python", "-u", "./camerafile/cfm.py", "--cache-path", "/cache", "organize", "/dir1", "/dir2"]
+CMD [ "python", "./camerafile/cfm.py", "--cache-path", "/cache", "organize", "--ignore-duplicates", /dir1", "/dir2"]
