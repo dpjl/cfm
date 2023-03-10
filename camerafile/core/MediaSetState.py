@@ -40,7 +40,7 @@ class MediaSetState:
                 if ignore_pattern not in self.state["ignore"]:
                     self.state["ignore"].append(ignore_pattern)
         if "ignore" in self.state:
-            LOGGER.info(f'Filename patterns to ignore: {str(self.state["ignore"])}')
+            LOGGER.info(f'File paths patterns to ignore: {str(self.state["ignore"])}')
 
     def save(self):
         with open(self.state_file, "w") as file:
@@ -109,9 +109,9 @@ class MediaSetState:
         self.state["loaded_metadata"] = [str(md) for md in self.md_needed]
         self.save()
 
-    def should_be_ignored(self, file_name):
+    def should_be_ignored(self, file_path):
         if "ignore" in self.state:
             for regexp in self.state["ignore"]:
-                if re.match(regexp, file_name):
+                if re.match(regexp, str(file_path)):
                     return True
         return False

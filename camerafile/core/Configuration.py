@@ -1,3 +1,4 @@
+import ast
 import logging
 import os
 from argparse import Namespace
@@ -61,6 +62,10 @@ class Configuration:
             self.thumbnails = args.thumbnails
             self.cache_path = args.cache_path
             self.ignore_list = args.ignore
+
+            default_ignore_from_env = ast.literal_eval(os.getenv("IGNORE")) if os.getenv("IGNORE") is not None else None
+            if self.ignore_list is None:
+                self.ignore_list = default_ignore_from_env
 
             if args.command == ANALYZE_CMD:
                 self.generate_pdf = args.generate_pdf

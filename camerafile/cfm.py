@@ -37,7 +37,7 @@ def create_main_args_parser():
                         default=None,
                         metavar="<path>")
 
-    parser.add_argument('-i', '--ignore', action='append', default=os.getenv("IGNORE"),
+    parser.add_argument('-i', '--ignore', action='append',
                         help='Specify filename patterns to ignore. This option can be used multiple times.')
 
     parser.add_argument('-np', '--no-progress', action='store_true',
