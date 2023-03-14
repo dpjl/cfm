@@ -1,9 +1,11 @@
 import os
-from datetime import timedelta
+import re
+from datetime import timedelta, datetime
 from enum import IntEnum
 from typing import Tuple, Union
 
 from camerafile.core import Constants
+from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileDescription import FileDescription
 
 
@@ -40,6 +42,25 @@ class FileAccess:
 
     def get_extension(self):
         return self.file_desc.extension
+
+    def copy_post_processing(self, new_file_path):
+        if Configuration.get().whatsapp_force_date:
+            sent_date, _ = self.parse_whatsapp_filename()
+            if sent_date is not None:
+                os.utime(new_file_path, (sent_date.timestamp(), sent_date.timestamp()))
+                return "[time modified]"
+        return ""
+
+    def parse_whatsapp_filename(self) -> tuple[Union[datetime, None], Union[str, None]]:
+        if Configuration.get().whatsapp:
+            fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', self.file_desc.name)
+            if len(fields) == 1 and len(fields[0]) == 3:
+                str_date = fields[0][1]
+                try:
+                    return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
+                except ValueError:
+                    pass
+        return None, None
 
     @staticmethod
     def even_round(date):

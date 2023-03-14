@@ -1,6 +1,3 @@
-import re
-from datetime import datetime
-
 from camerafile.core.Configuration import Configuration
 from camerafile.fileaccess.FileAccessFactory import FileAccessFactory
 from camerafile.fileaccess.FileDescription import FileDescription
@@ -46,7 +43,7 @@ class LoadInternalMetadata:
             height = old_width
 
         if date is None and camera_model is None:
-            date, camera_model = LoadInternalMetadata.parse_whatsapp_filename(file_description.name)
+            date, camera_model = file_access.parse_whatsapp_filename()
 
         last_modified_date = file_access.get_last_modification_date()
 
@@ -70,25 +67,3 @@ class LoadInternalMetadata:
                           MetadataNames.ORIENTATION.value: orientation}
 
         return thumbnail
-
-    @staticmethod
-    def parse_whatsapp_filename(file_name):
-        fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', file_name)
-        if len(fields) == 1 and len(fields[0]) == 3:
-            str_date = fields[0][1]
-            try:
-                return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
-            except ValueError:
-                pass
-        return None, None
-
-
-if __name__ == '__main__':
-    from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
-
-    print(LoadInternalMetadata.parse_whatsapp_filename("VID-20210201-WA0000.mp4"))
-    m = Metadata()
-    file_desc = StandardFileDescription(
-        "2010/photos balade 18\\u00e8me/Photos Iphone/IMG_0158.MOV".encode().decode('unicode-escape'))
-    LoadInternalMetadata.load_internal_metadata("E:/data/photos-all/depuis-samsung-T5/photos/", file_desc, m)
-    print(m.value)

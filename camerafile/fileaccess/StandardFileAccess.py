@@ -58,7 +58,10 @@ class StandardFileAccess(FileAccess):
             os.link(self.get_path(), new_file_path)
         else:
             return False, "Invalid copy path", self.file_desc, None
-        return True, "Copied", self.file_desc, StandardFileDescription(new_relative_file_path, self.file_desc.file_size)
+
+        post_proc_status = self.copy_post_processing(new_file_path)
+        status = f"Copied ({str(copy_mode)}) {post_proc_status}"
+        return True, status, self.file_desc, StandardFileDescription(new_relative_file_path, self.file_desc.file_size)
 
     def get_last_modification_date(self):
         # round to the nearest even second because of differences between ntfs en fat

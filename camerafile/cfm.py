@@ -88,17 +88,23 @@ def create_main_args_parser():
                    help='Format to use for organization.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
+    p.add_argument('-wa', '--whatsapp', action='store_true', help='Deduce date from WhatsApp filename.')
+    p.add_argument('-wa+', '--whatsapp+', action='store_true',
+                   help="Same as --whatsapp, but also set destination file's modification date to the deduced date.")
     p.add_argument('-pps', '--post-processing-script', metavar="<path>", type=str, default=os.getenv("PP_SCRIPT"),
                    help="Script that will be called at the end of each process triggered when watching.")
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),
                    default=str(CopyMode.HARD_LINK),
                    help=f'{list(CopyMode)} - Default: {CopyMode.HARD_LINK}. '
-                        f'Warning: {CopyMode.HARD_LINK} and {CopyMode.SOFT_LINK} modes are not available '
-                        f'on some file systems, notably fat32. '
-                        f'Also, these two modes are not available if <dir1> and <dir2> are not on the same drive. '
-                        f'In these two cases, only {CopyMode.COPY} can be used but it can be very long, so always '
-                        f'prefer default mode when possible (for example, organize first on the same drive, and then '
-                        f'copy/paste the organized folder when you are satisfied.)')
+                        f'Warning: {CopyMode.HARD_LINK} and {CopyMode.SOFT_LINK} modes are not available in '
+                        f'the following cases: '
+                        f'(1) on some file systems, notably fat32 '
+                        f'(2) if <dir1> and <dir2> are not on the same drive '
+                        f'(3) for zipped files of dir1. '
+                        f'In these cases, only {CopyMode.COPY} (corresponding to an extraction in case of zipped files) '
+                        f'can be used but it can be very long, so always prefer default mode when possible '
+                        f'(for example, organize first on the same drive, and then copy/paste the organized folder '
+                        f'when you are satisfied.)')
     p.add_argument('-c', '--collision-policy', metavar='<policy>', type=CollisionPolicy.argparse,
                    choices=list(CollisionPolicy), default=str(CollisionPolicy.RENAME_PARENT),
                    help=f'{list(CollisionPolicy)} - Default: {CollisionPolicy.RENAME_PARENT}. '

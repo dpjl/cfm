@@ -32,6 +32,8 @@ class Configuration:
         self.copy_mode = None
         self.progress = True
         self.pp_script = None
+        self.whatsapp = False
+        self.whatsapp_force_date = False
 
     @staticmethod
     def get():
@@ -82,6 +84,8 @@ class Configuration:
                 self.watch = args.watch
                 self.progress = not args.no_progress
                 self.pp_script = args.post_processing_script
+                self.whatsapp_force_date = "whatsapp+" in args and args.__getattribute__("whatsapp+")
+                self.whatsapp = self.whatsapp_force_date or args.whatsapp
 
                 if os.getenv("WATCH") is not None:
                     if os.getenv("WATCH").lower() in ["1", "true"]:
