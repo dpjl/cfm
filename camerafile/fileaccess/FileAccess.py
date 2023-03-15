@@ -51,7 +51,7 @@ class FileAccess:
                 return "[time modified]"
         return ""
 
-    def parse_whatsapp_filename(self) -> tuple[Union[datetime, None], Union[str, None]]:
+    def parse_whatsapp_filename(self) -> Tuple[Union[datetime, None], Union[str, None]]:
         if Configuration.get().whatsapp:
             fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', self.file_desc.name)
             if len(fields) == 1 and len(fields[0]) == 3:
