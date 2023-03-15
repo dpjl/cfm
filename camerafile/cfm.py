@@ -64,6 +64,10 @@ def create_main_args_parser():
     parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                         help='Show this help message and exit.')
 
+    parser.add_argument('-wa', '--whatsapp', action='store_true', help='Deduce date from WhatsApp filename.')
+    parser.add_argument('-wa+', '--whatsapp+', action='store_true',
+                        help="Same as --whatsapp, but also set destination file's modification date to the deduced date.")
+
     sp_list = parser.add_subparsers(title="Commands list",
                                     description="Use 'cfm <command> -h' to display the help of a specific command",
                                     metavar="<command>")
@@ -88,9 +92,6 @@ def create_main_args_parser():
                    help='Format to use for organization.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
-    p.add_argument('-wa', '--whatsapp', action='store_true', help='Deduce date from WhatsApp filename.')
-    p.add_argument('-wa+', '--whatsapp+', action='store_true',
-                   help="Same as --whatsapp, but also set destination file's modification date to the deduced date.")
     p.add_argument('-pps', '--post-processing-script', metavar="<path>", type=str, default=os.getenv("PP_SCRIPT"),
                    help="Script that will be called at the end of each process triggered when watching.")
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),
