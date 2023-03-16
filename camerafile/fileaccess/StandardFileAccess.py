@@ -1,6 +1,8 @@
+import logging
 import mmap
 import os
 import shutil
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +19,8 @@ from camerafile.mdtools.JPEGMdReader import JPEGMdReader
 from camerafile.mdtools.MdException import MdException
 from camerafile.tools.CFMImage import CFMImage
 from camerafile.tools.Hash import Hash
+
+LOGGER = logging.getLogger(__name__)
 
 
 class StandardFileAccess(FileAccess):
@@ -73,7 +77,7 @@ class StandardFileAccess(FileAccess):
         except ExifToolNotFound as e:
             raise e
         except MdException as e:
-            print(f"{self.get_path()} : {e}")
+            LOGGER.info(f"{self.get_path()} : {e}")
             return call_info + " -> Failed", {}
 
     def read_md(self, args):
@@ -84,12 +88,14 @@ class StandardFileAccess(FileAccess):
                 try:
                     return "JPEGMdReader", JPEGMdReader(self.get_path()).get_metadata(*args)
                 except Exception:
-                    print("Failed with JPEGMdReader, try with ExifTool")
+                    LOGGER.info(traceback.format_exc())
+                    LOGGER.info("Failed with JPEGMdReader, try with ExifTool")
                     return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
             elif self.is_avi_video():
                 try:
                     return "AVIMdReader", AVIMdReader(self.get_path()).get_metadata(*args)
                 except Exception:
+                    LOGGER.info(traceback.format_exc())
                     return self.call_exif_tool("AVIMdReader -> ExifTool", args)
             else:
                 return self.call_exif_tool("ExifTool", args)

@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,8 @@ from camerafile.mdtools.JPEGMdReader import JPEGMdReader
 from camerafile.mdtools.MdException import MdException
 from camerafile.tools.CFMImage import CFMImage
 from camerafile.tools.Hash import Hash
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ZipFileAccess(FileAccess):
@@ -37,7 +40,7 @@ class ZipFileAccess(FileAccess):
             return zip_file.open(self.file_desc.file_path)
 
     def delete_file(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
-        print("Delete not managed inside zip: " + self.get_path())
+        LOGGER.info("Delete not managed inside zip: " + self.get_path())
         return False, "Not managed inside zip", self, None
 
     def copy_to(self, new_root_path, new_relative_file_path: str, copy_mode: CopyMode) -> \
@@ -61,7 +64,7 @@ class ZipFileAccess(FileAccess):
             with zipfile.ZipFile(self.get_zip_path()) as zip_file:
                 result = self.even_round(datetime(*zip_file.getinfo(self.file_desc.file_path).date_time))
         except KeyError as e:
-            print(str(e) + "[" + self.get_path() + "]")
+            LOGGER.info(str(e) + "[" + self.get_path() + "]")
             return None
         return result
 
