@@ -65,8 +65,15 @@ def create_main_args_parser():
                         help='Show this help message and exit.')
 
     parser.add_argument('-wa', '--whatsapp', action='store_true', help='Deduce date from WhatsApp filename.')
+
     parser.add_argument('-wa+', '--whatsapp+', action='store_true',
-                        help="Same as --whatsapp, but also set destination file's modification date to the deduced date.")
+                        help="Same as --whatsapp, but also modify destination file's modification.")
+
+    parser.add_argument('-wadb', '--whatsapp-db', type=str,
+                        help='Specify a decrypted WhatsApp db file, in order to detect WhatsApp files and recover '
+                             'their sending/receiving dates',
+                        default=None,
+                        metavar="<path>")
 
     sp_list = parser.add_subparsers(title="Commands list",
                                     description="Use 'cfm <command> -h' to display the help of a specific command",

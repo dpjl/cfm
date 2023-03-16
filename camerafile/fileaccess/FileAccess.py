@@ -45,21 +45,30 @@ class FileAccess:
 
     def copy_post_processing(self, new_file_path):
         if Configuration.get().whatsapp_force_date:
-            sent_date, _ = self.parse_whatsapp_filename()
+            sent_date, _ = self.read_whatsapp_info()
             if sent_date is not None:
                 os.utime(new_file_path, (sent_date.timestamp(), sent_date.timestamp()))
                 return "[time modified]"
         return ""
 
-    def parse_whatsapp_filename(self) -> Tuple[Union[datetime, None], Union[str, None]]:
+    def read_whatsapp_info(self) -> Tuple[Union[datetime, None], Union[str, None]]:
         if Configuration.get().whatsapp:
+            whatsapp_db = Configuration.get().whatsapp_db
+            if whatsapp_db is not None:
+                if self.file_desc.name in whatsapp_db:
+                    return datetime.fromtimestamp(whatsapp_db[self.file_desc.name] / 1000), "WhatsApp"
+
             fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', self.file_desc.name)
             if len(fields) == 1 and len(fields[0]) == 3:
                 str_date = fields[0][1]
-                try:
-                    return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
-                except ValueError:
-                    pass
+                last_modified_date = self.get_last_modification_date()
+                if last_modified_date is not None and str_date != last_modified_date.strftime("%Y%m%d"):
+                    try:
+                        return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
+                    except ValueError:
+                        return None, None
+                else:
+                    return last_modified_date, "WhatsApp"
         return None, None
 
     @staticmethod
@@ -104,8 +113,8 @@ class FileAccess:
     def get_file_size(self):
         pass
 
-    def get_last_modification_date(self):
-        pass
+    def get_last_modification_date(self) -> Union[datetime, None]:
+        return None
 
     def hash(self):
         pass

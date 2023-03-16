@@ -3,6 +3,9 @@ import logging
 import os
 from argparse import Namespace
 from multiprocessing import cpu_count
+from pathlib import Path
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Configuration:
@@ -34,6 +37,7 @@ class Configuration:
         self.pp_script = None
         self.whatsapp = False
         self.whatsapp_force_date = False
+        self.whatsapp_db = None
 
     @staticmethod
     def get():
@@ -66,6 +70,7 @@ class Configuration:
             self.ignore_list = args.ignore
             self.whatsapp_force_date = "whatsapp+" in args and args.__getattribute__("whatsapp+")
             self.whatsapp = self.whatsapp_force_date or args.whatsapp
+            self.load_whatsapp_db(args.whatsapp_db)
 
             default_ignore_from_env = ast.literal_eval(os.getenv("IGNORE")) if os.getenv("IGNORE") is not None else None
             if self.ignore_list is None:
@@ -100,3 +105,20 @@ class Configuration:
                         self.progress = False
 
             self.initialized = True
+
+    def load_whatsapp_db(self, whatsapp_db):
+        if whatsapp_db is not None:
+            import sqlite3
+            self.whatsapp_db = {}
+            file_connection = sqlite3.connect(whatsapp_db)
+            cursor = file_connection.cursor()
+            cursor.execute("""SELECT 
+                                message_media.file_path, available_message_view.received_timestamp
+                            FROM
+                                available_message_view INNER JOIN message_media
+                            ON
+                                available_message_view._id = message_media.message_row_id""")
+            for (file_path, timestamp) in cursor:
+                if file_path is not None:
+                    self.whatsapp_db[Path(file_path).name] = timestamp
+            LOGGER.debug(f"{whatsapp_db}: {len(self.whatsapp_db)} media loaded")

@@ -42,10 +42,10 @@ class LoadInternalMetadata:
             width = height
             height = old_width
 
-        if date is None and camera_model is None:
-            date, camera_model = file_access.parse_whatsapp_filename()
-
         last_modified_date = file_access.get_last_modification_date()
+
+        if date is None and camera_model is None:
+            date, camera_model = file_access.read_whatsapp_info()
 
         if date is None:
             date = last_modified_date
