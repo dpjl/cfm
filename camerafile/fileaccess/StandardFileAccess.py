@@ -88,14 +88,14 @@ class StandardFileAccess(FileAccess):
                 try:
                     return "JPEGMdReader", JPEGMdReader(self.get_path()).get_metadata(*args)
                 except Exception:
-                    LOGGER.info(traceback.format_exc())
-                    LOGGER.info("Failed with JPEGMdReader, try with ExifTool")
+                    LOGGER.debug(traceback.format_exc())
+                    LOGGER.debug("Failed with JPEGMdReader, try with ExifTool")
                     return self.call_exif_tool("JPEGMdReader -> ExifTool", args)
             elif self.is_avi_video():
                 try:
                     return "AVIMdReader", AVIMdReader(self.get_path()).get_metadata(*args)
                 except Exception:
-                    LOGGER.info(traceback.format_exc())
+                    LOGGER.debug(traceback.format_exc())
                     return self.call_exif_tool("AVIMdReader -> ExifTool", args)
             else:
                 return self.call_exif_tool("ExifTool", args)
