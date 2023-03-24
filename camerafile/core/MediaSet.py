@@ -152,6 +152,7 @@ class MediaSet:
             for existing_sig in self.date_sig_map[date].keys():
                 if media_file in self.date_sig_map[date][existing_sig]:
                     self.remove_from_x_y_map(self.date_sig_map, date, existing_sig, media_file)
+                    return
 
     @staticmethod
     def remove_from_x_y_map(map_to_update, x, y, media_file):
