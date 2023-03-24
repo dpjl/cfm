@@ -149,7 +149,9 @@ class MediaSet:
         date = media_file.get_exif_date()
         sig = media_file.get_signature()
         if date is not None and sig is not None:
-            self.remove_from_x_y_map(self.date_sig_map, date, sig, media_file)
+            for existing_sig in self.date_sig_map[date].keys():
+                if media_file in self.date_sig_map[date][existing_sig]:
+                    self.remove_from_x_y_map(self.date_sig_map, date, existing_sig, media_file)
 
     @staticmethod
     def remove_from_x_y_map(map_to_update, x, y, media_file):
