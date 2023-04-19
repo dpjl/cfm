@@ -125,6 +125,7 @@ class ExifTool(object):
         if cls.process is not None:
             cls.process.stdin.write("-stay_open\nFalse\n")
             cls.process.stdin.flush()
+            cls.process.wait()
             cls.process = None
             LOGGER.debug("%s stopped", cls.executable)
 
