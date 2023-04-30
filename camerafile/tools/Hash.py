@@ -1,11 +1,11 @@
 import hashlib
+import logging
 
 import dhash
 
-from camerafile.core.Logging import Logger
 from camerafile.tools.CFMImage import CFMImage
 
-LOGGER = Logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class Hash:
@@ -23,6 +23,6 @@ class Hash:
         try:
             return dhash.dhash_int(cfm_image.image_data)
         except BaseException as e:
-            print("image_hash: " + str(e) + " / " + cfm_image.filename)
+            LOGGER.debug("image_hash: " + str(e) + " / " + cfm_image.filename)
             md5_hash = hashlib.md5(cfm_image.get_bytes()).hexdigest()
             return int(md5_hash, 16)

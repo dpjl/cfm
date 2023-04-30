@@ -95,6 +95,8 @@ class Logger:
     @staticmethod
     def display_ending_line():
         console_width = shutil.get_terminal_size((80, 20)).columns - 1
+        if console_width < 0:
+            console_width = 100
         line = '{text:{fill}{align}{width}}\n'.format(
             text='', fill='-', align='<', width=console_width,
         )
@@ -104,6 +106,8 @@ class Logger:
 class StatusLine:
     def __init__(self, message, update_freq=1):
         self.console_width = shutil.get_terminal_size((80, 20)).columns - 1
+        if self.console_width < 0:
+            self.console_width = 100
         self.starting_time = datetime.now().strftime('%H:%M:%S')
         self.message = message
         self.nb_update = 0

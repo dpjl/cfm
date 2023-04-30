@@ -36,5 +36,5 @@ class CFMBatch(TaskWithProgression):
 
     @staticmethod
     def on_sub_cfm_end():
-        ExifTool.stop()
         LOGGER.debug("Stop sub-process : " + str(os.getpid()))
+        ExifTool.stop()

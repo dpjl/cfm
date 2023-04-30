@@ -45,7 +45,7 @@ class StdWrapper(object):
 
     def update_screen_size(self):
         windows_width = os.get_terminal_size().columns - 1
-        if self.console_width != windows_width:
+        if windows_width != -1 and self.console_width != windows_width:
             self.console_width = windows_width
 
     def writelines_with_lock(self, datas: List[str], tmp=False):

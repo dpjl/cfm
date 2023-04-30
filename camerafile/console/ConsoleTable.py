@@ -6,6 +6,9 @@ class ConsoleTable:
     def __init__(self):
         self.console_width = shutil.get_terminal_size((80, 20)).columns
         self.width = min(int(self.console_width), 80) - 3
+        if self.console_width < 0 or self.width < 0:
+            self.console_width = 100
+            self.width = 97
 
     def print_bar(self, char, *args):
         number_of_columns = len(args)
