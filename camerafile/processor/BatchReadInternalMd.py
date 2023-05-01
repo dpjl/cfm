@@ -88,7 +88,6 @@ class BatchReadInternalMd(TaskWithProgression):
         progress_bar.increment()
 
     def finalize(self):
-        print("finalize")
         if len(self.call_info.items()) != 0:
             if not Configuration.get().watch:
                 print("")

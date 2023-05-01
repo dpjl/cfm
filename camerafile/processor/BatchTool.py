@@ -1,10 +1,9 @@
 import threading
 import time
 import traceback
-from multiprocessing import Pool, cpu_count, Pipe
+from multiprocessing import Pool, cpu_count
 from multiprocessing import Queue
 from multiprocessing import current_process
-from multiprocessing.connection import Connection
 from queue import Empty
 from typing import List
 
@@ -242,3 +241,4 @@ class TaskWithProgression:
         LOGGER.debug("Send ending tasks to workers")
         empty_params = [() for _ in range(nb_process)]
         pool.map_async(self.on_worker_end, empty_params)
+        time.sleep(2)
