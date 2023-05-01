@@ -1,4 +1,5 @@
 import threading
+import time
 import traceback
 from multiprocessing import Pool, cpu_count, Pipe
 from multiprocessing import Queue
@@ -130,13 +131,9 @@ class TaskWithProgression:
             details_queue.put(stdout_recorder.stop())
 
     @staticmethod
-    def on_worker_end(child_connection: Connection):
-        # stdout_recorder = StdoutRecorder().start()
+    def on_worker_end():
         if TaskWithProgression.custom_owe:
             TaskWithProgression.custom_owe()
-        # if TaskWithProgression.details_queue is not None:
-        #    TaskWithProgression.details_queue.put(stdout_recorder.stop())
-        child_connection.recv()
 
     @staticmethod
     def update_details(queue: Queue, progress_bar: ConsoleProgressBar, max_iter):
@@ -243,9 +240,5 @@ class TaskWithProgression:
 
     def __send_ending_tasks(self, pool, nb_process):
         LOGGER.debug("Send ending tasks to workers")
-        ending_pipes = [Pipe() for _ in range(nb_process)]
-        ending_child_pipes = [child for _, child in ending_pipes]
-        pool.map_async(self.on_worker_end, ending_child_pipes)
-        for parent, _ in ending_pipes:
-            parent.send("STOP")
-            parent.close()
+        empty_params = [() for _ in range(nb_process)]
+        pool.map_async(self.on_worker_end, empty_params)
