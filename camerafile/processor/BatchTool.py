@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 import traceback
@@ -130,7 +131,8 @@ class TaskWithProgression:
             details_queue.put(stdout_recorder.stop())
 
     @staticmethod
-    def on_worker_end():
+    def on_worker_end(identifier):
+        LOGGER.debug(f"On worker end {identifier}")
         if TaskWithProgression.custom_owe:
             TaskWithProgression.custom_owe()
 
@@ -145,6 +147,9 @@ class TaskWithProgression:
                 val = queue.get(block=True, timeout=10)
             except Empty:
                 continue
+            except OSError:
+                print(f"details_thread interrupted at iteration {iter_nb}")
+                return
             iter_nb += 1
             if isinstance(val, str):
                 worker_stdout = val
@@ -204,13 +209,13 @@ class TaskWithProgression:
             res_list = pool.imap_unordered(self.execute_task, args_list)
             for res in res_list:
                 batch_element, stdout = res
-                self.process_stdout(batch_element, stdout, progress_bar)
-                if batch_element.error:
-                    self.process_error(batch_element, progress_bar)
+                # self.process_stdout(batch_element, stdout, progress_bar)
+                # if batch_element.error:
+                #    self.process_error(batch_element, progress_bar)
                 try:
                     post_task(batch_element.result, progress_bar, replace=True)
                 except BaseException:
-                    # print("Unexpected exception")
+                    print("Unexpected exception")
                     batch_element.error = traceback.format_exc()
                     self.process_error(batch_element, progress_bar)
         except BaseException:
@@ -218,7 +223,7 @@ class TaskWithProgression:
             traceback.print_exc()
         finally:
             self.__send_ending_tasks(pool, nb_process)
-            self.__stop_details_thread(details_thread)
+            self.__stop_details_thread(details_thread, details_queue)
             progress_bar.stop()
             LOGGER.debug("Ending pool")
             pool.close()
@@ -226,7 +231,15 @@ class TaskWithProgression:
             LOGGER.debug("Pool closed and joined")
 
     @staticmethod
-    def __stop_details_thread(details_thread):
+    def __stop_details_thread(details_thread, details_queue: Queue):
+        while 1:
+            try:
+                details_queue.get(block=True, timeout=10)
+            except Empty:
+                break
+        details_queue.close()
+        details_queue.join_thread()
+        LOGGER.debug("details_thread closed and joined")
         details_thread.join(timeout=10)
         if details_thread.is_alive():
             print("Wait details thread")
@@ -237,8 +250,7 @@ class TaskWithProgression:
             else:
                 print("details_thread stopped correctly")
 
-    def __send_ending_tasks(self, pool, nb_process):
+    def __send_ending_tasks(self, pool: Pool, nb_process):
         LOGGER.debug("Send ending tasks to workers")
-        empty_params = [() for _ in range(nb_process)]
-        pool.map_async(self.on_worker_end, empty_params)
-        time.sleep(2)
+        result = pool.map_async(self.on_worker_end, range(nb_process))
+        result.wait()
