@@ -1,12 +1,12 @@
+import logging
 import os
 
-from camerafile.processor.BatchTool import TaskWithProgression
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Logging import Logger
 from camerafile.core.Resource import Resource
 from camerafile.mdtools.ExifToolReader import ExifTool
+from camerafile.processor.BatchTool import TaskWithProgression
 
-LOGGER = Logger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 class CFMBatch(TaskWithProgression):

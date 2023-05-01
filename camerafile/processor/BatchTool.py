@@ -1,4 +1,3 @@
-import sys
 import threading
 import traceback
 from multiprocessing import Pool, cpu_count, Pipe
@@ -130,22 +129,14 @@ class TaskWithProgression:
         if details_queue is not None:
             details_queue.put(stdout_recorder.stop())
 
-
     @staticmethod
     def on_worker_end(child_connection: Connection):
-        LOGGER.debug("Enter on_worker_end")
-        #stdout_recorder = StdoutRecorder().start()
-        LOGGER.debug("Test")
+        # stdout_recorder = StdoutRecorder().start()
         if TaskWithProgression.custom_owe:
-            LOGGER.debug("custom owe before")
             TaskWithProgression.custom_owe()
-            LOGGER.debug("custom owe after")
-        #if TaskWithProgression.details_queue is not None:
+        # if TaskWithProgression.details_queue is not None:
         #    TaskWithProgression.details_queue.put(stdout_recorder.stop())
-        LOGGER.debug("on_worker_end 2")
         child_connection.recv()
-        LOGGER.debug("on_worker_end 3")
-        #sys.exit(0)
 
     @staticmethod
     def update_details(queue: Queue, progress_bar: ConsoleProgressBar, max_iter):
@@ -208,7 +199,7 @@ class TaskWithProgression:
                     initializer=self.on_worker_start,
                     initargs=(task, details_queue, self.custom_ows, self.custo_ows_args, self.custom_owe))
         details_thread = threading.Thread(target=self.update_details,
-                                          args=(details_queue, progress_bar, 2 * nb_process + nb_elements))
+                                          args=(details_queue, progress_bar, nb_process + nb_elements))
         details_thread.start()
         self.nb_errors = 0
         self.stdout_nb_lines = 0
@@ -223,32 +214,38 @@ class TaskWithProgression:
                 try:
                     post_task(batch_element.result, progress_bar, replace=True)
                 except BaseException:
-                    print("Unexpected exception")
+                    # print("Unexpected exception")
                     batch_element.error = traceback.format_exc()
                     self.process_error(batch_element, progress_bar)
         except BaseException:
             print("Unexpected exception")
             traceback.print_exc()
         finally:
-            LOGGER.debug("Send ending signal to workers")
-            ending_pipes = [Pipe() for _ in range(nb_process)]
-            ending_child_pipes = [child for _, child in ending_pipes]
-            pool.map_async(self.on_worker_end, ending_child_pipes)
-            details_thread.join(timeout=10)
-            if details_thread.is_alive():
-                print("Wait details thread.")
-                TaskWithProgression.stopped_update_details_thread = True
-                details_thread.join(timeout=20)
-                if details_thread.is_alive():
-                    print("Warning: details_thread could not be stopped.")
-                else:
-                    print("details_thread stopped correctly.")
-            for parent, _ in ending_pipes:
-                parent.send("STOP")
-                parent.close()
+            self.__send_ending_tasks(pool, nb_process)
+            self.__stop_details_thread(details_thread)
             progress_bar.stop()
-            LOGGER.debug("Terminating pool")
-            pool.close() # or pool.terminate() ?
-            #pool.terminate()
+            LOGGER.debug("Ending pool")
+            pool.close()
             pool.join()
-            LOGGER.debug("Pool terminated")
+            LOGGER.debug("Pool closed and joined")
+
+    @staticmethod
+    def __stop_details_thread(details_thread):
+        details_thread.join(timeout=10)
+        if details_thread.is_alive():
+            print("Wait details thread")
+            TaskWithProgression.stopped_update_details_thread = True
+            details_thread.join(timeout=20)
+            if details_thread.is_alive():
+                print("Warning: details_thread could not be stopped")
+            else:
+                print("details_thread stopped correctly")
+
+    def __send_ending_tasks(self, pool, nb_process):
+        LOGGER.debug("Send ending tasks to workers")
+        ending_pipes = [Pipe() for _ in range(nb_process)]
+        ending_child_pipes = [child for _, child in ending_pipes]
+        pool.map_async(self.on_worker_end, ending_child_pipes)
+        for parent, _ in ending_pipes:
+            parent.send("STOP")
+            parent.close()
