@@ -3,10 +3,9 @@ import io
 import json
 import locale
 import logging
+import os
 import subprocess
 from datetime import datetime
-from queue import Queue, Empty
-from threading import Thread
 
 from PIL import Image
 
@@ -19,54 +18,6 @@ LOGGER = logging.getLogger(__name__)
 
 class ExifToolNotFound(Exception):
     pass
-
-
-class NonBlockingStreamReader:
-
-    def __init__(self, redirected_file_path):
-        self.queue = Queue()
-        self.stream = None
-        self.redirected_file = None
-        if redirected_file_path is not None:
-            self.redirected_file = open(redirected_file_path, "w")
-
-    def __del__(self):
-        if self.redirected_file is not None:
-            self.redirected_file.close()
-
-    def start_read(self, stream):
-        if self.redirected_file is not None:
-            self.redirected_file.write("--\nExifTool started\n--\n")
-            self.redirected_file.flush()
-        self.stream = stream
-        thread = Thread(target=self.enqueue_output)
-        thread.daemon = True
-        thread.start()
-
-    def enqueue_output(self):
-        for line in iter(self.stream.readline, b''):
-            self.queue.put(line)
-            if self.redirected_file is not None:
-                self.redirected_file.write(line)
-        if self.redirected_file is not None:
-            self.redirected_file.write("--\nExifTool stopped\n--\n")
-            self.redirected_file.flush()
-
-    def get_new_line_no_wait(self):
-        try:
-            line = self.queue.get_nowait()
-        except Empty:
-            return None
-        else:
-            return line
-
-    def get_new_line(self):
-        try:
-            line = self.queue.get(timeout=120)
-        except Empty:
-            return None
-        else:
-            return line
 
 
 class ExifTool(object):
@@ -96,13 +47,10 @@ class ExifTool(object):
 
     executable = None
     process = None
-    stdout_reader = NonBlockingStreamReader(redirected_file_path=None)
-    stderr_reader = NonBlockingStreamReader(redirected_file_path=None)
 
     @classmethod
     def init(cls, stdout_file_path=None, stderr_file_path=None):
-        cls.stdout_reader = NonBlockingStreamReader(redirected_file_path=stdout_file_path)
-        cls.stderr_reader = NonBlockingStreamReader(redirected_file_path=stderr_file_path)
+        pass
 
     @classmethod
     def start(cls):
@@ -113,12 +61,11 @@ class ExifTool(object):
                     [cls.executable, "-stay_open", "True", "-@", "-"],
                     universal_newlines=True, bufsize=1,
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                os.set_blocking(cls.process.stderr.fileno(), False)
             except Exception as e:
                 LOGGER.info("Exception during ExifTool start: " + str(e))
                 raise ExifToolNotFound(cls.executable)
             LOGGER.debug("%s started", cls.executable)
-            cls.stdout_reader.start_read(cls.process.stdout)
-            cls.stderr_reader.start_read(cls.process.stderr)
 
     @classmethod
     def stop(cls):
@@ -136,24 +83,35 @@ class ExifTool(object):
         return result
 
     @classmethod
+    def __read_stdout(cls):
+        output = ""
+        new_line = cls.process.stdout.readline()
+        while new_line != cls.SENTINEL:
+            output += new_line
+            new_line = cls.process.stdout.readline()
+        return output
+
+    @classmethod
+    def __read_stderr(cls):
+        err = ""
+        new_line = cls.process.stderr.readline()
+        while new_line != "":
+            err += new_line
+            new_line = cls.process.stderr.readline()
+        return err
+
+    @classmethod
     def execute(cls, *args):
         if cls.process is None:
             cls.start()
         args = cls.CHARSET_OPTION + args + ("-execute\n",)
         cls.process.stdin.write(str.join("\n", args))
         cls.process.stdin.flush()
-        output = ""
-        while not output.endswith(cls.SENTINEL):
-            output += cls.stdout_reader.get_new_line()
-        err = ""
-        new_line = ""
-        while new_line is not None:
-            new_line = cls.stderr_reader.get_new_line_no_wait()
-            if new_line is not None:
-                err += new_line
+        out = cls.__read_stdout()
+        err = cls.__read_stderr()
         if err != "":
             raise MdException(err.strip())
-        return output[:-len(cls.SENTINEL)], err
+        return out, err
 
     @classmethod
     def execute_with_bytes(cls, input_bytes, *args):
@@ -274,6 +232,7 @@ class ExifTool(object):
                 return {}
             return {metadata_name: cls.load_from_result(result, metadata_name) for metadata_name in args}
         except Exception as e:
+            # traceback.print_exc()
             raise MdException(e)
 
     @classmethod
