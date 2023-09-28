@@ -22,7 +22,7 @@ class MediaSetDump:
         self.is_active = Conf.get().use_dump_for_cache or self.exists() or not Conf.get().use_db_for_cache
 
     @staticmethod
-    def get(output_directory) -> MediaSetDump:
+    def get(output_directory) -> "MediaSetDump":
         if output_directory not in MediaSetDump.__instance:
             MediaSetDump.__instance[output_directory] = MediaSetDump(output_directory.path)
         return MediaSetDump.__instance[output_directory]
