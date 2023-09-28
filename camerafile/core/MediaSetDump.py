@@ -22,7 +22,7 @@ class MediaSetDump:
         self.is_active = Conf.get().use_dump_for_cache or self.exists() or not Conf.get().use_db_for_cache
 
     @staticmethod
-    def get(output_directory):
+    def get(output_directory) -> MediaSetDump:
         if output_directory not in MediaSetDump.__instance:
             MediaSetDump.__instance[output_directory] = MediaSetDump(output_directory.path)
         return MediaSetDump.__instance[output_directory]
@@ -31,12 +31,15 @@ class MediaSetDump:
         return self.dump_file.exists()
 
     def load(self) -> "MediaSet":
-        if self.is_active and self.exists():
-            with open(self.dump_file, "rb") as file:
-                LOGGER.info("Restoring cache...")
-                loaded = pickle.load(file)
-                LOGGER.debug("New MediaSet object loaded: " + str(id(self)))
-                return loaded
+        try:
+            if self.is_active and self.exists():
+                with open(self.dump_file, "rb") as file:
+                    LOGGER.info("Restoring cache...")
+                    loaded = pickle.load(file)
+                    LOGGER.debug("New MediaSet object loaded: " + str(id(self)))
+                    return loaded
+        except EOFError:
+            LOGGER.info("Cache file was found, but is invalid. Ignore it.")
         return None
 
     def save(self, media_set: "MediaSet"):
