@@ -20,6 +20,7 @@ class Configuration:
         self.face_detection_keep_image_size = False
         self.use_dump_for_cache = False
         self.use_db_for_cache = False
+        self.save_db = False
         self.exit_on_error = False
         self.org_format = None
         self.debug = False
@@ -32,6 +33,7 @@ class Configuration:
         self.collision_policy = None
         self.ignore_duplicates = False
         self.watch = False
+        self.sync_delay = 60
         self.copy_mode = None
         self.progress = True
         self.pp_script = None
@@ -64,6 +66,7 @@ class Configuration:
 
             self.use_db_for_cache = args.use_db
             self.use_dump_for_cache = args.use_dump
+            self.save_db = args.save_db
             self.exit_on_error = args.exit_on_error
             self.thumbnails = args.thumbnails
             self.cache_path = args.cache_path
@@ -89,6 +92,10 @@ class Configuration:
                 self.ignore_duplicates = args.ignore_duplicates
                 self.copy_mode = CopyMode(args.mode)
                 self.watch = args.watch
+                
+                if args.sync_delay is not None:
+                    self.sync_delay = args.sync_delay
+                
                 self.progress = not args.no_progress
                 self.pp_script = args.post_processing_script
 
@@ -97,6 +104,12 @@ class Configuration:
                         self.watch = True
                     else:
                         self.watch = False
+                        
+                if os.getenv("SAVE_DB") is not None:
+                    if os.getenv("SAVE_DB").lower() in ["1", "true"]:
+                        self.save_db = True
+                    else:
+                        self.save_db = False
 
                 if os.getenv("PROGRESS") is not None:
                     if os.getenv("PROGRESS").lower() in ["1", "true"]:

@@ -72,6 +72,13 @@ class Watcher(Thread):
                 media_set.initialize_file_and_dir_list(modified_path)
                 BatchReadInternalMd(media_set, self.other_md_needed).execute()
                 BatchComputeCm(media_set).execute()
+                
+        # Watching MediaSet2 also would be better, but difficult, as org command will modify it also.
+        # So for now, we reload mediaset 2 entirely, in case it has been modified before last loading.
+        LOGGER.write_title(self.media_set2, f"Reload entire target media set")
+        self.media_set2.initialize_file_and_dir_list()
+        BatchReadInternalMd(self.media_set2, self.other_md_needed).execute()
+        BatchComputeCm(self.media_set2).execute()
 
         BatchComputeNecessarySignaturesMultiProcess(self.media_set1, self.media_set2).execute()
         bc = BatchCopy(self.media_set1, self.media_set2, Configuration.get().copy_mode)
@@ -109,7 +116,7 @@ class Watcher(Thread):
             if self.stop_required:
                 LOGGER.info("Stop thread in charge of watching changes")
                 return
-            sync_delay = 10
+            sync_delay = Configuration.get().sync_delay
             LOGGER.info("Watcher has been alerted of at least one change. "
                         f"Wait {sync_delay} seconds and update.")
             if not self.something_happened.wait(sync_delay):

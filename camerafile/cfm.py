@@ -52,6 +52,9 @@ def create_main_args_parser():
     parser.add_argument('-u', '--use-dump', action='store_true', default=True,
                         help='Use python dump to store media set informmation (faster than db).')
 
+    parser.add_argument('-s', '--save-db', action='store_true', default=False,
+                        help='Save sqlite db on disk, each time cfm is executed. This db is NOT used to load data.')
+
     parser.add_argument('-x', '--exit-on-error', action='store_true', default=False,
                         help='Exit current process in case of error (should be used only to debug).')
 
@@ -99,6 +102,8 @@ def create_main_args_parser():
                    help='Format to use for organization.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
+    p.add_argument('-s', '--sync-delay', type=int, default=os.getenv("SYNC_DELAY"), metavar="N",
+                   help='Used only if -w is defined. Number of seconds to wait before processing after a change has been detected.')
     p.add_argument('-pps', '--post-processing-script', metavar="<path>", type=str, default=os.getenv("PP_SCRIPT"),
                    help="Script that will be called at the end of each process triggered when watching.")
     p.add_argument('-m', '--mode', metavar="<mode>", type=CopyMode.argparse, choices=list(CopyMode),

@@ -21,10 +21,12 @@ LOGGER = Logger(__name__)
 
 
 class DBConnection:
-    def __init__(self, db_path):
+    def __init__(self, db_path, delete_existing_database = False):
         self.db_path = db_path
+        if delete_existing_database and os.path.exists(db_path):
+            os.remove(db_path)
         self.new_database = not os.path.exists(db_path)
-        self.file_connection = sqlite3.connect(self.db_path)
+        self.file_connection = sqlite3.connect(db_path)
         self.cursor = self.file_connection.cursor()
         self.cursor.execute("PRAGMA journal_mode = MEMORY")
 
@@ -40,14 +42,19 @@ class MediaSetDatabase:
 
     def __init__(self, output_directory, db_file=None, thb_db_file=None):
         self.cfm_file = db_file
+        self.info_file = None
         self.thb_file = thb_db_file
         if self.cfm_file is None and output_directory is not None:
             self.cfm_file = output_directory.path / "cfm.db"
+        if self.info_file is None and output_directory is not None:
+            self.info_file = output_directory.path / "info.db"
         if self.thb_file is None and output_directory is not None:
             self.thb_file = output_directory.path / "thb.db"
         self.cache_db_connection = None
+        self.info_db_connection = None
         self.thb_db_connection = None
         self.is_active = Configuration.get().use_db_for_cache or self.exists()
+        self.save_info = Configuration.get().save_db
 
     @staticmethod
     def get(output_directory, db_file=None, thb_db_file=None):
@@ -65,6 +72,12 @@ class MediaSetDatabase:
             if self.cache_db_connection is None:
                 self.cache_db_connection = DBConnection(self.cfm_file)
                 self.initialize_cache_db()
+                
+    def initialize_info_connection(self):
+        if self.save_info:
+            if self.info_db_connection is None:
+                self.info_db_connection = DBConnection(self.info_file, True)
+                self.initialize_info_db()
 
     def initialize_thb_connection(self):
         if Configuration.get().thumbnails:
@@ -76,13 +89,22 @@ class MediaSetDatabase:
         return self.cfm_file.exists()
 
     def save(self, media_file_list: "Iterable[MediaFile]", log=True):
+
         if self.is_active:
             if self.cache_db_connection:
-                if log:
+                if log and self.is_active:
                     LOGGER.info("Saving cache " + str(self.cache_db_connection.db_path))
                 for media_file in media_file_list:
                     self.save_media_file(media_file)
                 self.cache_db_connection.file_connection.commit()
+
+        if self.save_info:
+            self.initialize_info_connection()
+            LOGGER.info("Saving info db " + str(self.info_db_connection.db_path))
+            for media_file in media_file_list:
+                self.save_info_media_file(media_file)
+            self.info_db_connection.file_connection.commit()
+            self.close()          
 
         if Configuration.get().thumbnails:
             if self.thb_db_connection:
@@ -100,6 +122,9 @@ class MediaSetDatabase:
         if self.cache_db_connection:
             self.cache_db_connection.file_connection.close()
             self.cache_db_connection = None
+        if self.info_db_connection:
+            self.info_db_connection.file_connection.close()
+            self.info_db_connection = None
         if self.thb_db_connection:
             self.thb_db_connection.file_connection.close()
             self.thb_db_connection = None
@@ -114,6 +139,18 @@ class MediaSetDatabase:
                                         last_update_date TIMESTAMP)''')
             self.cache_db_connection.execute('''CREATE UNIQUE INDEX idx_file_path ON metadata(file)''')
             self.cache_db_connection.commit()
+            
+    def initialize_info_db(self):
+        self.info_db_connection.execute('''CREATE TABLE media_info(
+                                    file_id INTEGER PRIMARY KEY,
+                                    file TEXT,
+                                    date TEXT,
+                                    cm TEXT,
+                                    size INTEGER,
+                                    width INTEGER,
+                                    height INTEGER)''')
+        self.info_db_connection.execute('''CREATE INDEX idx_date ON media_info(date)''')
+        self.info_db_connection.commit()
 
     def initialize_thb_db(self):
         if self.thb_db_connection.new_database:
@@ -260,13 +297,22 @@ class MediaSetDatabase:
         except sqlite3.IntegrityError:
             print("Integrity error when deleting media with id " + str(file_id))
 
+    def save_info_media_file(self, media_file: MediaFile):
+        self.info_db_connection.cursor.execute(
+            '''insert into
+                    media_info(file, date, cm, size, width, height)
+                values
+                    (?, ?, ?, ?, ?, ?)''',
+            (media_file.get_path(), media_file.get_str_date('%Y-%m-%dT%H:%M:%SZ'), media_file.get_camera_model(), media_file.get_file_size(), 0, 0))
+
+
     def save_media_file(self, media_file: MediaFile):
         media_file_dict = media_file.metadata.save_to_dict()
         json_data = json.dumps(media_file_dict)
 
         binary_media_file_dict = media_file.metadata.save_binary_to_dict()
         bin_data = dill.dumps(binary_media_file_dict)
-        if media_file.exists_in_db:
+        if media_file.exists_in_db and not self.save_info:
             if json_data == 0 or json_data == '0':
                 print(media_file.get_path())
             try:

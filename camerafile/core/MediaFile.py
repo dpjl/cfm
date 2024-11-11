@@ -74,10 +74,10 @@ class MediaFile:
             return datetime.strptime(date, '%Y/%m/%d %H:%M:%S.%f')
         return None
 
-    def get_str_date(self):
+    def get_str_date(self, format="%Y/%m/%d"):
         date = self.get_date()
         if date is not None:
-            new_date_format = date.strftime("%Y/%m/%d")
+            new_date_format = date.strftime(format)
             return new_date_format
         return ""
 
