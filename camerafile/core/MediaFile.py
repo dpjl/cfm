@@ -42,11 +42,6 @@ class MediaFile:
     def get_extension(self):
         return self.file_desc.extension
 
-    def is_in_trash(self):
-        if MediaSet.CFM_TRASH in self.get_path():
-            return True
-        return False
-
     def get_signature(self):
         return self.metadata.get_value(SIGNATURE)
 

@@ -100,6 +100,7 @@ def create_main_args_parser():
     p.add_argument('dir2', metavar='dir2', type=str, default=None, help='Destination media set directory.')
     p.add_argument('-f', '--format', metavar='<format>', type=str, default=os.getenv("ORG_FORMAT"),
                    help='Format to use for organization.')
+    p.add_argument('-d', '--delete-deleted', action='store_true', help='If set, delete files from destination folder if they are not anymore in origin folder.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
     p.add_argument('-s', '--sync-delay', type=int, default=os.getenv("SYNC_DELAY"), metavar="N",
@@ -208,10 +209,13 @@ def execute_organize(args, media_set1, media_set2):
     else:
         from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
         from camerafile.processor.BatchCopy import BatchCopy
+        from camerafile.processor.BatchDelete import BatchDelete
 
         copy_mode = Configuration.get().copy_mode
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
         BatchCopy(media_set1, media_set2, copy_mode).execute()
+        if Configuration.get().delete_deleted:
+            BatchDelete(media_set1, media_set2).execute()
 
 
 def main():

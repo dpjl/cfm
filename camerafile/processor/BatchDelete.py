@@ -13,17 +13,16 @@ LOGGER = Logger(__name__)
 
 
 class BatchDelete(CFMBatch):
-    BATCH_TITLE = "Delete files (move to trash)"
+    BATCH_TITLE = "Delete files"
     RESULT_COLUMN__STATUS = "Status"
     RESULT_COLUMN__NUMBER = "Number"
     EMPTY_STRING = ""
     NOT_DELETED_FILES_JSON = "not-deleted-files.json"
     ERROR_STATUS = "Error"
 
-    def __init__(self, media_set_1: MediaSet, media_set_2: MediaSet, copy_mode):
+    def __init__(self, media_set_1: MediaSet, media_set_2: MediaSet):
         self.media_set_1 = media_set_1
         self.media_set_2 = media_set_2
-        self.copy_mode = copy_mode
         CFMBatch.__init__(self, batch_title=self.BATCH_TITLE,
                           stderr_file=OutputDirectory.get(self.media_set_1.root_path).batch_stderr,
                           stdout_file=OutputDirectory.get(self.media_set_1.root_path).batch_stdout)
@@ -46,19 +45,16 @@ class BatchDelete(CFMBatch):
         args_list = []
         for media_file in self.media_set_2:
             if not self.media_set_1.contains(media_file):
-                if not media_file.is_in_trash():
-                    args_list.append(
-                        BatchElement((media_file.file_desc, self.media_set_2.get_trash_file()),
-                                     media_file.relative_path))
+                args_list.append(
+                    BatchElement((self.media_set_2.root_path, media_file.file_desc),
+                                    media_file.file_desc.relative_path))
         return args_list
 
     def post_task(self, result_delete: Tuple[bool, str, FileAccess, Union[FileAccess, None]], pb, replace=False):
         success, status, old_file_access, new_file_access = result_delete
-        original_media = self.media_set_2.get_media(old_file_access.id)
 
-        if success:
-            original_media.move(new_file_access)
-        else:
+        if not success:
+            original_media = self.media_set_2.get_media(old_file_access.id)
             self.not_copied_files.append(original_media)
 
         if status:
@@ -69,7 +65,9 @@ class BatchDelete(CFMBatch):
         pb.increment()
 
     def finalize(self):
-        LOGGER.info(self.media_set_1.output_directory.save_list(self.not_copied_files, self.NOT_DELETED_FILES_JSON))
+        
+        #LOGGER.info(self.media_set_1.output_directory.save_list(self.not_copied_files, self.NOT_DELETED_FILES_JSON))
+        self.media_set_2.delete_not_existing_media()
 
         print(self.EMPTY_STRING)
         tab = ConsoleTable()

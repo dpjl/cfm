@@ -32,6 +32,7 @@ class Configuration:
         self.ignore_list = None
         self.collision_policy = None
         self.ignore_duplicates = False
+        self.delete_deleted = False
         self.watch = False
         self.sync_delay = 60
         self.copy_mode = None
@@ -90,6 +91,7 @@ class Configuration:
                 self.org_format = args.format
                 self.collision_policy = CollisionPolicy(args.collision_policy)
                 self.ignore_duplicates = args.ignore_duplicates
+                self.delete_deleted = args.delete_deleted
                 self.copy_mode = CopyMode(args.mode)
                 self.watch = args.watch
                 

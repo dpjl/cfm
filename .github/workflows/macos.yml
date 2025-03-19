@@ -12,7 +12,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        python-version: [3.8]
+        python-version: [3.12]
 
     steps:
     - uses: actions/checkout@v3
@@ -28,7 +28,7 @@ jobs:
       run: |
         python setup.py create_package --exiftool Image-ExifTool-11.97.tar.gz
     - name: Upload generated executable
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v4
       with:
         name: cfm.mac-amd64
         path: dist/cfm

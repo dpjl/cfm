@@ -36,7 +36,12 @@ class StandardFileAccess(FileAccess):
             self.file_desc.file_size = os.stat(self.get_path()).st_size
         return self.file_desc.file_size
 
-    def delete_file(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
+    def delete_file(self) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
+        LOGGER.info(f"{self.file_desc.name} will be deleted from destination")
+        #os.remove(self.get_path())
+        return True, "Deleted", self, self
+
+    def move_file_to_trash(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
         from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
         with pyzipper.AESZipFile(trash_file_path, "w", compression=pyzipper.ZIP_LZMA) as sync_file:
             password = Configuration.get().cfm_sync_password

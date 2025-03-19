@@ -23,7 +23,6 @@ LOGGER = Logger(__name__)
 
 
 class MediaSet:
-    CFM_TRASH = ".cfm-trash.zip"
 
     def __init__(self, path: str, org_format: str = None, db_file=None):
         root_path = Path(path).resolve()
@@ -85,9 +84,6 @@ class MediaSet:
     def __getitem__(self, file_id) -> MediaFile:
         return self.id_map[file_id]
 
-    def get_trash_file(self):
-        return self.root_path + os.sep + self.CFM_TRASH
-
     def delete_not_existing_media(self):
         deleted = []
         to_be_deleted = []
@@ -134,7 +130,7 @@ class MediaSet:
         del self.id_map[media_file.file_desc.id]
         self.media_file_list.remove(media_file)
 
-    def get_media(self, media_id):
+    def get_media(self, media_id) -> MediaFile:
         if media_id in self.id_map:
             return self.id_map[media_id]
         return None
