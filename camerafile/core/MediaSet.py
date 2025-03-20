@@ -46,6 +46,8 @@ class MediaSet:
 
     @staticmethod
     def load_media_set(path: str, org_format: str = None, db_file=None) -> "MediaSet":
+        if path is None:
+            raise ValueError("Invalid MediaSet path: None")
         LOGGER.write_title_2(str(path), "Opening media directory")
         loaded = MediaSetDump.get(OutputDirectory.get(path)).load()
         if loaded:

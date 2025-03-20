@@ -67,16 +67,18 @@ def create_main_args_parser():
     parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                         help='Show this help message and exit.')
 
-    parser.add_argument('-wa', '--whatsapp', action='store_true', help='Deduce date from WhatsApp filename.')
+    parser.add_argument('-w1', '--whatsapp', action='store_true',
+                        help='Deduce date from WhatsApp filename. '
+                             'Does not work for some old files without date in their name. ')
 
-    parser.add_argument('-wa+', '--whatsapp+', action='store_true',
-                        help="Same as --whatsapp, but also modify destination file's modification.")
-
-    parser.add_argument('-wadb', '--whatsapp-db', type=str,
+    parser.add_argument('-w2', '--whatsapp-db', type=str,
                         help='Specify a decrypted WhatsApp db file, in order to detect WhatsApp files and recover '
-                             'their sending/receiving dates',
+                             'their sending/receiving dates. More reliable than --whatsapp.',
                         default=None,
                         metavar="<path>")
+
+    parser.add_argument('-w3', '--whatsapp-date-update', action='store_true',
+                        help="Modify computed destination file's modification date (only for Whatsapp files).")
 
     sp_list = parser.add_subparsers(title="Commands list",
                                     description="Use 'cfm <command> -h' to display the help of a specific command",
@@ -100,7 +102,7 @@ def create_main_args_parser():
     p.add_argument('dir2', metavar='dir2', type=str, default=None, help='Destination media set directory.')
     p.add_argument('-f', '--format', metavar='<format>', type=str, default=os.getenv("ORG_FORMAT"),
                    help='Format to use for organization.')
-    p.add_argument('-d', '--delete-deleted', action='store_true', help='If set, delete files from destination folder if they are not anymore in origin folder.')
+    p.add_argument('-d', '--delete-in-target', action='store_true', help='If set, delete files from destination folder if they are not anymore in origin folder.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
     p.add_argument('-s', '--sync-delay', type=int, default=os.getenv("SYNC_DELAY"), metavar="N",
@@ -144,17 +146,17 @@ def execute(args):
     from camerafile.processor.CompareMediaSets import CompareMediaSets
     from camerafile.processor.SearchForDuplicates import SearchForDuplicates
 
-    if args.command == CUSTOM_CMD:
+    if Configuration.get().get_command() == CUSTOM_CMD:
         import importlib
         processor_class = getattr(importlib.import_module("camerafile.processor." + args.processor), args.processor)
         processor_class(*tuple(args.args))
         return
 
-    media_set1 = MediaSet.load_media_set(args.dir1)
+    media_set1 = MediaSet.load_media_set(Configuration.get().get_dir1())
     media_set2 = None
     other_md_needed = ()
-    if args.dir2 is not None:
-        media_set2 = MediaSet.load_media_set(args.dir2, Configuration.get().org_format)
+    if Configuration.get().get_dir2() is not None:
+        media_set2 = MediaSet.load_media_set(Configuration.get().get_dir2(), Configuration.get().org_format)
         other_md_needed = media_set2.state.get_metadata_needed_by_format()
 
     BatchReadInternalMd(media_set1, other_md_needed).execute()
@@ -164,14 +166,14 @@ def execute(args):
         BatchReadInternalMd(media_set2, ()).execute()
         BatchComputeCm(media_set2).execute()
 
-    if args.command == ANALYZE_CMD:
+    if Configuration.get().get_command() == ANALYZE_CMD:
         SearchForDuplicates.execute(media_set1)
 
         if media_set2:
             SearchForDuplicates.execute(media_set2)
             CompareMediaSets.execute(media_set1, media_set2)
 
-    if args.command == ORGANIZE_CMD:
+    if Configuration.get().get_command() == ORGANIZE_CMD:
         execute_organize(args, media_set1, media_set2)
 
     print("")
@@ -202,7 +204,7 @@ def save(media_set1, media_set2):
 def execute_organize(args, media_set1, media_set2):
     if media_set2.state.org_format is None:
         print("\n!!!!!!!!!!!!!!!!!!!")
-        print(f"Format is not already configured for {args.dir2}, you have to define it using -f option "
+        print(f"Format is not already configured for {Configuration.get().get_dir2()}, you have to define it using -f option "
               f"or by defining ORG_FORMAT environment variable.")
         print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
         print("!!!!!!!!!!!!!!!!!!!")
@@ -214,7 +216,7 @@ def execute_organize(args, media_set1, media_set2):
         copy_mode = Configuration.get().copy_mode
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
         BatchCopy(media_set1, media_set2, copy_mode).execute()
-        if Configuration.get().delete_deleted:
+        if Configuration.get().delete_in_target:
             BatchDelete(media_set1, media_set2).execute()
 
 
@@ -223,15 +225,14 @@ def main():
     parser = create_main_args_parser()
     args = parser.parse_args()
 
-    if COMMAND not in args:
+    if COMMAND not in args and os.getenv("COMMAND") is None:
         parser.print_usage()
         print(os.linesep + "error: no commands supplied")
         sys.exit(1)
 
-    from camerafile.core.Configuration import Configuration
     from camerafile.core.Resource import Resource
 
-    LOGGER.info(f"Starting Camera Files Manager - version {VERSION} - DpjL (pid: {current_process().pid})")
+    LOGGER.info("Starting Camera Files Manager - version %s - DpjL (pid: %s)", VERSION, current_process().pid)
     Resource.init()
     Configuration.get().init(args)
     execute(args)

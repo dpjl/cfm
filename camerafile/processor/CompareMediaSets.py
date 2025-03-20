@@ -32,14 +32,14 @@ class CompareMediaSets:
         tab.print_line('', '+ %s distinct (%s files)' % (len(only_in_dir2), sum(map(len, only_in_dir2))))
         tab.print_line('%s distinct' % len(in_the_two_dirs_1))
 
-        pdf_file = PdfFile(str(OutputDirectory.get(media_set1.root_path).path / "only_left.pdf"))
+        #pdf_file = PdfFile(str(OutputDirectory.get(media_set1.root_path).path / "only_left.pdf"))
 
-        for media_list in only_in_dir1:
-            for media in media_list:
-                pdf_file.add_media_image(media)
-            pdf_file.new_line()
+        #for media_list in only_in_dir1:
+        #    for media in media_list:
+        #        pdf_file.add_media_image(media)
+        #    pdf_file.new_line()
 
-        pdf_file.save()
+        #pdf_file.save()
 
         # pdf_file2 = PdfFile(str(media_set1.output_directory.path / "only_right.pdf"))
 

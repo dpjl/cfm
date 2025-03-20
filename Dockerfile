@@ -7,4 +7,10 @@ COPY camerafile ./camerafile
 COPY setup.py ./setup.py
 RUN pip install -e .
 
-CMD [ "python", "./camerafile/cfm.py", "--cache-path", "/cache", "organize", "--ignore-duplicates", "/dir1", "/dir2"]
+ENV COMMAND=analyze
+ENV DIR1=/dir1
+ENV DIR2=/dir2
+ENV IGNORE_DUPLICATES=true
+ENV CACHE_PATH=/cache
+
+CMD [ "python", "./camerafile/cfm.py" ]

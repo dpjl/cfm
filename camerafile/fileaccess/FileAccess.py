@@ -44,7 +44,7 @@ class FileAccess:
         return self.file_desc.extension
 
     def copy_post_processing(self, new_file_path):
-        if Configuration.get().whatsapp_force_date:
+        if Configuration.get().whatsapp_date_update:
             sent_date, _ = self.read_whatsapp_info()
             if sent_date is not None:
                 os.utime(new_file_path, (sent_date.timestamp(), sent_date.timestamp()))
