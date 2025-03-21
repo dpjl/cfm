@@ -41,23 +41,11 @@ class StandardFileAccess(FileAccess):
         #os.remove(self.get_path())
         return True, "Deleted", self, self
 
-    def move_file_to_trash(self, trash_file_path) -> Tuple[bool, str, FileAccess, Union[FileAccess, None]]:
-        from camerafile.fileaccess.ZipFileAccess import ZipFileAccess
-        with pyzipper.AESZipFile(trash_file_path, "w", compression=pyzipper.ZIP_LZMA) as sync_file:
-            password = Configuration.get().cfm_sync_password
-            if password is not None:
-                sync_file.setpassword(password)
-                sync_file.setencryption(pyzipper.WZ_AES, nbits=128)
-            sync_file.write(self.get_path(), self.file_desc.relative_path)
-        os.remove(self.get_path())
-        return True, "Moved to trash", self, ZipFileAccess(trash_file_path, self.file_desc.relative_path,
-                                                           self.file_desc.file_size)
-
     def copy_to(self, new_root_path, new_relative_file_path: str, copy_mode: CopyMode) \
             -> Tuple[bool, str, FileDescription, Union[FileDescription, None]]:
         new_file_path = new_root_path / new_relative_file_path
         if os.path.exists(new_file_path):
-            return False, "File does not exist", self.file_desc, None
+            return False, "Target file already exists", self.file_desc, None
         os.makedirs(Path(new_file_path).parent, exist_ok=True)
         if copy_mode == CopyMode.COPY:
             shutil.copy2(self.get_path(), new_file_path)
