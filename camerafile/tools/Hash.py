@@ -17,12 +17,12 @@ class Hash:
     #   optimized image hash.
     # - As we do not compare each image of one mediaSet to each image of another, we can compute
     #   distances between two hashes to decide their equality (it remains sufficiently quick).
-    # - After some tests, the result seems as good as before (to be verified more precisely one day)
+    # - After some tests, the result seems as good as before (to be verified more precisely)
     @staticmethod
     def image_hash(cfm_image: CFMImage):
         try:
             return dhash.dhash_int(cfm_image.image_data)
         except BaseException as e:
-            LOGGER.debug("image_hash: " + str(e) + " / " + cfm_image.filename)
+            LOGGER.debug("image_hash: %s / %s", str(e), cfm_image.filename)
             md5_hash = hashlib.md5(cfm_image.get_bytes()).hexdigest()
             return int(md5_hash, 16)

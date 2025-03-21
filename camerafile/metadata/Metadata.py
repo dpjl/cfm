@@ -9,6 +9,7 @@ class Metadata:
     def __init__(self):
         self.value = None
         self.binary_value = None
+        self.thumbnail = None
 
     def __str__(self):
         return self.get()
