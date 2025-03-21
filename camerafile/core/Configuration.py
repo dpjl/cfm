@@ -42,6 +42,7 @@ class Configuration:
         self.whatsapp_date_update = False
         self.whatsapp_db = None
         self.whatsapp_db_name = None
+        self.ui = False
 
     @staticmethod
     def get() -> "Configuration":
@@ -105,6 +106,7 @@ class Configuration:
             self.exit_on_error = args.exit_on_error
             self.thumbnails = args.thumbnails
             self.ignore_list = args.ignore
+            self.ui = self.get_bool_param("UI", "ui")
             self.whatsapp_date_update = self.get_bool_param("WHATSAPP_DATE_UPDATE", "whatsapp_date_update")
             self.whatsapp_db_name = self.get_param("WHATSAPP_DB", "whatsapp_db")
             self.whatsapp = self.get_bool_param("WHATSAPP", "whatsapp")

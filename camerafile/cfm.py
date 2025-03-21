@@ -2,6 +2,10 @@ import argparse
 import logging.config
 import os
 import sys
+from camerafile.api.ManagementApi import ManagementApi
+from fastapi import FastAPI
+import uvicorn
+import threading
 from multiprocessing.process import current_process
 from multiprocessing.spawn import freeze_support
 from textwrap import dedent
@@ -67,9 +71,11 @@ def create_main_args_parser():
     parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS,
                         help='Show this help message and exit.')
 
+    parser.add_argument('-ui', '--ui', action='store_true', help='Start management UI.')
+
     parser.add_argument('-w1', '--whatsapp', action='store_true',
                         help='Deduce date from WhatsApp filename. '
-                             'Does not work for some old files without date in their name. ')
+                             'Does not work for some old files without date in their name.')
 
     parser.add_argument('-w2', '--whatsapp-db', type=str,
                         help='Specify a decrypted WhatsApp db file, in order to detect WhatsApp files and recover '
@@ -138,6 +144,13 @@ def create_main_args_parser():
 
     return parser
 
+def start_ui(media_set1, media_set2):
+    if Configuration.get().ui:
+        api_instance = ManagementApi(media_set1, media_set2)
+        app = api_instance.get_app()
+        server_thread = threading.Thread(target=start_management_server,args=(app,), daemon=True)
+        server_thread.start()
+
 
 def execute(args):
     from camerafile.core.MediaSet import MediaSet
@@ -158,6 +171,8 @@ def execute(args):
     if Configuration.get().get_dir2() is not None:
         media_set2 = MediaSet.load_media_set(Configuration.get().get_dir2(), Configuration.get().org_format)
         other_md_needed = media_set2.state.get_metadata_needed_by_format()
+
+    start_ui(media_set1, media_set2)
 
     BatchReadInternalMd(media_set1, other_md_needed).execute()
     BatchComputeCm(media_set1).execute()
@@ -219,6 +234,8 @@ def execute_organize(args, media_set1, media_set2):
         if Configuration.get().delete_in_target:
             BatchDelete(media_set1, media_set2).execute()
 
+def start_management_server(app: FastAPI):
+    uvicorn.run(app, host="0.0.0.0", port=5678)
 
 def main():
     freeze_support()
