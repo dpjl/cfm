@@ -8,7 +8,7 @@ from camerafile.fileaccess.ZipFileDescription import ZipFileDescription
 class FileAccessFactory:
 
     @staticmethod
-    def get(root_dir: str, file_desc: FileDescription):
+    def get(root_dir: str, file_desc: FileDescription) -> "FileAccess":
         if isinstance(file_desc, StandardFileDescription):
             return StandardFileAccess(root_dir, file_desc)
         if isinstance(file_desc, ZipFileDescription):

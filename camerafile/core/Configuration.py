@@ -104,7 +104,7 @@ class Configuration:
             self.use_dump_for_cache = args.use_dump
             self.save_db = self.get_bool_param("SAVE_DB", "save_db")
             self.exit_on_error = args.exit_on_error
-            self.thumbnails = args.thumbnails
+            self.thumbnails = self.get_bool_param("THUMBNAILS", "thumbnails")
             self.ignore_list = args.ignore
             self.ui = self.get_bool_param("UI", "ui")
             self.whatsapp_date_update = self.get_bool_param("WHATSAPP_DATE_UPDATE", "whatsapp_date_update")

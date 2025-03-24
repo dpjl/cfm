@@ -4,18 +4,27 @@ from camerafile.core.MediaSet import MediaSet
 from camerafile.core.MediaFile import MediaFile
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import RedirectResponse, FileResponse, StreamingResponse
 from typing import Set, Optional
 import mimetypes
 import os
+import io
+import imghdr
 from datetime import datetime
 from camerafile.core.Logging import Logger
+from camerafile.core.Constants import THUMBNAIL
+from camerafile.core.OutputDirectory import OutputDirectory
+from PIL import Image
 LOGGER = Logger(__name__)
 
 class ManagementApi:
     def __init__(self, media_set_1: MediaSet, media_set_2: MediaSet):
         self.media_set_1 = media_set_1
+        self.thb_dir_1 = OutputDirectory.get(self.media_set_1.root_path).path / "thb"
+
         self.media_set_2 = media_set_2
+        self.thb_dir_2 = OutputDirectory.get(self.media_set_2.root_path).path / "thb"
+
         self.app = FastAPI()
         self.setup_routes()
         self.setup_static_files()
@@ -27,19 +36,27 @@ class ManagementApi:
             return RedirectResponse(url="/index.html")
 
         @self.app.get("/thumbnail")
-        async def get_thumbnail(id: str):
-            media_file: MediaFile = self.media_set_2[id]
-            image_path = os.path.abspath(os.path.join(self.media_set_2.root_path, media_file.get_path()))
-            media_type, _ = mimetypes.guess_type(image_path)
-            return FileResponse(image_path, media_type=media_type)
-            
+        async def get_thumbnail(id: str, directory: str):
+            if directory == "source":
+                thumbnail_path = f"{self.thb_dir_1}/{id}.thb"
+            elif directory == "destination":
+                thumbnail_path = f"{self.thb_dir_2}/{id}.thb"
+            #media_type, _ = mimetypes.guess_type(image_path)
+            return FileResponse(thumbnail_path, media_type="image/jpeg")
+
         @self.app.get("/media")
         async def get_media(directory: Optional[str] = None, id: Optional[str] = None):
             if directory:
                 result = []
-                media_file: MediaFile
-                for media_file in self.media_set_2:
-                    if not self.media_set_1.contains(media_file):
+                if directory == "source":
+                    media_file: MediaFile
+                    for media_file in self.media_set_1:
+                        #f not self.media_set_1.contains(media_file):
+                        result += [media_file.file_desc.id]
+                elif directory == "destination":
+                    media_file: MediaFile
+                    for media_file in self.media_set_2:
+                        #not self.media_set_1.contains(media_file):
                         result += [media_file.file_desc.id]
                 return result
             elif id:
@@ -49,8 +66,11 @@ class ManagementApi:
                 return FileResponse(image_path, media_type=media_type)
 
         @self.app.get("/info")
-        async def get_info(id: str) -> dict:
-            media_file: MediaFile = self.media_set_2[id]
+        async def get_info(id: str, directory: str) -> dict:
+            if directory == "source":
+                media_file: MediaFile = self.media_set_1[id]
+            elif directory == "destination":
+                media_file: MediaFile = self.media_set_2[id]
             exif_date = media_file.get_date()
             return {"alt": media_file.file_desc.relative_path,
                     "createdAt": exif_date.isoformat() if exif_date is not None else datetime.now().isoformat()}
