@@ -146,10 +146,13 @@ def create_main_args_parser():
 
 def start_ui(media_set1, media_set2):
     if Configuration.get().ui:
+        from camerafile.processor.BatchGenerateThumbnails import BatchGenerateThumbnails
         api_instance = ManagementApi(media_set1, media_set2)
         app = api_instance.get_app()
         server_thread = threading.Thread(target=start_management_server,args=(app,), daemon=True)
         server_thread.start()
+        #BatchGenerateThumbnails(media_set1).execute()
+        #BatchGenerateThumbnails(media_set2).execute()
 
 
 def execute(args):
@@ -172,8 +175,6 @@ def execute(args):
         media_set2 = MediaSet.load_media_set(Configuration.get().get_dir2(), Configuration.get().org_format)
         other_md_needed = media_set2.state.get_metadata_needed_by_format()
 
-    start_ui(media_set1, media_set2)
-
     BatchReadInternalMd(media_set1, other_md_needed).execute()
     BatchComputeCm(media_set1).execute()
 
@@ -190,6 +191,8 @@ def execute(args):
 
     if Configuration.get().get_command() == ORGANIZE_CMD:
         execute_organize(args, media_set1, media_set2)
+
+    start_ui(media_set1, media_set2)
 
     print("")
     save(media_set1, media_set2)
@@ -231,8 +234,8 @@ def execute_organize(args, media_set1, media_set2):
         copy_mode = Configuration.get().copy_mode
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
         BatchCopy(media_set1, media_set2, copy_mode).execute()
-        if Configuration.get().delete_in_target:
-            BatchDelete(media_set1, media_set2).execute()
+        #if Configuration.get().delete_in_target:
+        #    BatchDelete(media_set1, media_set2).execute()
 
 def start_management_server(app: FastAPI):
     uvicorn.run(app, host="0.0.0.0", port=5678)
