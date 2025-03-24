@@ -338,27 +338,28 @@ class MediaSetDatabase:
         media_file.exists_in_db = True
 
     def save_thumbnail(self, media_file: MediaFile):
-        thumbnail_data = media_file.metadata[THUMBNAIL].thumbnail
-        if media_file.thumbnail_in_db:
-            try:
+        if media_file.metadata[THUMBNAIL].thumbnail is not None and media_file.metadata[THUMBNAIL].thumbnail != b'':
+            thumbnail_data = media_file.metadata[THUMBNAIL].thumbnail
+            if media_file.thumbnail_in_db:
+                try:
+                    self.thb_db_connection.cursor.execute(
+                        '''update
+                                thb
+                        set
+                                file = ?, thb = ?
+                        where
+                                file_id = ? and thb is not ?''',
+                        (media_file.get_path(), thumbnail_data, media_file.db_id, thumbnail_data))
+                except sqlite3.IntegrityError:
+                    print("Integrity error when updating media " + str(media_file))
+            else:
                 self.thb_db_connection.cursor.execute(
-                    '''update
-                            thb
-                       set
-                            file = ?, thb = ?
-                       where
-                            file_id = ? and thb is not ?''',
-                    (media_file.get_path(), thumbnail_data, media_file.db_id, thumbnail_data))
-            except sqlite3.IntegrityError:
-                print("Integrity error when updating media " + str(media_file))
-        else:
-            self.thb_db_connection.cursor.execute(
-                '''insert into
-                        thb(file_id, file, thb)
-                   values
-                        (?, ?, ?)''',
-                (media_file.id, media_file.get_path(), thumbnail_data))
-        media_file.thumbnail_in_db = True
+                    '''insert into
+                            thb(file_id, file, thb)
+                    values
+                            (?, ?, ?)''',
+                    (media_file.id, media_file.get_path(), thumbnail_data))
+            media_file.thumbnail_in_db = True
 
     def load_database_in_dict(self):
         data_dict = {}
