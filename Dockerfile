@@ -3,8 +3,8 @@ FROM node AS react-builder
 RUN mkdir /build
 WORKDIR /build
 ARG CACHE_BUSTER=0 
-RUN cd /build && git clone https://github.com/dpjl/cfm-ui-25-710b7288.git \
-    && cd cfm-ui-25-710b7288 && git pull \
+RUN cd /build && git clone https://github.com/dpjl/cfm-ui-41.git \
+    && cd cfm-ui-41 && git pull \
     && npm install --legacy-peer-deps \
     && npm run build
 
@@ -18,7 +18,7 @@ COPY camerafile ./camerafile
 COPY setup.py ./setup.py
 RUN pip install -e .
 
-COPY --from=react-builder /build/cfm-ui-25-710b7288/dist /app/www
+COPY --from=react-builder /build/cfm-ui-41/dist /app/www
 
 ENV COMMAND=analyze
 ENV DIR1=/dir1
