@@ -88,7 +88,7 @@ class FileAccess:
         return self.get_extension() in Constants.IMAGE_TYPE
 
     def is_video(self):
-        return self.get_extension() in Constants.IMAGE_TYPE
+        return self.get_extension() in Constants.VIDEO_TYPE
 
     def is_qt_video(self):
         return self.get_extension() in Constants.QT_TYPE

@@ -4,6 +4,7 @@ from typing import Tuple, Union
 
 from camerafile.console.ConsoleTable import ConsoleTable
 from camerafile.core.Configuration import Configuration
+from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
 from camerafile.processor.BatchCopyElement import BatchCopyElement
 from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Logging import Logger
@@ -92,7 +93,7 @@ class BatchCopy(CFMBatch):
         return ignore
 
     def __create_copy_list_without_duplicates(self, copy_elements_map, ignore):
-        n_copy_list = self.old_media_set.duplicates()
+        n_copy_list = MediaDuplicateManager.duplicates_map(self.old_media_set)
         for n_copy in n_copy_list.values():
             for media_list in n_copy:
                 media: MediaFile

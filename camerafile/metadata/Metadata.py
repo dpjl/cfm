@@ -40,3 +40,6 @@ class Metadata:
 
     def get_last_modification_date(self):
         return self.get_md_value(MetadataNames.MODIFICATION_DATE)
+    
+    def get_orientation(self):
+        return self.get_md_value(MetadataNames.ORIENTATION)

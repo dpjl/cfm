@@ -2,6 +2,7 @@ import hashlib
 import os
 from pathlib import Path
 
+from camerafile.core import Constants
 from camerafile.core.Logging import Logger
 
 LOGGER = Logger(__name__)
@@ -16,6 +17,7 @@ class FileDescription:
         self.id: str = hashlib.md5(self.relative_path.encode()).hexdigest()
         self.extension = os.path.splitext(self.name)[1].lower()
         self.file_size = None
+        self.system_id = None
 
     def compare_with(self, file_desc_2: "FileDescription"):
         LOGGER.diff("FileDescription", "relative_path", self.relative_path, file_desc_2.relative_path)
@@ -23,9 +25,16 @@ class FileDescription:
         LOGGER.diff("FileDescription", "id", self.id, file_desc_2.id)
         LOGGER.diff("FileDescription", "extension", self.extension, file_desc_2.extension)
         LOGGER.diff("FileDescription", "file_size", self.file_size, file_desc_2.file_size)
+        LOGGER.diff("FileDescription", "system_id", self.system_id, file_desc_2.system_id)
 
     def get_relative_path(self):
         return self.relative_path
 
     def get_id(self):
         return self.id
+    
+    def is_image(self):
+        return self.extension in Constants.IMAGE_TYPE
+
+    def is_video(self):
+        return self.extension in Constants.VIDEO_TYPE

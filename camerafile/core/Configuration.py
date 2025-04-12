@@ -19,7 +19,6 @@ class Configuration:
         self.thumbnails = False
         self.face_detection_keep_image_size = False
         self.use_dump_for_cache = False
-        self.use_db_for_cache = False
         self.save_db = False
         self.exit_on_error = False
         self.org_format = None
@@ -100,7 +99,6 @@ class Configuration:
                 self.nb_sub_process = nb_workers
             
             self.cache_path = self.get_param("CACHE_PATH", "cache_path")
-            self.use_db_for_cache = args.use_db
             self.use_dump_for_cache = args.use_dump
             self.save_db = self.get_bool_param("SAVE_DB", "save_db")
             self.exit_on_error = args.exit_on_error

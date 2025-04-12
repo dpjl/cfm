@@ -1,3 +1,4 @@
+from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
 from camerafile.core.MediaFile import MediaFile
 from camerafile.processor.BatchTool import BatchElement
 from camerafile.core.Constants import SIGNATURE
@@ -32,21 +33,28 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
         return ComputeSignature.execute
 
     def arguments(self):
+
+        # Normally it should not be required, except if for some bad reasons it was not done previously.
+        # As it is not really costly, do it each time.
+        self.propagate_and_synchronize()
+
         args_list = []
-        file_list_1 = self.media_set.get_possibly_duplicates()
+        file_list_1 = MediaDuplicateManager.get_possibly_duplicates(self.media_set)
         file_list_2 = []
         file_list_3 = []
         if self.media_set2 is not None:
-            file_list_2 = self.media_set2.get_possibly_duplicates()
+            file_list_2 = MediaDuplicateManager.get_possibly_duplicates(self.media_set2)
             file_list_3 = self.media_set.get_possibly_already_exists(self.media_set2)
 
-        # Optimization: in file_list_2, inutile d'ajouter les dupliqués potentiels dont
-        # le nom de fichier est déjà dans dans file_list_1 ?
-        media: MediaFile
+        # Use system_id to deduplicate media files and only process those needing signatures
+        processed_system_ids = set()
         for media in file_list_1 + file_list_2 + file_list_3:
-            if media.metadata[SIGNATURE].value is None:
-                args = (media.parent_set.root_path, media.file_desc, media.metadata[SIGNATURE])
-                args_list.append(BatchElement(args, media.get_path()))
+            if media.file_desc.system_id is not None and media.file_desc.system_id not in processed_system_ids and media.metadata[SIGNATURE].value is None:
+                processed_system_ids.add(media.file_desc.system_id)
+                args_list.append(BatchElement(
+                    (media.parent_set.root_path, media.file_desc, media.metadata[SIGNATURE]), 
+                    media.get_path()
+                ))
         return args_list
 
     def post_task(self, result, progress_bar, replace=False):
@@ -56,15 +64,23 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
                 original_media = media_set.get_media(media_id)
                 if original_media is not None:
                     original_media.metadata[SIGNATURE] = result_signature_metadata
-                    original_media.parent_set.add_to_date_sig_map(original_media)
+                    # reindex the file, now a signature has been computed
+                    original_media.parent_set.indexer.add_media_file(original_media)
         progress_bar.increment()
 
     def finalize(self):
-        self.media_set.propagate_sig_to_duplicates()
+        self.propagate_and_synchronize()
+
+    def propagate_and_synchronize(self):
+        # First propagate signatures within each media set
+        MediaDuplicateManager.propagate_signature(self.media_set)
         if self.media_set2 is not None:
-            self.media_set2.propagate_sig_to_duplicates()
+            self.media_set.synchronize_signatures(self.media_set2)
+            MediaDuplicateManager.propagate_signature(self.media_set2)
+            # TODO: not needed ?
+            self.media_set.synchronize_signatures(self.media_set2)
 
         # in case new duplicates have been found because of new computed signatures
-        self.media_set.propagate_cm_to_duplicates()
+        MediaDuplicateManager.propagate_camera_model(self.media_set)
         if self.media_set2 is not None:
-            self.media_set2.propagate_cm_to_duplicates()
+            MediaDuplicateManager.propagate_camera_model(self.media_set2)

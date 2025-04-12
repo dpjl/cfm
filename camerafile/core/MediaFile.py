@@ -3,19 +3,19 @@ from typing import TYPE_CHECKING
 
 from camerafile.core.Constants import INTERNAL, SIGNATURE, CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
-from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.metadata.MetadataList import MetadataList
 
 if TYPE_CHECKING:
     from camerafile.core.MediaSet import MediaSet
+    from camerafile.core.MediaDirectory import MediaDirectory
 
 LOGGER = Logger(__name__)
 
 
 class MediaFile:
 
-    def __init__(self, file_desc: FileDescription, parent_dir: MediaDirectory, parent_set: "MediaSet"):
+    def __init__(self, file_desc: FileDescription, parent_dir: "MediaDirectory", parent_set: "MediaSet"):
         self.parent_dir = parent_dir
         self.parent_set = parent_set
         self.file_desc: FileDescription = file_desc

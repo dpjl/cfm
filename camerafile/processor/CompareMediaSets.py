@@ -1,5 +1,6 @@
 from camerafile.console.ConsoleTable import ConsoleTable
 from camerafile.core.Logging import Logger
+from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
 from camerafile.core.MediaSet import MediaSet
 from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
@@ -14,11 +15,11 @@ class CompareMediaSets:
     def execute(media_set1: MediaSet, media_set2: MediaSet):
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
 
-        duplicates_1 = media_set1.duplicates()
-        duplicates_2 = media_set2.duplicates()
+        duplicates_1 = MediaDuplicateManager.duplicates_map(media_set1)
+        duplicates_2 = MediaDuplicateManager.duplicates_map(media_set2)
 
-        duplicates_1_report = media_set1.get_duplicates_report(duplicates_1)
-        duplicates_2_report = media_set2.get_duplicates_report(duplicates_2)
+        duplicates_1_report = MediaDuplicateManager.get_duplicates_report(media_set1, duplicates_1)
+        duplicates_2_report = MediaDuplicateManager.get_duplicates_report(media_set2, duplicates_2)
 
         in_the_two_dirs_1, only_in_dir1 = media_set1.cmp(media_set2)
         in_the_two_dirs_2, only_in_dir2 = media_set2.cmp(media_set1)

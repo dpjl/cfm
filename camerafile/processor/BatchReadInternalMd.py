@@ -81,10 +81,9 @@ class BatchReadInternalMd(TaskWithProgression):
         if replace:
             original_media.metadata[INTERNAL] = modified_metadata
         original_media.metadata[THUMBNAIL].binary_value = thumbnail
-        original_media.parent_set.add_to_date_size_name_map(original_media)
+        # reindex the file, because date can now be available
+        original_media.parent_set.indexer.add_media_file(original_media)
         self.update_stats(modified_metadata, original_media.metadata[THUMBNAIL])
-        # in case signature was already existing, but date was not, we update date_sig map
-        self.media_set.add_to_date_sig_map(original_media)
         progress_bar.increment()
 
     def finalize(self):

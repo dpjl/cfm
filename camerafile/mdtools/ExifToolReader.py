@@ -36,6 +36,7 @@ class ExifTool(object):
     CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: no. If yes, attention to timezone
     MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
     THUMBNAIL_METADATA = "ThumbnailImage"
+    ROTATION_METADATA = "Rotation"
 
     BEST_CAMERA_MODEL_LIST = (MODEL_METADATA,
                               SOURCE_METADATA)
@@ -183,8 +184,26 @@ class ExifTool(object):
         elif metadata_name == MetadataNames.HEIGHT and cls.HEIGHT_METADATA in metadata:
             return metadata[cls.HEIGHT_METADATA]
 
-        elif metadata_name == MetadataNames.ORIENTATION and cls.ORIENTATION_METADATA in metadata:
-            return metadata[cls.ORIENTATION_METADATA]
+        elif metadata_name == MetadataNames.ORIENTATION:
+            # Priorité à l'orientation exif native
+            if cls.ORIENTATION_METADATA in metadata:
+                return metadata[cls.ORIENTATION_METADATA]
+            # Sinon, tenter de convertir la rotation (en degrés) vers orientation exif
+            elif cls.ROTATION_METADATA in metadata:
+                try:
+                    deg = int(metadata[cls.ROTATION_METADATA])
+                except Exception:
+                    deg = None
+                if deg is not None:
+                    deg_to_orientation = {
+                        0: 1,
+                        90: 6,
+                        180: 3,
+                        270: 8
+                    }
+                    return deg_to_orientation.get(deg, None)
+                else:
+                    return None
 
         elif metadata_name in metadata:
             return metadata[metadata_name]
@@ -209,7 +228,7 @@ class ExifTool(object):
                 result += (cls.HEIGHT_METADATA,)
 
             elif arg == MetadataNames.ORIENTATION:
-                result += (cls.ORIENTATION_METADATA,)
+                result += (cls.ORIENTATION_METADATA, cls.ROTATION_METADATA)
 
             elif isinstance(arg, MetadataNames):
                 result += (arg.value,)

@@ -6,12 +6,16 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import run_in_threadpool
+from camerafile.core.Constants import INTERNAL
 from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.core.MediaSet import MediaSet
 from camerafile.core.MediaFile import MediaFile
 from camerafile.core.Logging import Logger
+from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.task.GenerateThumbnail import GenerateThumbnail
 from camerafile.core.OutputDirectory import OutputDirectory
+import os
+from fastapi.middleware.cors import CORSMiddleware
 
 LOGGER = Logger(__name__)
 
@@ -28,11 +32,33 @@ class ManagementApi:
         self.thb_dir_2 = OutputDirectory.get(self.media_set_2.root_path).path / "thb"
         os.makedirs(self.thb_dir_2, exist_ok=True)
         
-        self.simple_ids_map = {}
-
+        # --- Nouvelle logique pour les simple_ids et reverse_simple_ids ---
+        self.simple_ids_map = {"source": {}, "destination": {}}
+        self.reverse_simple_ids_map = {"source": {}, "destination": {}}
+        for dir_key, media_set in zip(["source", "destination"], [self.media_set_1, self.media_set_2]):
+            simple_id = 0
+            for media_file in media_set.get_date_sorted_media_list()[::-1]:  # du plus récent au plus ancien
+                sid = str(simple_id)
+                if media_file.file_desc.is_video():
+                    sid = f"v{sid}"
+                mfid = media_file.file_desc.id
+                self.simple_ids_map[dir_key][sid] = mfid
+                self.reverse_simple_ids_map[dir_key][mfid] = sid
+                simple_id += 1
+        # --- Fin nouvelle logique ---
+        
         self.app = FastAPI()
+        # Ajout du CORS uniquement en développement
+        if os.environ.get("CFM_DEV_MODE") == "1":
+            self.app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["http://localhost:8080"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
         self.setup_routes()
-        self.setup_static_files()
+        #self.setup_static_files()
         self.tree_cache = {}
 
     def _select_media_set(self, directory: str) -> tuple:
@@ -53,7 +79,8 @@ class ManagementApi:
             GenerateThumbnail.generate_thumbnail,
             root_dir,
             media_file.file_desc,
-            thumbnail_path
+            thumbnail_path,
+            media_file.metadata[INTERNAL].get_orientation()
         )
 
     def setup_routes(self):
@@ -77,19 +104,33 @@ class ManagementApi:
         async def get_media_list(directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None):
             if directory not in ["source", "destination"]:
                 return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
+            media_set, other_media_set = None, None
+            if directory == "source":
+                media_set = self.media_set_1
+                other_media_set = self.media_set_2
+            elif directory == "destination":
+                media_set = self.media_set_2
+                other_media_set = self.media_set_1
+            # 1. Récupère la liste de base
+            if folder and folder not in ["directory1", "directory2"]:
+                media_list = media_set.get_media_in_directory_recursive(str(folder))
+            else:
+                media_list = media_set.get_date_sorted_media_list()[::-1]  # du plus récent au plus ancien
+            # 2. Applique le filtre
+            if filter == "exclusive":
+                media_list = media_set.get_only_here(other_media_set, media_list)
+            elif filter == "common":
+                media_list = media_set.get_in_both(other_media_set, media_list)
+            # Sinon (all ou None), on garde la liste telle quelle
+            # 3. Génère les IDs simples et les dates
             media_ids = []
             media_dates = []
-            media_set, _ = self._select_media_set(directory)
-            sorted_list = media_set.get_date_sorted_media_list()
-            sorted_list_newest_first = reversed(sorted_list)
-            simple_id = 0
-            self.simple_ids_map[directory] = {}
-            for media_file in sorted_list_newest_first:
+            for media_file in media_list:
                 date = media_file.get_str_date(format="%Y-%m-%d")
-                self.simple_ids_map[directory][str(simple_id)] = media_file.file_desc.id
-                media_ids.append(str(simple_id))
+                # Utilise la map inverse pour retrouver le simple_id
+                simple_id = self.reverse_simple_ids_map[directory].get(media_file.file_desc.id)
+                media_ids.append(simple_id)
                 media_dates.append(date if date is not None else datetime.now().strftime("%Y-%m-%d"))
-                simple_id += 1
             return {"mediaIds": media_ids, "mediaDates": media_dates}
 
         @self.app.get("/media")

@@ -50,11 +50,8 @@ def create_main_args_parser():
     parser.add_argument('-n', '--thumbnails', action='store_true',
                         help='Load all thumbnails from exif data, and save them in cache.')
 
-    parser.add_argument('-b', '--use-db', action='store_true', default=False,
-                        help='Use sqlite db to store media set information.')
-
     parser.add_argument('-u', '--use-dump', action='store_true', default=True,
-                        help='Use python dump to store media set informmation (faster than db).')
+                        help='Use python dump to store media set information.')
 
     parser.add_argument('-s', '--save-db', action='store_true', default=False,
                         help='Save sqlite db on disk, each time cfm is executed. This db is NOT used to load data.')
@@ -149,8 +146,11 @@ def start_ui(media_set1, media_set2):
         from camerafile.processor.BatchGenerateThumbnails import BatchGenerateThumbnails
         api_instance = ManagementApi(media_set1, media_set2)
         app = api_instance.get_app()
-        server_thread = threading.Thread(target=start_management_server,args=(app,), daemon=True)
-        server_thread.start()
+        if Configuration.get().watch:
+            server_thread = threading.Thread(target=start_management_server,args=(app,), daemon=True)
+            server_thread.start()
+        else:
+            start_management_server(app)
         #BatchGenerateThumbnails(media_set1).execute()
         #BatchGenerateThumbnails(media_set2).execute()
 
@@ -161,6 +161,7 @@ def execute(args):
     from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
     from camerafile.processor.CompareMediaSets import CompareMediaSets
     from camerafile.processor.SearchForDuplicates import SearchForDuplicates
+    from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
 
     if Configuration.get().get_command() == CUSTOM_CMD:
         import importlib
@@ -179,6 +180,9 @@ def execute(args):
     BatchComputeCm(media_set1).execute()
 
     if media_set2:
+        # Synchronize metadata from media_set1 to media_set2 before reading internal metadata
+        media_set1.synchronize_metadata(media_set2)
+        #MediaDuplicateManager.propagate_camera_model(media_set2)
         BatchReadInternalMd(media_set2, ()).execute()
         BatchComputeCm(media_set2).execute()
 
@@ -192,10 +196,9 @@ def execute(args):
     if Configuration.get().get_command() == ORGANIZE_CMD:
         execute_organize(args, media_set1, media_set2)
 
-    start_ui(media_set1, media_set2)
-
     print("")
     save(media_set1, media_set2)
+    start_ui(media_set1, media_set2)
     watch_if_required(media_set1, media_set2)
 
 
@@ -213,10 +216,8 @@ def watch_if_required(media_set1, media_set2):
 
 def save(media_set1, media_set2):
     media_set1.save_on_disk()
-    media_set1.close_database()
     if media_set2:
         media_set2.save_on_disk()
-        media_set2.close_database()
 
 
 def execute_organize(args, media_set1, media_set2):
@@ -224,7 +225,7 @@ def execute_organize(args, media_set1, media_set2):
         print("\n!!!!!!!!!!!!!!!!!!!")
         print(f"Format is not already configured for {Configuration.get().get_dir2()}, you have to define it using -f option "
               f"or by defining ORG_FORMAT environment variable.")
-        print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
+        print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}/{filename:x}"')
         print("!!!!!!!!!!!!!!!!!!!")
     else:
         from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess

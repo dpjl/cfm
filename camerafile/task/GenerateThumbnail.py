@@ -29,7 +29,7 @@ class GenerateThumbnail:
 
 
     @staticmethod
-    def generate_thumbnail(root_dir: str, file_description: FileDescription, thb_path):
+    def generate_thumbnail(root_dir: str, file_description: FileDescription, thb_path, orientation=None):
         file_access = FileAccessFactory.get(root_dir, file_description)
         if file_description.extension in GenerateThumbnail.IMAGE_EXTENSIONS:
             with file_access.open() as file:
@@ -37,11 +37,24 @@ class GenerateThumbnail:
                     image.thumbnail((512, 512))
                     if image.mode in ("RGBA", "P"):
                         image = image.convert("RGB")
+                    if orientation == 3:
+                        image = image.rotate(180, expand=True)
+                    elif orientation == 6:
+                        image = image.rotate(270, expand=True)
+                    elif orientation == 8:
+                        image = image.rotate(90, expand=True)
                     image.save(thb_path, format='JPEG')
         else:
             videoCapture = cv2.VideoCapture(file_access.get_path())
             result, image = videoCapture.read()
             if result:
+                # Appliquer l'orientation si précisée
+                if orientation == 3:
+                    image = cv2.rotate(image, cv2.ROTATE_180)
+                elif orientation == 6:
+                    image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+                elif orientation == 8:
+                    image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 GenerateThumbnail.save_as_jpg(thb_path, image)
 
             # TODO

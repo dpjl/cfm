@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
 from camerafile.core.MediaFile import MediaFile
 from camerafile.mdtools.MdConstants import MetadataNames
 
@@ -21,7 +22,7 @@ class OrgFormat:
             self.contents.append(re.findall(r'{(.*?):(.*?)}', field)[0])
 
     def init_duplicates(self, media_set: "MediaSet"):
-        self.duplicates = media_set.duplicates_map()
+        self.duplicates = MediaDuplicateManager.duplicates_info(media_set)
 
     def get_formatted_string(self, media: MediaFile):
         result = self.format_description

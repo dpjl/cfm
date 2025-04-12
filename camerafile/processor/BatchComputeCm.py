@@ -1,6 +1,7 @@
 from typing import List
 
 from camerafile.core.Configuration import Configuration
+from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
 from camerafile.processor.BatchTool import TaskWithProgression, BatchElement
 from camerafile.core.Constants import INTERNAL
 from camerafile.core.Logging import Logger
@@ -51,7 +52,7 @@ class BatchComputeCm(TaskWithProgression):
         if not self.something_to_do:
             return
 
-        self.media_set.propagate_cm_to_duplicates()
+        MediaDuplicateManager.propagate_camera_model(self.media_set)
         if not Configuration.get().watch:
             self.status(self.media_set, prefix="After execution: ")
             unknown_cm = self.media_set.get_file_list(cm="unknown")
