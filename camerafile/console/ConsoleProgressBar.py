@@ -1,5 +1,6 @@
 import datetime
 import os
+import shutil
 import sys
 import threading
 import time
@@ -19,7 +20,10 @@ class ConsoleProgressBar:
 
     def __init__(self, max_count, title="", clear_screen=False):
         self.activated = Configuration.get().progress
-        self.console_width = os.get_terminal_size().columns - 1
+        try:
+            self.console_width = os.get_terminal_size().columns - 1
+        except OSError:
+            self.console_width = shutil.get_terminal_size(fallback=(80, 50)).columns
         if self.console_width == -1:
             self.console_width = 100
         # self.console_width = shutil.get_terminal_size((80, 50))

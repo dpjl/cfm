@@ -57,7 +57,7 @@ class MediaSetDatabase:
         self.save_info = Configuration.get().save_db
 
     @staticmethod
-    def get(output_directory, db_file=None, thb_db_file=None):
+    def get(output_directory, db_file=None, thb_db_file=None)-> "MediaSetDatabase":
         db_id = str(output_directory.path) if output_directory is not None else ""
         if db_file is not None:
             db_id += db_file

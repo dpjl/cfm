@@ -16,7 +16,7 @@ class SearchForDuplicates:
 
         BatchComputeNecessarySignaturesMultiProcess(media_set).execute()
 
-        duplicates = media_set.duplicates()
+        duplicates = media_set.duplicates_map()
         duplicates_report = media_set.get_duplicates_report(duplicates)
 
         LOGGER.display_starting_line()

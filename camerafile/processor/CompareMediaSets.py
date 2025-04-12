@@ -14,8 +14,8 @@ class CompareMediaSets:
     def execute(media_set1: MediaSet, media_set2: MediaSet):
         BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
 
-        duplicates_1 = media_set1.duplicates()
-        duplicates_2 = media_set2.duplicates()
+        duplicates_1 = media_set1.duplicates_map()
+        duplicates_2 = media_set2.duplicates_map()
 
         duplicates_1_report = media_set1.get_duplicates_report(duplicates_1)
         duplicates_2_report = media_set2.get_duplicates_report(duplicates_2)

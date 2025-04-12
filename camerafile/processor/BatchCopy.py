@@ -92,7 +92,7 @@ class BatchCopy(CFMBatch):
         return ignore
 
     def __create_copy_list_without_duplicates(self, copy_elements_map, ignore):
-        n_copy_list = self.old_media_set.duplicates()
+        n_copy_list = self.old_media_set.duplicates_map()
         for n_copy in n_copy_list.values():
             for media_list in n_copy:
                 media: MediaFile

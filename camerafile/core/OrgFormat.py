@@ -21,7 +21,7 @@ class OrgFormat:
             self.contents.append(re.findall(r'{(.*?):(.*?)}', field)[0])
 
     def init_duplicates(self, media_set: "MediaSet"):
-        self.duplicates = media_set.duplicates_map()
+        self.duplicates = media_set.duplicates_info()
 
     def get_formatted_string(self, media: MediaFile):
         result = self.format_description

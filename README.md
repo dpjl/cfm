@@ -9,7 +9,7 @@
 [![Build Status](https://github.com/dpjl/cfm/actions/workflows/windows.yml/badge.svg)](https://github.com/dpjl/cfm/actions/workflows/linux.yml)
 [![Build Status](https://github.com/dpjl/cfm/actions/workflows/macos.yml/badge.svg)](https://github.com/dpjl/cfm/actions/workflows/macos.yml)
 [![Build Status](https://github.com/dpjl/cfm/actions/workflows/docker.yml/badge.svg)](https://github.com/dpjl/cfm/actions/workflows/docker.yml)
-[![Test Coverage](https://img.shields.io/codecov/c/github/dpjl/cfm)](https://codecov.io/gh/yourusername/camerafile)
+[![Test Coverage](https://img.shields.io/codecov/c/github/dpjl/cfm)](https://codecov.io/gh/dpjl/cfm)
 [![License](https://img.shields.io/github/license/dpjl/cfm)](./LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/yourusername/camerafile)](https://github.com/yourusername/camerafile/releases)
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/downloads/)

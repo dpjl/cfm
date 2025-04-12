@@ -224,7 +224,7 @@ def execute_organize(args, media_set1, media_set2):
         print("\n!!!!!!!!!!!!!!!!!!!")
         print(f"Format is not already configured for {Configuration.get().get_dir2()}, you have to define it using -f option "
               f"or by defining ORG_FORMAT environment variable.")
-        print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}"')
+        print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}/{filename:x}"')
         print("!!!!!!!!!!!!!!!!!!!")
     else:
         from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
