@@ -105,7 +105,6 @@ def create_main_args_parser():
     p.add_argument('dir2', metavar='dir2', type=str, default=None, help='Destination media set directory.')
     p.add_argument('-f', '--format', metavar='<format>', type=str, default=os.getenv("ORG_FORMAT"),
                    help='Format to use for organization.')
-    p.add_argument('-d', '--delete-in-target', action='store_true', help='If set, delete files from destination folder if they are not anymore in origin folder.')
     p.add_argument('-i', '--ignore-duplicates', action='store_true', help='If set, duplicates are not copied.')
     p.add_argument('-w', '--watch', action='store_true', help='Watch continuously <dir1> and keep organized <dir2>.')
     p.add_argument('-s', '--sync-delay', type=int, default=os.getenv("SYNC_DELAY"), metavar="N",
@@ -151,14 +150,13 @@ def start_ui(media_set1, media_set2):
             server_thread.start()
         else:
             start_management_server(app)
-        #BatchGenerateThumbnails(media_set1).execute()
-        #BatchGenerateThumbnails(media_set2).execute()
 
 
 def execute(args):
     from camerafile.core.MediaSet import MediaSet
     from camerafile.processor.BatchComputeCm import BatchComputeCm
     from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
+    from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
     from camerafile.processor.CompareMediaSets import CompareMediaSets
     from camerafile.processor.SearchForDuplicates import SearchForDuplicates
     from camerafile.core.MediaDuplicateManager import MediaDuplicateManager
@@ -182,9 +180,16 @@ def execute(args):
     if media_set2:
         # Synchronize metadata from media_set1 to media_set2 before reading internal metadata
         media_set1.synchronize_metadata(media_set2)
-        #MediaDuplicateManager.propagate_camera_model(media_set2)
         BatchReadInternalMd(media_set2, ()).execute()
         BatchComputeCm(media_set2).execute()
+
+    if media_set1 and media_set2:
+        BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
+    elif media_set1:
+        BatchComputeNecessarySignaturesMultiProcess(media_set1).execute()
+    elif media_set2:
+        BatchComputeNecessarySignaturesMultiProcess(media_set2).execute()
+
 
     if Configuration.get().get_command() == ANALYZE_CMD:
         SearchForDuplicates.execute(media_set1)
@@ -228,15 +233,10 @@ def execute_organize(args, media_set1, media_set2):
         print('Example: -f "{date:%Y}/{date:%m[%B]}/{cm:Unknown}/{filename:x}"')
         print("!!!!!!!!!!!!!!!!!!!")
     else:
-        from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
         from camerafile.processor.BatchCopy import BatchCopy
-        from camerafile.processor.BatchDelete import BatchDelete
 
         copy_mode = Configuration.get().copy_mode
-        BatchComputeNecessarySignaturesMultiProcess(media_set1, media_set2).execute()
         BatchCopy(media_set1, media_set2, copy_mode).execute()
-        #if Configuration.get().delete_in_target:
-        #    BatchDelete(media_set1, media_set2).execute()
 
 def start_management_server(app: FastAPI):
     uvicorn.run(app, host="0.0.0.0", port=5678)

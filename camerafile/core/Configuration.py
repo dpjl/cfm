@@ -15,7 +15,6 @@ class Configuration:
         self.args = None
         self.cfm_sync_password = None
         self.nb_sub_process = cpu_count()
-        self.generate_pdf = False
         self.thumbnails = False
         self.face_detection_keep_image_size = False
         self.use_dump_for_cache = False
@@ -31,7 +30,6 @@ class Configuration:
         self.ignore_list = None
         self.collision_policy = None
         self.ignore_duplicates = False
-        self.delete_in_target = False
         self.watch = False
         self.sync_delay = 60
         self.copy_mode = None
@@ -121,7 +119,6 @@ class Configuration:
                 self.progress = False
 
             if self.get_command() == ANALYZE_CMD:
-                self.generate_pdf = self.get_bool_param("GENERATE_PDF", "generate_pdf", False)
                 self.internal_read = not self.get_bool_param("NO_INTERNAL_READ", "no_internal_read", False)
 
             if self.get_command() == ORGANIZE_CMD:
@@ -131,7 +128,6 @@ class Configuration:
                 self.ignore_duplicates = self.get_bool_param("IGNORE_DUPLICATES", "ignore_duplicates")
                 self.org_format = self.get_param("ORG_FORMAT", "format")
                 self.collision_policy = CollisionPolicy(self.get_param("COLLISION_POLICY", "collision_policy", CollisionPolicy.RENAME_PARENT))
-                self.delete_in_target = self.get_bool_param("DELETE_IN_TARGET", "delete_in_target")
                 self.copy_mode = CopyMode(self.get_param("MODE", "mode", CopyMode.HARD_LINK))
                 self.watch = self.get_bool_param("WATCH", "watch")
                 self.pp_script = self.get_param("POST_PROCESSING_SCRIPT", "post_processing_script")
