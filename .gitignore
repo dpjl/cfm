@@ -19,3 +19,5 @@ camerafile/ext-bin/exiftool
 .coverage
 .vscode
 coverage.xml
+debug-cache
+node_modules

@@ -14,7 +14,6 @@ from camerafile.core.Logging import Logger
 from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.task.GenerateThumbnail import GenerateThumbnail
 from camerafile.core.OutputDirectory import OutputDirectory
-import os
 from fastapi.middleware.cors import CORSMiddleware
 
 LOGGER = Logger(__name__)
@@ -27,28 +26,16 @@ class ManagementApi:
         self.media_set_1 = media_set_1
         self.thb_dir_1 = OutputDirectory.get(self.media_set_1.root_path).path / "thb"
         os.makedirs(self.thb_dir_1, exist_ok=True)
-
         self.media_set_2 = media_set_2
         self.thb_dir_2 = OutputDirectory.get(self.media_set_2.root_path).path / "thb"
         os.makedirs(self.thb_dir_2, exist_ok=True)
-        
-        # --- Nouvelle logique pour les simple_ids et reverse_simple_ids ---
-        self.simple_ids_map = {"source": {}, "destination": {}}
-        self.reverse_simple_ids_map = {"source": {}, "destination": {}}
-        for dir_key, media_set in zip(["source", "destination"], [self.media_set_1, self.media_set_2]):
-            simple_id = 0
-            for media_file in media_set.get_date_sorted_media_list()[::-1]:  # du plus récent au plus ancien
-                sid = str(simple_id)
-                if media_file.file_desc.is_video():
-                    sid = f"v{sid}"
-                mfid = media_file.file_desc.id
-                self.simple_ids_map[dir_key][sid] = mfid
-                self.reverse_simple_ids_map[dir_key][mfid] = sid
-                simple_id += 1
-        # --- Fin nouvelle logique ---
-        
+        # Use build_sync_id_maps for two maps: source and destination
+        from camerafile.core.MediaSetComparator import MediaSetComparator
+        self.sync_id_map_source, self.sync_id_map_dest = MediaSetComparator.build_sync_id_maps(self.media_set_1, self.media_set_2)
+        # Reverse maps: media_file -> sync_id
+        self.reverse_sync_id_map_source = {v: k for k, v in self.sync_id_map_source.items()}
+        self.reverse_sync_id_map_dest = {v: k for k, v in self.sync_id_map_dest.items()}
         self.app = FastAPI()
-        # Ajout du CORS uniquement en développement
         if os.environ.get("CFM_DEV_MODE") == "1":
             self.app.add_middleware(
                 CORSMiddleware,
@@ -58,23 +45,20 @@ class ManagementApi:
                 allow_headers=["*"],
             )
         self.setup_routes()
-        #self.setup_static_files()
         self.tree_cache = {}
 
-    def _select_media_set(self, directory: str) -> tuple:
-        """Helper method to select the media set and root directory based on the given directory."""
+    def _get_media_file_by_sync_id(self, sync_id: str, directory: str) -> Optional[MediaFile]:
         if directory == "source":
-            return self.media_set_1, self.media_set_1.root_path
+            return self.sync_id_map_source.get(sync_id)
         elif directory == "destination":
-            return self.media_set_2, self.media_set_2.root_path
-        else:
-            return None, None
+            return self.sync_id_map_dest.get(sync_id)
+        return None
 
-    async def generate_thumbnail(self, directory, id, thumbnail_path):
-        media_set, root_dir = self._select_media_set(directory)
-        if media_set is None:
+    async def generate_thumbnail(self, directory, sync_id, thumbnail_path):
+        media_file = self._get_media_file_by_sync_id(sync_id, directory)
+        if media_file is None:
             return
-        media_file: MediaFile = media_set[id]
+        root_dir = media_file.parent_set.root_path
         await run_in_threadpool(
             GenerateThumbnail.generate_thumbnail,
             root_dir,
@@ -84,82 +68,69 @@ class ManagementApi:
         )
 
     def setup_routes(self):
-
         @self.app.get("/thumbnail")
         async def get_thumbnail(id: str, directory: str, background_tasks: BackgroundTasks):
-            if directory not in ["source", "destination"]:
-                return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
-            if directory not in self.simple_ids_map or id not in self.simple_ids_map[directory]:
+            # directory is ignored, kept for compatibility
+            media_file = self._get_media_file_by_sync_id(id, directory)
+            if media_file is None:
                 return JSONResponse(status_code=404, content={"error": "ID not found"})
-            original_id = self.simple_ids_map[directory][id]
-            if directory == "source":
-                thumbnail_path = self.thb_dir_1 / f"{original_id}.thb"
-            elif directory == "destination":
-                thumbnail_path = self.thb_dir_2 / f"{original_id}.thb"
+            original_id = media_file.file_desc.id
+            thb_dir = self.thb_dir_1 if media_file.parent_set is self.media_set_1 else self.thb_dir_2
+            thumbnail_path = thb_dir / f"{original_id}.thb"
             if not thumbnail_path.exists():
-                await self.generate_thumbnail(directory, original_id, thumbnail_path)
+                await self.generate_thumbnail(directory, id, thumbnail_path)
             return FileResponse(thumbnail_path, media_type="image/jpeg")
-
-        @self.app.get("/list")
-        async def get_media_list(directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None):
-            if directory not in ["source", "destination"]:
-                return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
-            media_set, other_media_set = None, None
-            if directory == "source":
-                media_set = self.media_set_1
-                other_media_set = self.media_set_2
-            elif directory == "destination":
-                media_set = self.media_set_2
-                other_media_set = self.media_set_1
-            # 1. Récupère la liste de base
-            if folder and folder not in ["directory1", "directory2"]:
-                media_list = media_set.get_media_in_directory_recursive(str(folder))
-            else:
-                media_list = media_set.get_date_sorted_media_list()[::-1]  # du plus récent au plus ancien
-            # 2. Applique le filtre
-            if filter == "exclusive":
-                media_list = media_set.get_only_here(other_media_set, media_list)
-            elif filter == "common":
-                media_list = media_set.get_in_both(other_media_set, media_list)
-            # Sinon (all ou None), on garde la liste telle quelle
-            # 3. Génère les IDs simples et les dates
-            media_ids = []
-            media_dates = []
-            for media_file in media_list:
-                date = media_file.get_str_date(format="%Y-%m-%d")
-                # Utilise la map inverse pour retrouver le simple_id
-                simple_id = self.reverse_simple_ids_map[directory].get(media_file.file_desc.id)
-                media_ids.append(simple_id)
-                media_dates.append(date if date is not None else datetime.now().strftime("%Y-%m-%d"))
-            return {"mediaIds": media_ids, "mediaDates": media_dates}
 
         @self.app.get("/media")
         async def get_media(directory: Optional[str] = None, id: Optional[str] = None):
-            if directory not in ["source", "destination"]:
-                return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
-            if directory not in self.simple_ids_map or id not in self.simple_ids_map[directory]:
+            # directory is ignored, kept for compatibility
+            media_file = self._get_media_file_by_sync_id(id, directory)
+            if media_file is None:
                 return JSONResponse(status_code=404, content={"error": "ID not found"})
-            original_id = self.simple_ids_map[directory][id]
-            media_set, root_dir = self._select_media_set(directory)
-            media_file: MediaFile = media_set[original_id]
+            root_dir = media_file.parent_set.root_path
             image_path = os.path.abspath(os.path.join(root_dir, media_file.get_path()))
             media_type, _ = mimetypes.guess_type(image_path)
             return FileResponse(image_path, media_type=media_type)
 
         @self.app.get("/info")
         async def get_info(id: str, directory: str) -> dict:
-            if directory not in ["source", "destination"]:
-                return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
-            if directory not in self.simple_ids_map or id not in self.simple_ids_map[directory]:
+            # directory is ignored, kept for compatibility
+            media_file = self._get_media_file_by_sync_id(id, directory)
+            if media_file is None:
                 return JSONResponse(status_code=404, content={"error": "ID not found"})
-            original_id = self.simple_ids_map[directory][id]
-            media_set, _ = self._select_media_set(directory)
-            media_file: MediaFile = media_set[original_id]
             exif_date = media_file.get_date()
             return {
                 "alt": media_file.file_desc.relative_path,
                 "createdAt": exif_date.isoformat() if exif_date is not None else datetime.now().isoformat()
             }
+
+        @self.app.get("/list")
+        async def get_media_list(directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None):
+            if directory not in ["source", "destination"]:
+                return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
+            media_set = self.media_set_1 if directory == "source" else self.media_set_2
+            other_media_set = self.media_set_2 if directory == "source" else self.media_set_1
+            if folder and folder not in ["directory1", "directory2"]:
+                media_list = media_set.get_media_in_directory_recursive(str(folder))
+            else:
+                media_list = media_set.get_date_sorted_media_list()[::-1]
+            if filter == "exclusive":
+                media_list = media_set.get_only_here(other_media_set, media_list)
+            elif filter == "common":
+                media_list = media_set.get_in_both(other_media_set, media_list)
+            date_to_ids = {}
+            for media_file in media_list:
+                date = media_file.get_str_date(format="%Y-%m-%d") or datetime.now().strftime("%Y-%m-%d")
+                if directory == "source":
+                    sync_id = self.reverse_sync_id_map_source.get(media_file)
+                else:
+                    sync_id = self.reverse_sync_id_map_dest.get(media_file)
+                if sync_id is None:
+                    continue
+                if date not in date_to_ids:
+                    date_to_ids[date] = []
+                date_to_ids[date].append(sync_id)
+            return date_to_ids
 
         class ReverseMediaDirectory:
             def __init__(self, dir):
@@ -193,7 +164,8 @@ class ManagementApi:
             cache_key = directory
             if cache_key in self.tree_cache:
                 return self.tree_cache[cache_key]
-            media_set, _ = self._select_media_set(directory)
+            # Select the correct media_set based on directory
+            media_set = self.media_set_1 if directory == "source" else self.media_set_2
             dirs = set()
             for media_file in media_set:
                 parent = media_file.parent_dir
@@ -213,16 +185,10 @@ class ManagementApi:
             LOGGER.info(f"Ids of images to delete: {image_ids}")
             return {"success": True, "message": f"Deleted {len(image_ids)} images"}
         
-        
-        #@self.app.get("/")
-        #def read_root():
-        #    return RedirectResponse(url="/index.html")
-        
         @self.app.get("/")
         async def serve_root():
             return FileResponse("/app/www/index.html")
         
-
 
     def setup_static_files(self):
         self.app.mount("/", StaticFiles(directory="/app/www", html=False), name="static")

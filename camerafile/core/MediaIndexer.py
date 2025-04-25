@@ -143,3 +143,30 @@ class MediaIndexer:
                 if dhash.get_num_bits_different(existing_sig, sig) < 4:
                     return True
         return False
+
+    def get_similar_medias(self, media_file) -> list:
+        """
+        Retourne tous les MediaFile similaires à media_file (même signature ou doublon, ou même system_id).
+        """
+        result = set()
+        # Par system_id
+        system_id = media_file.file_desc.system_id
+        if system_id is not None and system_id in self.system_id_map:
+            result.update(self.system_id_map[system_id])
+        # Par date/size
+        date = media_file.get_exif_date()
+        size = media_file.get_file_size()
+        if date and size and date in self.date_size_map:
+            for m in self.date_size_map[date].get(size, []):
+                result.add(m)
+        # Par signature
+        sig = media_file.get_signature()
+        if sig and date and date in self.date_sig_map:
+            for existing_sig, media_list in self.date_sig_map[date].items():
+                if dhash.get_num_bits_different(existing_sig, sig) < 4:
+                    result.update(media_list)
+        # Retirer le media_file lui-même si présent
+        result.discard(media_file)
+        return list(result)
+
+

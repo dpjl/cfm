@@ -24,9 +24,10 @@ class MediaSetInitializer:
         LOGGER.info_indent(f"{len(media_set.filename_map)} media files loaded from dump {dump_file}", prof=2)
 
         # 3. Initialize the root directory
-        root_media_dir = MediaDirectory(".", None, media_set)
-        media_set.media_dir_list["."] = root_media_dir
-        media_set.add_directory(root_media_dir)
+        if "." not in media_set.media_dir_list:
+            root_media_dir = MediaDirectory(".", None, media_set)
+            media_set.media_dir_list["."] = root_media_dir
+            media_set.add_directory(root_media_dir)
 
         # 4. Initialize new media files
         MediaSetInitializer.init_new_media_files(media_set, new_files)
