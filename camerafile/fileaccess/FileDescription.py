@@ -14,7 +14,7 @@ class FileDescription:
         relative_path = Path(relative_path)
         self.relative_path = relative_path.as_posix()
         self.name = relative_path.name
-        self.id: str = hashlib.md5(self.relative_path.encode()).hexdigest()
+        self.id = self._compute_id()
         self.extension = os.path.splitext(self.name)[1].lower()
         self.file_size = None
         self.system_id = None
@@ -38,3 +38,10 @@ class FileDescription:
 
     def is_video(self):
         return self.extension in Constants.VIDEO_TYPE
+
+    def _compute_id(self) -> str:
+        return hashlib.md5(self.relative_path.encode()).hexdigest()
+
+    def update_relative_path(self, new_relative_path: str) -> None:
+        self.relative_path = new_relative_path
+        self.id = self._compute_id()

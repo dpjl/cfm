@@ -19,7 +19,7 @@ class MediaSetDump:
 
     def __init__(self, output_directory_path):
         self.dump_file = Path(output_directory_path) / 'cfm.dump'
-        self.is_active = Conf.get().use_dump_for_cache or self.exists() or not Conf.get().use_db_for_cache
+        self.is_active = True
 
     @staticmethod
     def get(output_directory) -> "MediaSetDump":

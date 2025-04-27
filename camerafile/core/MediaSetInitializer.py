@@ -43,7 +43,7 @@ class MediaSetInitializer:
         for file_path, file_description in found_files_map.items():
             media_dir = MediaSetInitializer.create_media_dir_parent(media_set, file_description.relative_path)
             new_media_file = MediaFile(file_description, media_dir, media_set)
-            media_set.add_file(new_media_file)
+            media_set.register_file(new_media_file)
             number_of_files += 1
             LOGGER.update(nb_file=number_of_files)
         LOGGER.end(nb_file=number_of_files)
@@ -65,7 +65,7 @@ class MediaSetInitializer:
                 to_be_deleted.append(media_file)
         for media_file in to_be_deleted:
             deleted.append(media_file.get_path())
-            media_set.remove_file(media_file)
+            media_set.unregister_file(media_file)
         if len(deleted) != 0:
             deleted_file = OutputDirectory.get(media_set.root_path).save_list(deleted, "deleted-files.json")
             LOGGER.info_indent("{l1} files detected as deleted [{file}]".format(l1=len(deleted), file=deleted_file))

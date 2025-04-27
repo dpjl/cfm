@@ -97,7 +97,7 @@ class CopyFile:
         new_media_file.metadata = media_file.metadata
         new_media_file.metadata.set_value(ORIGINAL_COPY_PATH, str(media_file))
         new_media_file.metadata.set_value(DESTINATION_COPY_PATH, new_file_desc.get_relative_path())
-        new_media_set.add_file(new_media_file)
+        new_media_set.register_file(new_media_file)
         return True
 
     @staticmethod
@@ -106,6 +106,6 @@ class CopyFile:
         new_media_file.metadata = media_file.metadata
         new_media_file.loaded_from_database = True
         new_media_file.metadata.set_value(ORIGINAL_PATH, str(media_file))
-        media_file.parent_set.add_file(new_media_file)
-        media_file.parent_set.remove_file(media_file)
+        media_file.parent_set.register_file(new_media_file)
+        media_file.parent_set.unregister_file(media_file)
         return True

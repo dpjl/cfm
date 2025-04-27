@@ -103,3 +103,10 @@ class ZipFileAccess(FileAccess):
             with zipfile.ZipFile(self.get_zip_path()) as zip_file:
                 with zip_file.open(self.file_desc.file_path) as zip_file_element:
                     return CFMImage(zip_file_element, self.file_desc.name)
+
+    def move_to(self, new_path: str) -> bool:
+        """
+        Move operation is not supported for files inside zip archives.
+        Raises ValueError to indicate that this operation is not implemented.
+        """
+        raise ValueError("Cannot move files that are inside a zip archive")

@@ -107,3 +107,12 @@ class StandardFileAccess(FileAccess):
             with open(self.get_path(), 'rb') as f:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mmap_obj:
                     return CFMImage(mmap_obj, self.file_desc.name)
+
+    def move_to(self, new_path: str) -> bool:
+        try:
+            os.makedirs(os.path.dirname(new_path), exist_ok=True)
+            os.rename(self.get_path(), new_path)
+            return True
+        except Exception as e:
+            LOGGER.error(f"Failed to move file {self.get_path()} to {new_path}: {str(e)}")
+            return False

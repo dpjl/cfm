@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Iterator, Tuple, Dict, Any, Optional, Union
 from itertools import chain
+import os
 
 from camerafile.core.Constants import CFM_CAMERA_MODEL, INTERNAL, SIGNATURE
 from camerafile.core.Logging import Logger
@@ -75,13 +76,12 @@ class MediaSet:
         MediaSetDatabase.get(OutputDirectory.get(self.root_path)).save(self)
         MediaSetDump.get(OutputDirectory.get(self.root_path)).save(self)
 
-    def add_file(self, media_file: MediaFile) -> None:
+    def register_file(self, media_file: MediaFile) -> None:
         """Adds a media file to the internal structures and updates the indexes."""
         self.media_file_list.append(media_file)
         self.id_map[media_file.file_desc.id] = media_file
         self.filename_map[media_file.get_path()] = media_file
         self.indexer.add_media_file(media_file)
-        # Ajouter le fichier à la liste des enfants de son répertoire parent
         if media_file.parent_dir is not None:
             media_file.parent_dir.add_child_file(media_file)
 
@@ -89,11 +89,10 @@ class MediaSet:
         """Adds a media directory to the internal structures and updates the indexes."""
         self.media_dir_list[media_dir.path] = media_dir
         self.id_map[media_dir.id] = media_dir
-        # Mettre à jour la relation parent-enfant
         if media_dir.parent_dir is not None:
             media_dir.parent_dir.add_child_dir(media_dir)
 
-    def remove_file(self, media_file: MediaFile) -> None:
+    def unregister_file(self, media_file: MediaFile) -> None:
         """Removes a media file from the internal structures and updates the indexes."""
         self.indexer.remove_media_file(media_file)
         if media_file.get_path() in self.filename_map:
@@ -102,7 +101,6 @@ class MediaSet:
             del self.id_map[media_file.file_desc.id]
         if media_file in self.media_file_list:
             self.media_file_list.remove(media_file)
-        # Retirer le fichier de la liste des enfants de son répertoire parent
         if media_file.parent_dir is not None:
             media_file.parent_dir.children_files.remove(media_file)
 
@@ -112,7 +110,6 @@ class MediaSet:
             del self.media_dir_list[media_dir.path]
         if media_dir.id in self.id_map:
             del self.id_map[media_dir.id]
-        # Retirer le répertoire de la liste des enfants de son parent
         if media_dir.parent_dir is not None:
             media_dir.parent_dir.children_dirs.remove(media_dir)
 
@@ -258,22 +255,38 @@ class MediaSet:
         media file in other_media_set that has the same system_id.
         Then do the same in the other direction.
         """
-        # First direction: this -> other
         for media_file in self.media_file_list:
             if media_file.file_desc.system_id is not None and media_file.metadata[INTERNAL].value is not None:
-                # Use the index to find files with the same system_id in other_media_set
                 other_media_list = other_media_set.indexer.system_id_map.get(media_file.file_desc.system_id, [])
                 for other_media in other_media_list:
                     if other_media.metadata[INTERNAL].value is None:
                         other_media.metadata[INTERNAL] = media_file.metadata[INTERNAL]
                         other_media_set.indexer.add_media_file(other_media)
 
-        # Second direction: other -> this
         for other_media in other_media_set.media_file_list:
             if other_media.file_desc.system_id is not None and other_media.metadata[INTERNAL].value is not None:
-                # Use the index to find files with the same system_id in this set
                 media_file_list = self.indexer.system_id_map.get(other_media.file_desc.system_id, [])
                 for media_file in media_file_list:
                     if media_file.metadata[INTERNAL].value is None:
                         media_file.metadata[INTERNAL] = other_media.metadata[INTERNAL]
                         self.indexer.add_media_file(media_file)
+
+    def move_to_trash(self, media_file: MediaFile) -> bool:
+        """Move a file to the trash directory."""
+        trash_dir_path = os.path.join(self.root_path, ".cfm-trash")
+        os.makedirs(trash_dir_path, exist_ok=True)
+        if ".cfm-trash" not in self.media_dir_list:
+            self.media_dir_list[".cfm-trash"] = MediaDirectory(trash_dir_path, None, self)
+        parent_id = media_file.parent_dir.id if media_file.parent_dir else "root"
+        new_filename = f"{parent_id}-{media_file.file_desc.name}"
+        new_path = os.path.join(trash_dir_path, new_filename)
+        try:
+            self.unregister_file(media_file)
+            if not media_file.move_to(new_path):
+                return False
+            media_file.parent_dir = self.media_dir_list[".cfm-trash"]
+            self.register_file(media_file)
+            return True
+        except Exception as e:
+            LOGGER.info(f"Failed to move file {media_file.get_path()} to trash: {str(e)}")
+            return False

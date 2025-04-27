@@ -106,10 +106,6 @@ class FileAccess:
             -> Tuple[bool, str, "FileAccess", Union["FileAccess", None]]:
         pass
 
-    def delete_file(self, trash_file_path) \
-            -> Tuple[bool, str, "FileAccess", Union["FileAccess", None]]:
-        pass
-
     def get_file_size(self):
         pass
 
@@ -127,3 +123,11 @@ class FileAccess:
 
     def get_cv2_image(self):
         pass
+
+    def move_to(self, new_path: str) -> bool:
+        """
+        Move the file to a new location.
+        Returns True if the move was successful, False otherwise.
+        This is an abstract method that must be implemented by subclasses.
+        """
+        raise NotImplementedError("move_to method must be implemented by subclasses")

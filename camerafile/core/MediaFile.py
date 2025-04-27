@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
+import os
 
 from camerafile.core.Constants import INTERNAL, SIGNATURE, CFM_CAMERA_MODEL
 from camerafile.core.Logging import Logger
@@ -77,7 +78,15 @@ class MediaFile:
         return ""
 
     def compare_with(self, media_file_2: "MediaFile"):
-        # LOGGER.diff("MediaFile", "parent_dir", str(self.parent_dir), str(media_file_2.parent_dir))
         LOGGER.diff("MediaFile", "id", self.id, media_file_2.id)
         self.file_desc.compare_with(media_file_2.file_desc)
         self.metadata.compare_with(str(self), media_file_2.metadata)
+
+    def move_to(self, new_path: str) -> bool:
+        from camerafile.fileaccess.FileAccessFactory import FileAccessFactory
+        file_access = FileAccessFactory.get(self.parent_set.root_path, self.file_desc)
+        if not file_access.move_to(new_path):
+            return False
+        self.file_desc.update_relative_path(os.path.relpath(new_path, self.parent_set.root_path))
+        self.id = self.file_desc.get_id()
+        return True
