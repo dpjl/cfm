@@ -7,8 +7,10 @@ from camerafile.core.Logging import Logger
 from camerafile.console.FilesSummary import FilesSummary
 from camerafile.core.Constants import MANAGED_TYPE, ARCHIVE_TYPE
 from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
 from camerafile.fileaccess.ZipFileDescription import ZipFileDescription
+from typing import Dict, Tuple
 
 LOGGER = Logger(__name__)
 
@@ -20,13 +22,21 @@ and a list of ignored files.
 class FileScanner:
 
     @staticmethod
-    def update_from_disk(root_path: str, state, filename_map: dict) -> dict:
+    def update_from_disk(root_path: str, state, filename_map: dict) -> Tuple[Dict[str, FileDescription], Dict[str, FileDescription]]:
         root = Path(root_path).resolve()
         files_summary = FilesSummary()
         new_files = {}
+        new_dirs = {}
         ignored_files = []
 
-        for path, _, files in os.walk(root.as_posix(), topdown=True):
+        for path, dirs, files in os.walk(root.as_posix(), topdown=True):
+            # Process directories first
+            for dir_name in dirs:
+                dir_path = Path(path) / dir_name
+                relative_path = dir_path.relative_to(root).as_posix()
+                FileScanner._register_new_dir(dir_path, root, new_dirs, filename_map)
+
+            # Then process files
             for file_name in files:
                 file_path = Path(path) / file_name
                 extension = os.path.splitext(file_name)[1].lower()
@@ -34,7 +44,7 @@ class FileScanner:
                     file_size = FileScanner._register_new_standard_file(file_path, root, filename_map, new_files)
                     files_summary.increment(all_files=1, managed=1, standard=1, size=file_size)
                 elif extension in ARCHIVE_TYPE:
-                    FileScanner._load_zip_archive(file_path, root, state, filename_map, new_files, ignored_files, files_summary)
+                    FileScanner._load_zip_archive(file_path, root, state, filename_map, new_files, new_dirs, ignored_files, files_summary)
                 else:
                     files_summary.increment(all_files=1, standard=1)
                     ignored_files.append(file_path.as_posix())
@@ -49,23 +59,61 @@ class FileScanner:
         LOGGER.info_indent("{l1} files ignored [{saved}]".format(l1=len(ignored_files), saved=saved_file))
         LOGGER.info_indent("{l1} detected as media files".format(l1=files_summary.managed))
 
-        return new_files
+        return new_files, new_dirs
 
     @staticmethod
-    def _load_zip_archive(zip_file_path: Path, root: Path, state, filename_map: dict, new_files: dict, ignored_files: list, files_summary: FilesSummary) -> None:
+    def _register_new_dir(dir_path: Path, root: Path, new_dirs: dict, filename_map: dict) -> None:
+        """Register a new directory in the new_dirs dictionary if it doesn't exist in filename_map."""
+        relative_path = dir_path.relative_to(root).as_posix()
+        if relative_path not in filename_map:
+            stat = dir_path.stat()
+            system_id = FileScanner._get_system_id(stat)
+            dir_desc = StandardFileDescription(relative_path, 0, system_id)  # Directories have size 0
+            new_dirs[dir_desc.relative_path] = dir_desc
+        else:
+            filename_map[relative_path].exists = True
+
+    @staticmethod
+    def _load_zip_archive(zip_file_path: Path, root: Path, state, filename_map: dict, new_files: dict, new_dirs: dict, ignored_files: list, files_summary: FilesSummary) -> None:
         files_summary.increment(archive=1)
+        zip_relative_path = zip_file_path.relative_to(root).as_posix()
+        
         with zipfile.ZipFile(zip_file_path) as zip_file:
+            # First process all files to collect their paths
+            new_zip_files = []  # List to store paths of newly created files
+            dirs = set()  # Set to store all parent directories
+            
             for file_info in zip_file.filelist:
                 file_name = file_info.filename
                 if file_name.endswith('/'):
                     continue
+                    
                 extension = os.path.splitext(file_name)[1].lower()
                 files_summary.increment(all_files=1, zipped=1)
+                
                 if extension in MANAGED_TYPE and not state.should_be_ignored(file_name):
                     file_size = FileScanner._register_new_zipped_file(file_info, root, filename_map, new_files, file_name, zip_file_path)
                     files_summary.increment(managed=1, size=file_size)
+                    
+                    # Store the path and collect parent directories
+                    file_path = f"{zip_relative_path}/{file_name}"
+                    new_zip_files.append(file_path)
+                    
+                    # Add all parent directories
+                    dir_path = os.path.dirname(file_path)
+                    parts = dir_path.split('/')
+                    for i in range(1, len(parts) + 1):
+                        dirs.add('/'.join(parts[:i]))
                 else:
-                    ignored_files.append((root / zip_file_path).as_posix())
+                    ignored_files.append(zip_file_path.as_posix())
+
+            # Register all directories
+            for dir_path in sorted(dirs):  # Sort to ensure parents are processed before children
+                if dir_path not in filename_map:
+                    dir_desc = StandardFileDescription(dir_path, 0, None)  # Directories in zip have no system_id
+                    new_dirs[dir_desc.relative_path] = dir_desc
+                else:
+                    filename_map[dir_path].exists = True
 
     @staticmethod
     def _register_new_standard_file(file_path: Path, root: Path, filename_map: dict, new_files: dict) -> int:

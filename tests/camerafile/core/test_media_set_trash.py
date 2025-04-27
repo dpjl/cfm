@@ -81,7 +81,7 @@ def test_move_to_trash(test_environment):
     assert len(media_set.media_file_list) == initial_file_count  # Same number of files
     assert len(media_set.media_dir_list) == initial_dir_count + 1  # Added trash directory
     assert len(media_set.id_map) == initial_id_map_size + 1  # Same number of IDs + 1 for the new trash directory
-    assert len(media_set.filename_map) == initial_filename_map_size  # Same number of filename mappings
+    assert len(media_set.filename_map) == initial_filename_map_size + 1  # Same number of filename mappings + 1 for the new trash directory
     
     # Verify the moved file is now in the trash directory
     moved_file = next(mf for mf in media_set if mf.parent_dir.file_desc.relative_path == ".cfm-trash")

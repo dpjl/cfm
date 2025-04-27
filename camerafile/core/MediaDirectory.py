@@ -12,13 +12,14 @@ if TYPE_CHECKING:
 
 class MediaDirectory:
 
-    def __init__(self, relative_path, parent_dir, parent_set):
-        self.file_desc = StandardFileDescription(relative_path)
-        self.parent_dir: "MediaDirectory" = parent_dir
+    def __init__(self, file_desc: StandardFileDescription, parent_dir: "MediaDirectory", parent_set):
+        self.file_desc = file_desc
+        self.parent_dir = parent_dir
         self.parent_set = parent_set
         self.metadata = MetadataList()
         self.children_files: List["MediaFile"] = []
         self.children_dirs: List["MediaDirectory"] = []
+        self.exists = True
 
     def __str__(self):
         return self.file_desc.relative_path

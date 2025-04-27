@@ -132,50 +132,40 @@ class ManagementApi:
                 date_to_ids[date].append(sync_id)
             return date_to_ids
 
-        class ReverseMediaDirectory:
-            def __init__(self, dir):
-                self.original_dir: MediaDirectory = dir
-                self.children = []
-
-        def create_reverse_tree(dirs: Set[MediaDirectory]):
-            reverse_dirs = {dir: ReverseMediaDirectory(dir) for dir in dirs}
-            for directory in dirs:
-                if directory.parent_dir is not None:
-                    reverse_dirs[directory.parent_dir].children.append(reverse_dirs[directory])
-            root = next(reverse_dir for reverse_dir in reverse_dirs.values() if reverse_dir.original_dir.parent_dir is None)
-            return root
-
-        def build_tree_string(reverse_root: ReverseMediaDirectory):
+        def build_directory_tree(media_dir: MediaDirectory):
+            # Get children and sort them alphabetically by name
             children = []
-            for child in reverse_root.children:
-                children.append(build_tree_string(child))
-            name = reverse_root.original_dir.name
+            for child_dir in sorted(media_dir.children_dirs, key=lambda d: d.file_desc.name):
+                children.append(build_directory_tree(child_dir))
+            
+            name = media_dir.file_desc.name
             if name == "":
                 name = "/"
+                
             if children:
-                return {"id": reverse_root.original_dir.id, "name": name, "children": children}
+                return {"id": media_dir.file_desc.id, "name": name, "children": children}
             else:
-                return {"id": reverse_root.original_dir.id, "name": name} 
+                return {"id": media_dir.file_desc.id, "name": name}
 
         @self.app.get("/tree")
         async def get_tree(directory: str):
             if directory not in ["source", "destination"]:
                 return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
+                
             cache_key = directory
             if cache_key in self.tree_cache:
                 return self.tree_cache[cache_key]
+                
             # Select the correct media_set based on directory
             media_set = self.media_set_1 if directory == "source" else self.media_set_2
-            dirs = set()
-            for media_file in media_set:
-                parent = media_file.parent_dir
-                while parent is not None:
-                    dirs.add(parent)
-                    parent = parent.parent_dir
-            reverse_root = create_reverse_tree(dirs)
-            result = build_tree_string(reverse_root)
+            
+            # Get the root directory
+            root_dir = media_set.media_dir_list[""]
+            
+            # Build the tree starting from root
+            result = build_directory_tree(root_dir)
+            
             self.tree_cache[cache_key] = [result]
-            LOGGER.info(result)
             return [result]
 
         @self.app.delete("/images")

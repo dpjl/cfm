@@ -45,21 +45,26 @@ class TestFileScanner:
                 return False
 
         # When - call the static method directly
-        not_loaded_files = FileScanner.update_from_disk(root_dir, MockState(), {})
+        new_files, new_dirs = FileScanner.update_from_disk(root_dir, MockState(), {})
 
         # Then
-        assert len(not_loaded_files) == 6
-        assert "test_image.jpg" in not_loaded_files
-        assert "test_video.mp4" in not_loaded_files
-        assert "test_audio.mp3" in not_loaded_files
-        assert "sub_dir1/sub_test_image1.jpg" in not_loaded_files
-        assert "sub_dir1/sub_test_image2.jpg" in not_loaded_files
-        assert "sub_dir2/sub_test_video.mp4" in not_loaded_files
+        assert len(new_files) == 6
+        assert "test_image.jpg" in new_files
+        assert "test_video.mp4" in new_files
+        assert "test_audio.mp3" in new_files
+        assert "sub_dir1/sub_test_image1.jpg" in new_files
+        assert "sub_dir1/sub_test_image2.jpg" in new_files
+        assert "sub_dir2/sub_test_video.mp4" in new_files
 
         # Verify file descriptions are correct
-        for file_path, file_desc in not_loaded_files.items():
+        for file_path, file_desc in new_files.items():
             assert file_desc.file_size > 0
             assert isinstance(file_desc.relative_path, str)
+
+        # Verify directories are found
+        assert len(new_dirs) == 2
+        assert "sub_dir1" in new_dirs
+        assert "sub_dir2" in new_dirs
 
     # Empty directory returns empty not_loaded_files and ignored_files
     def test_empty_directory_returns_empty_collections(self, tmp_path):
@@ -76,8 +81,10 @@ class TestFileScanner:
                 return False
 
         # When - call the static method directly
-        not_loaded_files = FileScanner.update_from_disk(empty_dir, MockState(), {})
+        new_files, new_dirs = FileScanner.update_from_disk(empty_dir, MockState(), {})
 
         # Then
-        assert len(not_loaded_files) == 0
-        assert isinstance(not_loaded_files, dict)
+        assert len(new_files) == 0
+        assert isinstance(new_files, dict)
+        assert len(new_dirs) == 0
+        assert isinstance(new_dirs, dict)

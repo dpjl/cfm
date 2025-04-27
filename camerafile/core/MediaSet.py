@@ -14,6 +14,7 @@ from camerafile.core.MediaSetDump import MediaSetDump
 from camerafile.core.MediaSetInitializer import MediaSetInitializer
 from camerafile.core.MediaSetState import MediaSetState
 from camerafile.core.OutputDirectory import OutputDirectory
+from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
 from camerafile.mdtools.MdConstants import MetadataNames
 
 LOGGER = Logger(__name__)
@@ -89,6 +90,7 @@ class MediaSet:
         """Adds a media directory to the internal structures and updates the indexes."""
         self.media_dir_list[media_dir.file_desc.relative_path] = media_dir
         self.id_map[media_dir.file_desc.id] = media_dir
+        self.filename_map[media_dir.file_desc.relative_path] = media_dir
         if media_dir.parent_dir is not None:
             media_dir.parent_dir.add_child_dir(media_dir)
 
@@ -260,7 +262,7 @@ class MediaSet:
         
         trash_dir = self.media_dir_list.get(".cfm-trash")
         if trash_dir is None:
-            trash_dir = MediaDirectory(".cfm-trash", self.media_dir_list["."], self)
+            trash_dir = MediaDirectory(StandardFileDescription(".cfm-trash"), self.media_dir_list["."], self)
             self.add_directory(trash_dir)
         
         trash_dir = self.media_dir_list[".cfm-trash"]
@@ -268,14 +270,11 @@ class MediaSet:
         new_filename = f"{parent_id}-{media_file.file_desc.name}"
         new_path = os.path.join(trash_dir_path, new_filename)
         try:
-            original_parent = media_file.parent_dir
             self.unregister_file(media_file)
             if not media_file.move_to(new_path):
                 return False
             media_file.parent_dir = trash_dir
             self.register_file(media_file)
-            if original_parent and not original_parent.children_files and not original_parent.children_dirs:
-                self.remove_directory(original_parent)
             return True
         except Exception as e:
             LOGGER.info(f"Failed to move file {media_file.file_desc.name} to trash: {str(e)}")
