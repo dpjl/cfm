@@ -87,8 +87,8 @@ class MediaSet:
 
     def add_directory(self, media_dir: MediaDirectory) -> None:
         """Adds a media directory to the internal structures and updates the indexes."""
-        self.media_dir_list[media_dir.path] = media_dir
-        self.id_map[media_dir.id] = media_dir
+        self.media_dir_list[media_dir.file_desc.relative_path] = media_dir
+        self.id_map[media_dir.file_desc.id] = media_dir
         if media_dir.parent_dir is not None:
             media_dir.parent_dir.add_child_dir(media_dir)
 
@@ -106,10 +106,10 @@ class MediaSet:
 
     def remove_directory(self, media_dir: MediaDirectory) -> None:
         """Removes a media directory from the internal structures and updates the indexes."""
-        if media_dir.path in self.media_dir_list:
-            del self.media_dir_list[media_dir.path]
-        if media_dir.id in self.id_map:
-            del self.id_map[media_dir.id]
+        if media_dir.file_desc.relative_path in self.media_dir_list:
+            del self.media_dir_list[media_dir.file_desc.relative_path]
+        if media_dir.file_desc.id in self.id_map:
+            del self.id_map[media_dir.file_desc.id]
         if media_dir.parent_dir is not None:
             media_dir.parent_dir.children_dirs.remove(media_dir)
 
@@ -172,17 +172,12 @@ class MediaSet:
         target_dir = self.id_map[dir_id]
         result = []
         
-        def _collect_files_recursive(directory: MediaDirectory, collected_files: list):
-            # Add files from current directory
-            collected_files.extend(directory.children_files)
-            # Recursively add files from subdirectories
+        def _collect_files_recursive(directory: MediaDirectory):
+            result.extend(directory.children_files)
             for sub_dir in directory.children_dirs:
-                _collect_files_recursive(sub_dir, collected_files)
+                _collect_files_recursive(sub_dir)
 
-        # Use helper method to collect all files
-        _collect_files_recursive(target_dir, result)
-        
-        # Sort once at the end
+        _collect_files_recursive(target_dir)
         result.sort(key=MediaFile.get_date, reverse=True)
         return result
 
@@ -219,74 +214,69 @@ class MediaSet:
         filtered.sort(key=MediaFile.get_date, reverse=True)
         return filtered
 
-    def synchronize_signatures(self, other_media_set: "MediaSet") -> None:
+    def _synchronize_metadata_type(self, other_media_set: "MediaSet", metadata_type: str, direction: str = "both") -> None:
         """
-        Synchronize signatures between two media sets based on system_id.
-        For each media file in this set that has a signature, copy it to the corresponding
-        media file in other_media_set that has the same system_id.
-        Then do the same in the other direction.
+        Synchronize a specific type of metadata between two media sets based on system_id.
+        
+        Args:
+            other_media_set: The other MediaSet to synchronize with
+            metadata_type: The type of metadata to synchronize (SIGNATURE or INTERNAL)
+            direction: The direction of synchronization ("both", "to_other", or "to_self")
         """
-        # First direction: this -> other
-        for media_file in self.media_file_list:
-            if media_file.file_desc.system_id is not None and media_file.metadata[SIGNATURE].value is not None:
-                # Use the index to find files with the same system_id in other_media_set
-                other_media_list = other_media_set.indexer.system_id_map.get(media_file.file_desc.system_id, [])
-                for other_media in other_media_list:
-                    if other_media.metadata[SIGNATURE].value is None:
-                        other_media.metadata[SIGNATURE] = media_file.metadata[SIGNATURE]
-                        # Reindex the file in other_media_set
-                        other_media_set.indexer.add_media_file(other_media)
+        if direction in ["both", "to_other"]:
+            # First direction: this -> other
+            for media_file in self.media_file_list:
+                if (media_file.file_desc.system_id is not None and 
+                    media_file.metadata[metadata_type].value is not None):
+                    other_media_list = other_media_set.indexer.system_id_map.get(media_file.file_desc.system_id, [])
+                    for other_media in other_media_list:
+                        if other_media.metadata[metadata_type].value is None:
+                            other_media.metadata[metadata_type] = media_file.metadata[metadata_type]
+                            other_media_set.indexer.add_media_file(other_media)
 
-        # Second direction: other -> this
-        for other_media in other_media_set.media_file_list:
-            if other_media.file_desc.system_id is not None and other_media.metadata[SIGNATURE].value is not None:
-                # Use the index to find files with the same system_id in this set
-                media_file_list = self.indexer.system_id_map.get(other_media.file_desc.system_id, [])
-                for media_file in media_file_list:
-                    if media_file.metadata[SIGNATURE].value is None:
-                        media_file.metadata[SIGNATURE] = other_media.metadata[SIGNATURE]
-                        # Reindex the file in this set
-                        self.indexer.add_media_file(media_file)
+        if direction in ["both", "to_self"]:
+            # Second direction: other -> this
+            for other_media in other_media_set.media_file_list:
+                if (other_media.file_desc.system_id is not None and 
+                    other_media.metadata[metadata_type].value is not None):
+                    media_file_list = self.indexer.system_id_map.get(other_media.file_desc.system_id, [])
+                    for media_file in media_file_list:
+                        if media_file.metadata[metadata_type].value is None:
+                            media_file.metadata[metadata_type] = other_media.metadata[metadata_type]
+                            self.indexer.add_media_file(media_file)
+
+    def synchronize_signatures(self, other_media_set: "MediaSet") -> None:
+        """Synchronize signatures between two media sets."""
+        self._synchronize_metadata_type(other_media_set, SIGNATURE)
 
     def synchronize_metadata(self, other_media_set: "MediaSet") -> None:
-        """
-        Synchronize internal metadata between two media sets based on system_id.
-        For each media file in this set that has internal metadata, copy it to the corresponding
-        media file in other_media_set that has the same system_id.
-        Then do the same in the other direction.
-        """
-        for media_file in self.media_file_list:
-            if media_file.file_desc.system_id is not None and media_file.metadata[INTERNAL].value is not None:
-                other_media_list = other_media_set.indexer.system_id_map.get(media_file.file_desc.system_id, [])
-                for other_media in other_media_list:
-                    if other_media.metadata[INTERNAL].value is None:
-                        other_media.metadata[INTERNAL] = media_file.metadata[INTERNAL]
-                        other_media_set.indexer.add_media_file(other_media)
-
-        for other_media in other_media_set.media_file_list:
-            if other_media.file_desc.system_id is not None and other_media.metadata[INTERNAL].value is not None:
-                media_file_list = self.indexer.system_id_map.get(other_media.file_desc.system_id, [])
-                for media_file in media_file_list:
-                    if media_file.metadata[INTERNAL].value is None:
-                        media_file.metadata[INTERNAL] = other_media.metadata[INTERNAL]
-                        self.indexer.add_media_file(media_file)
+        """Synchronize internal metadata between two media sets."""
+        self._synchronize_metadata_type(other_media_set, INTERNAL)
 
     def move_to_trash(self, media_file: MediaFile) -> bool:
         """Move a file to the trash directory."""
         trash_dir_path = os.path.join(self.root_path, ".cfm-trash")
         os.makedirs(trash_dir_path, exist_ok=True)
-        if ".cfm-trash" not in self.media_dir_list:
-            self.media_dir_list[".cfm-trash"] = MediaDirectory(trash_dir_path, None, self)
-        parent_id = media_file.parent_dir.id if media_file.parent_dir else "root"
+        
+        trash_dir = self.media_dir_list.get(".cfm-trash")
+        if trash_dir is None:
+            trash_dir = MediaDirectory(".cfm-trash", self.media_dir_list["."], self)
+            self.add_directory(trash_dir)
+        
+        trash_dir = self.media_dir_list[".cfm-trash"]
+        parent_id = media_file.parent_dir.file_desc.id if media_file.parent_dir else "root"
         new_filename = f"{parent_id}-{media_file.file_desc.name}"
         new_path = os.path.join(trash_dir_path, new_filename)
         try:
+            original_parent = media_file.parent_dir
             self.unregister_file(media_file)
             if not media_file.move_to(new_path):
                 return False
-            media_file.parent_dir = self.media_dir_list[".cfm-trash"]
+            media_file.parent_dir = trash_dir
             self.register_file(media_file)
+            if original_parent and not original_parent.children_files and not original_parent.children_dirs:
+                self.remove_directory(original_parent)
             return True
         except Exception as e:
-            LOGGER.info(f"Failed to move file {media_file.get_path()} to trash: {str(e)}")
+            LOGGER.info(f"Failed to move file {media_file.file_desc.name} to trash: {str(e)}")
             return False

@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from camerafile.core.FileScanner import FileScanner
 from camerafile.core.Logging import Logger
@@ -40,8 +41,8 @@ class MediaSetInitializer:
         LOGGER.start("{nb_file} new files that are not already in dump", 1000, prof=2)
         number_of_files = 0
         LOGGER.update(nb_file=number_of_files)
-        for file_path, file_description in found_files_map.items():
-            media_dir = MediaSetInitializer.create_media_dir_parent(media_set, file_description.relative_path)
+        for relative_path, file_description in found_files_map.items():
+            media_dir = MediaSetInitializer.create_media_dir_parent(media_set, relative_path)
             new_media_file = MediaFile(file_description, media_dir, media_set)
             media_set.register_file(new_media_file)
             number_of_files += 1
@@ -50,11 +51,11 @@ class MediaSetInitializer:
 
     @staticmethod
     def create_media_dir_parent(media_set, dir_or_file_path: str):
-        parent = Path(dir_or_file_path).parent.as_posix()
-        if parent not in media_set.media_dir_list:
-            new_media_dir = MediaDirectory(parent, MediaSetInitializer.create_media_dir_parent(media_set, parent), media_set)
+        parent_relative_path = Path(dir_or_file_path).parent.as_posix()
+        if parent_relative_path not in media_set.media_dir_list:
+            new_media_dir = MediaDirectory(parent_relative_path, MediaSetInitializer.create_media_dir_parent(media_set, parent_relative_path), media_set)
             media_set.add_directory(new_media_dir)
-        return media_set.media_dir_list[parent]
+        return media_set.media_dir_list[parent_relative_path]
 
     @staticmethod
     def delete_not_existing_media(media_set):

@@ -62,7 +62,7 @@ def test_move_to_trash(test_environment):
     initial_dir_count = len(media_set.media_dir_list)
     initial_id_map_size = len(media_set.id_map)
     initial_filename_map_size = len(media_set.filename_map)
-    original_parent_dir_id = media_file.parent_dir.id  # Capture the original parent directory ID
+    original_parent_dir_id = media_file.parent_dir.file_desc.id  # Capture the original parent directory ID
     
     # Move file to trash
     assert media_set.move_to_trash(media_file)
@@ -80,11 +80,11 @@ def test_move_to_trash(test_environment):
     # Verify media set state
     assert len(media_set.media_file_list) == initial_file_count  # Same number of files
     assert len(media_set.media_dir_list) == initial_dir_count + 1  # Added trash directory
-    assert len(media_set.id_map) == initial_id_map_size  # Same number of IDs
+    assert len(media_set.id_map) == initial_id_map_size + 1  # Same number of IDs + 1 for the new trash directory
     assert len(media_set.filename_map) == initial_filename_map_size  # Same number of filename mappings
     
     # Verify the moved file is now in the trash directory
-    moved_file = next(mf for mf in media_set if mf.parent_dir.path == os.path.join(root_path, ".cfm-trash"))
+    moved_file = next(mf for mf in media_set if mf.parent_dir.file_desc.relative_path == ".cfm-trash")
     assert moved_file is not None
     assert moved_file.parent_dir == media_set.media_dir_list[".cfm-trash"]
     
@@ -116,7 +116,7 @@ def test_move_to_trash_multiple_files(test_environment):
     # Verify each file has correct parent directory reference
     for media_file in trash_dir.children_files:
         assert media_file.parent_dir == trash_dir
-        assert media_file.parent_dir.path == os.path.join(root_path, ".cfm-trash")
+        assert media_file.parent_dir.file_desc.relative_path == ".cfm-trash"
 
 
 def test_move_to_trash_invalid_file(test_environment):

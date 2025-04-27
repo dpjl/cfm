@@ -20,12 +20,7 @@ class MediaFile:
         self.parent_dir = parent_dir
         self.parent_set = parent_set
         self.file_desc: FileDescription = file_desc
-        self.id = self.file_desc.get_id()
         self.metadata = MetadataList()
-        self.db_id = None
-        self.date_identifier = None
-        self.exists_in_db = False
-        self.thumbnail_in_db = False
         self.exists = True
 
     def __str__(self):
@@ -78,7 +73,7 @@ class MediaFile:
         return ""
 
     def compare_with(self, media_file_2: "MediaFile"):
-        LOGGER.diff("MediaFile", "id", self.id, media_file_2.id)
+        LOGGER.diff("MediaFile", "id", self.file_desc.id, media_file_2.file_desc.id)
         self.file_desc.compare_with(media_file_2.file_desc)
         self.metadata.compare_with(str(self), media_file_2.metadata)
 
@@ -88,5 +83,4 @@ class MediaFile:
         if not file_access.move_to(new_path):
             return False
         self.file_desc.update_relative_path(os.path.relpath(new_path, self.parent_set.root_path))
-        self.id = self.file_desc.get_id()
         return True
