@@ -51,8 +51,8 @@ class MediaDuplicateManager:
                 # Multiple groups of different sizes => use groups based on signature.
                 # We should always have at least one signature group in this case.
                 sig_map = indexer.date_sig_map.get(date, {})
-                # if len(sig_map) == 0:
-                #    raise ValueError(f"date_sig map should contain an entry for date {date}.")
+                if len(sig_map) == 0:
+                    raise ValueError(f"date_sig map should contain an entry for date {date}.")
                 for media_list in sig_map.values():
                     MediaDuplicateManager._update_duplicates_map(duplicates_map, media_list)
         return duplicates_map

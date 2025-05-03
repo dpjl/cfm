@@ -49,8 +49,11 @@ class BatchComputeNecessarySignaturesMultiProcess(CFMBatch):
         # Use system_id to deduplicate media files and only process those needing signatures
         processed_system_ids = set()
         for media in file_list_1 + file_list_2 + file_list_3:
-            if media.file_desc.system_id is not None and media.file_desc.system_id not in processed_system_ids and media.metadata[SIGNATURE].value is None:
-                processed_system_ids.add(media.file_desc.system_id)
+            system_id = media.file_desc.system_id
+            signature_missing = media.metadata[SIGNATURE].value is None
+            if (system_id is not None and system_id not in processed_system_ids and signature_missing) or (system_id is None and signature_missing):
+                if system_id is not None:
+                    processed_system_ids.add(system_id)
                 args_list.append(BatchElement(
                     (media.parent_set.root_path, media.file_desc, media.metadata[SIGNATURE]), 
                     media.get_path()

@@ -105,7 +105,7 @@ class ManagementApi:
             }
 
         @self.app.get("/list")
-        async def get_media_list(directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None):
+        async def get_media_list(directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None, pathRegex: Optional[str] = None):
             if directory not in ["source", "destination"]:
                 return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
             media_set = self.media_set_1 if directory == "source" else self.media_set_2
@@ -115,9 +115,23 @@ class ManagementApi:
             else:
                 media_list = media_set.get_date_sorted_media_list()[::-1]
             if filter == "exclusive":
-                media_list = media_set.get_only_here(other_media_set, media_list)
+                media_list = media_set.get_filtered_media(other_media_set, "only_here", media_list)
             elif filter == "common":
-                media_list = media_set.get_in_both(other_media_set, media_list)
+                media_list = media_set.get_filtered_media(other_media_set, "common", media_list)
+            elif filter == "common_identical":
+                media_list = media_set.get_filtered_media(other_media_set, "common_exact", media_list)
+            elif filter == "common_copied":
+                media_list = media_set.get_filtered_media(other_media_set, "common_excluding_exact", media_list)
+            elif filter == "exclusive_conflicted":
+                media_list = get_conflicted_media(self.media_set_1, self.media_set_2, media_list)
+            # Filtrage par regexp sur le chemin relatif
+            if pathRegex:
+                import re
+                try:
+                    pattern = re.compile(pathRegex)
+                    media_list = [m for m in media_list if pattern.search(m.file_desc.relative_path)]
+                except re.error:
+                    pass  # Ignore le filtre si la regexp est invalide
             date_to_ids = {}
             for media_file in media_list:
                 date = media_file.get_str_date(format="%Y-%m-%d") or datetime.now().strftime("%Y-%m-%d")
@@ -179,9 +193,75 @@ class ManagementApi:
         async def serve_root():
             return FileResponse("/app/www/index.html")
         
+        @self.app.get("/filters")
+        async def get_filters():
+            return [
+                {
+                    "id": "all",
+                    "label": "all",
+                    "icon": "Folder",
+                    "description": "Show all media items"
+                },
+                {
+                    "id": "unique",
+                    "label": "unique",
+                    "icon": "ImageIcon",
+                    "description": "Show only unique media items"
+                },
+                {
+                    "id": "duplicates",
+                    "label": "duplicates",
+                    "icon": "Copy",
+                    "description": "Show only duplicate media items"
+                },
+                {
+                    "id": "exclusive",
+                    "label": "only_here",
+                    "icon": "Fingerprint",
+                    "description": "Show media items that exist only in this gallery"
+                },
+                {
+                    "id": "common",
+                    "label": "common",
+                    "icon": "Files",
+                    "description": "Show media items that exist in both galleries"
+                },
+                {
+                    "id": "common_copied",
+                    "label": "common_copied",
+                    "icon": "Files",
+                    "description": "Show media items that exist in both galleries, but are different files"
+                },
+                {
+                    "id": "common_identical",
+                    "label": "common_identical",
+                    "icon": "Files",
+                    "description": "Show media items that exist in both galleries, and are identical files"
+                },
+                {
+                    "id": "exclusive_conflicted",
+                    "label": "only_here_conflicted",
+                    "icon": "Files",
+                    "description": "Show media items that exist only in this gallery, but cannot be copied (generated path in other gallery allready exists)"
+                }
+            ]
 
     def setup_static_files(self):
         self.app.mount("/", StaticFiles(directory="/app/www", html=False), name="static")
 
     def get_app(self):
         return self.app
+
+def get_conflicted_media(media_set1, media_set2, media_list):
+    from camerafile.processor.BatchCopy import BatchCopy
+    from camerafile.fileaccess.FileAccess import CopyMode
+    batch = BatchCopy(media_set1, media_set2, CopyMode.HARD_LINK)
+    copy_elements = batch.get_copy_elements_without_duplicates()
+    existing_paths = set(m.file_desc.relative_path for m in media_set2.media_file_list)
+    media_set = set(media_list)
+    conflicted = [
+        cp_element.media
+        for cp_element in copy_elements
+        if cp_element.destination.as_posix() in existing_paths and cp_element.media in media_set
+    ]
+    return conflicted

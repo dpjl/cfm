@@ -86,7 +86,7 @@ class MediaSet:
         if media_file.parent_dir is not None:
             media_file.parent_dir.add_child_file(media_file)
 
-    def add_directory(self, media_dir: MediaDirectory) -> None:
+    def register_directory(self, media_dir: MediaDirectory) -> None:
         """Adds a media directory to the internal structures and updates the indexes."""
         self.media_dir_list[media_dir.file_desc.relative_path] = media_dir
         self.id_map[media_dir.file_desc.id] = media_dir
@@ -105,15 +105,6 @@ class MediaSet:
             self.media_file_list.remove(media_file)
         if media_file.parent_dir is not None:
             media_file.parent_dir.children_files.remove(media_file)
-
-    def remove_directory(self, media_dir: MediaDirectory) -> None:
-        """Removes a media directory from the internal structures and updates the indexes."""
-        if media_dir.file_desc.relative_path in self.media_dir_list:
-            del self.media_dir_list[media_dir.file_desc.relative_path]
-        if media_dir.file_desc.id in self.id_map:
-            del self.id_map[media_dir.file_desc.id]
-        if media_dir.parent_dir is not None:
-            media_dir.parent_dir.children_dirs.remove(media_dir)
 
     def get_media(self, media_id: str) -> Optional[MediaFile]:
         return self.id_map.get(media_id, None)
@@ -183,36 +174,50 @@ class MediaSet:
         result.sort(key=MediaFile.get_date, reverse=True)
         return result
 
-    def get_only_here(self, other_media_set: "MediaSet", media_list: list = None) -> list:
+    def get_filtered_media(self, other_media_set: "MediaSet", filter_type: str = "only_here", media_list: list = None) -> list:
         """
-        Retourne les MediaFile présents uniquement dans ce MediaSet (parmi media_list si précisé), triés par date décroissante.
-        """
-        if media_list is None:
-            media_list = self.media_file_list
-        _, uniques = MediaSetComparator.cmp(self, other_media_set)
-        # Applatit la liste si besoin
-        if uniques and isinstance(uniques[0], list):
-            flat_uniques = list(chain.from_iterable(uniques))
-        else:
-            flat_uniques = uniques
-        uniques_set = set(flat_uniques)
-        filtered = [m for m in media_list if m in uniques_set]
-        filtered.sort(key=MediaFile.get_date, reverse=True)
-        return filtered
-
-    def get_in_both(self, other_media_set: "MediaSet", media_list: list = None) -> list:
-        """
-        Retourne les MediaFile présents dans les deux MediaSet (parmi media_list si précisé), triés par date décroissante.
+        Returns MediaFiles filtered by their presence in this MediaSet and/or the other MediaSet, sorted by descending date.
+        
+        Args:
+            other_media_set: The other MediaSet to compare against
+            filter_type: Type of filtering to apply:
+                - "only_here": Files only in this MediaSet (using content comparison)
+                - "only_here_exact": Files only in this MediaSet (using exact system_id comparison)
+                - "common": Files in both MediaSets (using content comparison)
+                - "common_exact": Files in both MediaSets (using exact system_id comparison)
+                - "common_excluding_exact": Files in both MediaSets (similar content, but excluding exact matches by system_id)
+            media_list: Optional list of MediaFiles to filter. If None, uses all files in this MediaSet.
+            
+        Returns:
+            List of MediaFiles sorted by descending date
         """
         if media_list is None:
             media_list = self.media_file_list
-        commons, _ = MediaSetComparator.cmp(self, other_media_set)
-        if commons and isinstance(commons[0], list):
-            flat_commons = list(chain.from_iterable(commons))
+            
+        # Get comparison results based on filter type
+        if filter_type in ["only_here_exact", "common_exact"]:
+            in_both, only_in_self = MediaSetComparator.exact_cmp(self, other_media_set)
+        elif filter_type == "common_excluding_exact":
+            in_both = MediaSetComparator.similar_excluding_exact(self, other_media_set)
+            only_in_self = None  # Not used for this filter
         else:
-            flat_commons = commons
-        commons_set = set(flat_commons)
-        filtered = [m for m in media_list if m in commons_set]
+            in_both, only_in_self = MediaSetComparator.cmp(self, other_media_set)
+        
+        # Select the appropriate result based on filter type
+        if filter_type in ["only_here", "only_here_exact"]:
+            result = only_in_self
+        else:  # common, common_exact, or common_excluding_exact
+            result = in_both
+        
+        # Flatten nested lists if needed
+        if result and isinstance(result[0], list):
+            result = list(chain.from_iterable(result))
+            
+        # Filter media_list to only include files from result
+        result_set = set(result)
+        filtered = [m for m in media_list if m in result_set]
+        
+        # Sort by date descending
         filtered.sort(key=MediaFile.get_date, reverse=True)
         return filtered
 
@@ -263,7 +268,7 @@ class MediaSet:
         trash_dir = self.media_dir_list.get(".cfm-trash")
         if trash_dir is None:
             trash_dir = MediaDirectory(StandardFileDescription(".cfm-trash"), self.media_dir_list["."], self)
-            self.add_directory(trash_dir)
+            self.register_directory(trash_dir)
         
         trash_dir = self.media_dir_list[".cfm-trash"]
         parent_id = media_file.parent_dir.file_desc.id if media_file.parent_dir else "root"

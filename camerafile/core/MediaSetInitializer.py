@@ -28,7 +28,7 @@ class MediaSetInitializer:
         if "." not in media_set.media_dir_list:
             root_media_dir = MediaDirectory(StandardFileDescription(""), None, media_set)
             media_set.media_dir_list[""] = root_media_dir
-            media_set.add_directory(root_media_dir)
+            media_set.register_directory(root_media_dir)
 
         # 4. Initialize new directories
         MediaSetInitializer.init_new_directories(media_set, new_dirs)
@@ -54,7 +54,7 @@ class MediaSetInitializer:
             if parent_dir is None:
                 raise ValueError(f"Parent directory {parent_path} not found for {relative_path}")
             new_media_dir = MediaDirectory(file_description, parent_dir, media_set)
-            media_set.add_directory(new_media_dir)
+            media_set.register_directory(new_media_dir)
             number_of_dirs += 1
             LOGGER.update(nb_dir=number_of_dirs)
         LOGGER.end(nb_dir=number_of_dirs)

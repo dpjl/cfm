@@ -85,6 +85,8 @@ class Configuration:
         if not self.initialized:
             from camerafile.cfm import ANALYZE_CMD
             from camerafile.cfm import ORGANIZE_CMD
+            from camerafile.task.CopyFile import CollisionPolicy
+
 
             self.args: Namespace = args
 
@@ -118,16 +120,17 @@ class Configuration:
             if args.no_progress:
                 self.progress = False
 
+            # Read this even in analyze mode, because it is used to filter the media list in UI
+            self.ignore_duplicates = self.get_bool_param("IGNORE_DUPLICATES", "ignore_duplicates")
+            self.org_format = self.get_param("ORG_FORMAT", "format")
+            self.collision_policy = CollisionPolicy(self.get_param("COLLISION_POLICY", "collision_policy", CollisionPolicy.RENAME_PARENT))
+
             if self.get_command() == ANALYZE_CMD:
                 self.internal_read = not self.get_bool_param("NO_INTERNAL_READ", "no_internal_read", False)
 
             if self.get_command() == ORGANIZE_CMD:
-                from camerafile.task.CopyFile import CollisionPolicy
                 from camerafile.fileaccess.FileAccess import CopyMode
                 
-                self.ignore_duplicates = self.get_bool_param("IGNORE_DUPLICATES", "ignore_duplicates")
-                self.org_format = self.get_param("ORG_FORMAT", "format")
-                self.collision_policy = CollisionPolicy(self.get_param("COLLISION_POLICY", "collision_policy", CollisionPolicy.RENAME_PARENT))
                 self.copy_mode = CopyMode(self.get_param("MODE", "mode", CopyMode.HARD_LINK))
                 self.watch = self.get_bool_param("WATCH", "watch")
                 self.pp_script = self.get_param("POST_PROCESSING_SCRIPT", "post_processing_script")

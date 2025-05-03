@@ -150,3 +150,12 @@ class BatchCopy(CFMBatch):
             for status in self.result_stats:
                 tab.print_line(status, str(self.result_stats[status]))
             print(self.EMPTY_STRING)
+
+    def get_copy_elements_without_duplicates(self):
+        """
+        Returns a list of BatchCopyElement corresponding to the copy logic without duplicates.
+        """
+        copy_elements_map = {}
+        ignore = 0
+        self.__create_copy_list_without_duplicates(copy_elements_map, ignore)
+        return list(copy_elements_map.values())
