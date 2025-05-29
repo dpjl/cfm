@@ -45,6 +45,8 @@ class ManagementApi:
                 allow_headers=["*"],
             )
         self.setup_routes()
+        if not os.environ.get("CFM_DEV_MODE"):
+            self.setup_static_files()
         self.tree_cache = {}
 
     def _get_media_file_by_sync_id(self, sync_id: str, directory: str) -> Optional[MediaFile]:
