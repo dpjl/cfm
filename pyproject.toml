@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "camerafile"
+version = "0.1"
+description = "Camera File Manager"
+authors = [
+    { name = "dpjl", email = "dpjl@gmail.com" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.7"
+
+[project.urls]
+Homepage = "https://github.com/dpjl"
+
+[project.scripts]
+cfm = "camerafile.cfm:main" 

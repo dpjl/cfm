@@ -26,7 +26,7 @@ jobs:
         pip install -r requirements.txt
     - name: Build with pyinstaller
       run: |
-        python setup.py create_package --exiftool exiftool-12.39_64.zip
+        python tools/create_package.py --exiftool exiftool-12.39_64.zip
     - name: Upload generated executable
       uses: actions/upload-artifact@v4
       with:

@@ -15,7 +15,8 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN apt update && apt -y install git libgl1 mesa-utils libglib2.0-0 && pip install --no-cache-dir -r requirements.txt && apt -y remove git && apt -y clean 
 COPY camerafile ./camerafile
-COPY setup.py ./setup.py
+COPY pyproject.toml ./pyproject.toml
+COPY setup.cfg ./setup.cfg
 RUN pip install -e .
 
 COPY --from=react-builder /build/cfm-ui-41/dist /app/www

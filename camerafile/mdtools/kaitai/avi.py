@@ -3,7 +3,7 @@ from enum import Enum
 
 import kaitaistruct
 from kaitaistruct import KaitaiStruct, KaitaiStream, BytesIO
-from pkg_resources import parse_version
+from packaging.version import parse as parse_version
 
 if parse_version(kaitaistruct.__version__) < parse_version('0.9'):
     raise Exception(
