@@ -30,42 +30,45 @@ class GenerateThumbnail:
 
     @staticmethod
     def generate_thumbnail(root_dir: str, file_description: FileDescription, thb_path, orientation=None):
-        file_access = FileAccessFactory.get(root_dir, file_description)
-        if file_description.extension in GenerateThumbnail.IMAGE_EXTENSIONS:
-            with file_access.open() as file:
-                with Image.open(file) as image:
-                    image.thumbnail((512, 512))
-                    if image.mode in ("RGBA", "P"):
-                        image = image.convert("RGB")
+        try:
+            file_access = FileAccessFactory.get(root_dir, file_description)
+            if file_description.extension in GenerateThumbnail.IMAGE_EXTENSIONS:
+                with file_access.open() as file:
+                    with Image.open(file) as image:
+                        image.thumbnail((512, 512))
+                        if image.mode in ("RGBA", "P"):
+                            image = image.convert("RGB")
+                        if orientation == 3:
+                            image = image.rotate(180, expand=True)
+                        elif orientation == 6:
+                            image = image.rotate(270, expand=True)
+                        elif orientation == 8:
+                            image = image.rotate(90, expand=True)
+                        image.save(thb_path, format='JPEG')
+            else:
+                videoCapture = cv2.VideoCapture(file_access.get_path())
+                result, image = videoCapture.read()
+                if result:
+                    # Appliquer l'orientation si précisée
                     if orientation == 3:
-                        image = image.rotate(180, expand=True)
+                        image = cv2.rotate(image, cv2.ROTATE_180)
                     elif orientation == 6:
-                        image = image.rotate(270, expand=True)
+                        image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
                     elif orientation == 8:
-                        image = image.rotate(90, expand=True)
-                    image.save(thb_path, format='JPEG')
-        else:
-            videoCapture = cv2.VideoCapture(file_access.get_path())
-            result, image = videoCapture.read()
-            if result:
-                # Appliquer l'orientation si précisée
-                if orientation == 3:
-                    image = cv2.rotate(image, cv2.ROTATE_180)
-                elif orientation == 6:
-                    image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-                elif orientation == 8:
-                    image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                GenerateThumbnail.save_as_jpg(thb_path, image)
+                        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                    GenerateThumbnail.save_as_jpg(thb_path, image)
 
-            # TODO
-            # cv2.resize(image, max_size, interpolation=cv2.INTER_AREA)
+                # TODO
+                # cv2.resize(image, max_size, interpolation=cv2.INTER_AREA)
 
-            # frame = clip.get_frame(frame_at_second)
-            # new_image = Image.fromarray(frame)
-            # new_image.thumbnail((100, 100))
-            # bytes_output = io.BytesIO()
-            # new_image.save(bytes_output, format='JPEG')
-            # self.thumbnail = bytes_output.getvalue()
+                # frame = clip.get_frame(frame_at_second)
+                # new_image = Image.fromarray(frame)
+                # new_image.thumbnail((100, 100))
+                # bytes_output = io.BytesIO()
+                # new_image.save(bytes_output, format='JPEG')
+                # self.thumbnail = bytes_output.getvalue()
+        except Exception as e:
+            print(f"Error generating thumbnail: {e}")
 
     @staticmethod
     def save_as_jpg(thb_path, image, qualite=90):

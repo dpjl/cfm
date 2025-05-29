@@ -79,7 +79,10 @@ class ManagementApi:
             thumbnail_path = thb_dir / f"{original_id}.thb"
             if not thumbnail_path.exists():
                 await self.generate_thumbnail(directory, id, thumbnail_path)
+                if not thumbnail_path.exists():
+                    return JSONResponse(status_code=404, content={"error": "Thumbnail not found"})
             return FileResponse(thumbnail_path, media_type="image/jpeg")
+                
 
         @self.app.get("/media")
         async def get_media(directory: Optional[str] = None, id: Optional[str] = None):

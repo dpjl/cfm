@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Union
+from zoneinfo import ZoneInfo
 
 from pyzipper import zipfile
 
@@ -63,6 +64,8 @@ class ZipFileAccess(FileAccess):
         try:
             with zipfile.ZipFile(self.get_zip_path()) as zip_file:
                 result = self.even_round(datetime(*zip_file.getinfo(self.file_desc.file_path).date_time))
+                tz_name = os.environ.get("ZIP_TZ", "Europe/Paris")
+                result = result.replace(tzinfo=ZoneInfo(tz_name))
         except KeyError as e:
             LOGGER.info(str(e) + "[" + self.get_path() + "]")
             return None
