@@ -103,9 +103,7 @@ class Watcher(Thread):
                 os.system(cmd_to_execute)
 
         self.media_set1.save_on_disk()
-        self.media_set1.close_database()
         self.media_set2.save_on_disk()
-        self.media_set2.close_database()
 
         return True
 

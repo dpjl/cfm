@@ -135,7 +135,7 @@ class Configuration:
                 self.watch = self.get_bool_param("WATCH", "watch")
                 self.pp_script = self.get_param("POST_PROCESSING_SCRIPT", "post_processing_script")
 
-                self.sync_delay = self.get_param("SYNC_DELAY", "sync_delay", self.sync_delay)
+                self.sync_delay = self.get_int_param("SYNC_DELAY", "sync_delay", self.sync_delay)
                 
             self.initialized = True
 
