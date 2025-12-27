@@ -1,4 +1,4 @@
-IMAGE_TYPE = [".jpg", ".jpeg", ".png", ".thm"]
+IMAGE_TYPE = [".jpg", ".jpeg", ".png", ".thm", ".heic", ".heif"]
 VIDEO_TYPE = [".mp4", ".mov", ".avi"]
 QT_TYPE = [".mp4", ".mov"]
 AVI_TYPE = [".avi"]

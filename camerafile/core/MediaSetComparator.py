@@ -113,11 +113,12 @@ class MediaSetComparator:
         system_id_to_sync_id = {}
         group_counter = 0
         treated = set()
-        # Tri chronologique inverse (plus récent d'abord)
+        # Tri chronologique normal (plus ancien d'abord) pour que les nouvelles photos aient de nouveaux IDs
+        # et que les anciennes photos gardent leurs IDs (utile pour l'affichage dans la galerie)
         all_media = sorted(
             list(media_set1.media_file_list) + list(media_set2.media_file_list),
             key=lambda m: (m.get_date() or 0),
-            reverse=True
+            reverse=False
         )
         for media in all_media:
             if media in treated:

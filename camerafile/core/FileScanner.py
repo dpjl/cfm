@@ -6,6 +6,7 @@ import os.path
 from camerafile.core.Logging import Logger
 from camerafile.console.FilesSummary import FilesSummary
 from camerafile.core.Constants import MANAGED_TYPE, ARCHIVE_TYPE
+from camerafile.core.MediaFile import MediaFile
 from camerafile.core.OutputDirectory import OutputDirectory
 from camerafile.fileaccess.FileDescription import FileDescription
 from camerafile.fileaccess.StandardFileDescription import StandardFileDescription
@@ -126,8 +127,11 @@ class FileScanner:
             new_files[file_desc.relative_path] = file_desc
             return file_size
         else:
-            file_entry = filename_map[relative_path]
+            file_entry: MediaFile = filename_map[relative_path]
             file_entry.exists = True
+            if file_entry.file_desc.system_id is None:
+                stat = file_path.stat()
+                file_entry.file_desc.system_id = FileScanner._get_system_id(stat)
             return file_entry.file_desc.file_size
 
     @staticmethod

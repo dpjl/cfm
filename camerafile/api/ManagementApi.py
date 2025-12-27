@@ -11,6 +11,7 @@ from camerafile.core.MediaDirectory import MediaDirectory
 from camerafile.core.MediaSet import MediaSet
 from camerafile.core.MediaFile import MediaFile
 from camerafile.core.Logging import Logger
+from camerafile.core.MediaSetInitializer import MediaSetInitializer
 from camerafile.mdtools.MdConstants import MetadataNames
 from camerafile.task.GenerateThumbnail import GenerateThumbnail
 from camerafile.core.OutputDirectory import OutputDirectory
@@ -55,6 +56,37 @@ class ManagementApi:
         elif directory == "destination":
             return self.sync_id_map_dest.get(sync_id)
         return None
+
+    def _is_no_cache_requested(self, request: Request) -> bool:
+        """
+        Détecte si le navigateur demande de ne pas utiliser le cache.
+        Vérifie plusieurs headers HTTP qui peuvent indiquer cette demande.
+        """
+        headers = request.headers
+        
+        # Vérifier Cache-Control: no-cache ou max-age=0
+        cache_control = headers.get("cache-control", "").lower()
+        if "no-cache" in cache_control or "max-age=0" in cache_control:
+            return True
+        
+        # Vérifier Pragma: no-cache (HTTP/1.0)
+        pragma = headers.get("pragma", "").lower()
+        if "no-cache" in pragma:
+            return True
+        
+        # Vérifier l'absence de If-None-Match et If-Modified-Since
+        # (peut indiquer un refresh forcé)
+        if_none_match = headers.get("if-none-match")
+        if_modified_since = headers.get("if-modified-since")
+        
+        # Si ni l'un ni l'autre n'est présent, cela peut indiquer un refresh forcé
+        if if_none_match is None and if_modified_since is None:
+            # Vérifier d'autres indicateurs de refresh forcé
+            # Certains navigateurs envoient des headers spécifiques
+            if cache_control and ("no-store" in cache_control or "must-revalidate" in cache_control):
+                return True
+        
+        return False
 
     async def generate_thumbnail(self, directory, sync_id, thumbnail_path):
         media_file = self._get_media_file_by_sync_id(sync_id, directory)
@@ -110,7 +142,23 @@ class ManagementApi:
             }
 
         @self.app.get("/list")
-        async def get_media_list(directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None, pathRegex: Optional[str] = None):
+        async def get_media_list(request: Request, directory: Optional[str] = None, folder: Optional[str] = None, filter: Optional[str] = None, pathRegex: Optional[str] = None):
+            # Détecter si le navigateur demande de ne pas utiliser le cache
+            no_cache_requested = self._is_no_cache_requested(request)
+            if no_cache_requested:
+                LOGGER.info("No-cache request detected in /list endpoint")
+                # Optionnel : vider le cache d'arbre si nécessaire
+                self.tree_cache.clear()
+                LOGGER.write_title(self.media_set_1, f"Reload entire media set 1")
+                MediaSetInitializer.initialize(self.media_set_1)
+                LOGGER.write_title(self.media_set_2, f"Reload entire media set 2")
+                MediaSetInitializer.initialize(self.media_set_2)
+                from camerafile.core.MediaSetComparator import MediaSetComparator
+                self.sync_id_map_source, self.sync_id_map_dest = MediaSetComparator.build_sync_id_maps(self.media_set_1, self.media_set_2)
+                # Reverse maps: media_file -> sync_id
+                self.reverse_sync_id_map_source = {v: k for k, v in self.sync_id_map_source.items()}
+                self.reverse_sync_id_map_dest = {v: k for k, v in self.sync_id_map_dest.items()}
+            
             if directory not in ["source", "destination"]:
                 return JSONResponse(status_code=400, content={"error": "Invalid directory parameter"})
             media_set = self.media_set_1 if directory == "source" else self.media_set_2
@@ -191,8 +239,70 @@ class ManagementApi:
         async def delete_images(request: Request) -> dict:
             data = await request.json()
             image_ids = data.get("imageIds", [])
-            LOGGER.info(f"Ids of images to delete: {image_ids}")
-            return {"success": True, "message": f"Deleted {len(image_ids)} images"}
+            directory = request.query_params.get("directory", "source")
+            
+            LOGGER.info(f"Moving {len(image_ids)} images to trash from {directory}: {image_ids}")
+            
+            # Déterminer le media_set approprié
+            media_set = self.media_set_1 if directory == "source" else self.media_set_2
+            
+            # Compteurs pour le rapport
+            moved_count = 0
+            failed_count = 0
+            failed_ids = []
+            
+            # Traiter chaque ID d'image
+            for sync_id in image_ids:
+                try:
+                    # Récupérer le media_file correspondant
+                    media_file = self._get_media_file_by_sync_id(sync_id, directory)
+                    if media_file is None:
+                        LOGGER.warning(f"Media file not found for sync_id: {sync_id}")
+                        failed_count += 1
+                        failed_ids.append(sync_id)
+                        continue
+                    
+                    # Déplacer vers la corbeille
+                    if media_set.move_to_trash(media_file):
+                        moved_count += 1
+                        LOGGER.info(f"Successfully moved {media_file.file_desc.name} to trash")
+                    else:
+                        failed_count += 1
+                        failed_ids.append(sync_id)
+                        LOGGER.error(f"Failed to move {media_file.file_desc.name} to trash")
+                        
+                except Exception as e:
+                    failed_count += 1
+                    failed_ids.append(sync_id)
+                    LOGGER.error(f"Error processing sync_id {sync_id}: {str(e)}")
+            
+            # Reconstruire les maps après les déplacements
+            #if moved_count > 0:
+            #    LOGGER.info("Rebuilding sync maps after trash operations")
+            #    from camerafile.core.MediaSetComparator import MediaSetComparator
+            #    self.sync_id_map_source, self.sync_id_map_dest = MediaSetComparator.build_sync_id_maps(
+            #        self.media_set_1, self.media_set_2
+            #    )
+            #    self.reverse_sync_id_map_source = {v: k for k, v in self.sync_id_map_source.items()}
+            #    self.reverse_sync_id_map_dest = {v: k for k, v in self.sync_id_map_dest.items()}
+            
+            # Préparer la réponse
+            success = moved_count > 0
+            message = f"Moved {moved_count} images to trash"
+            if failed_count > 0:
+                message += f", failed to move {failed_count} images"
+                
+            response = {
+                "success": success,
+                "message": message,
+                "moved_count": moved_count,
+                "failed_count": failed_count
+            }
+            
+            if failed_ids:
+                response["failed_ids"] = failed_ids
+                
+            return response
         
         @self.app.get("/")
         async def serve_root():

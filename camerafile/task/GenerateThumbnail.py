@@ -10,6 +10,8 @@ from camerafile.core.Configuration import Configuration
 
 class GenerateThumbnail:
 
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
     IMAGE_EXTENSIONS = {f"{ext.lower()}" for ext in Image.registered_extensions()}
 
     @staticmethod
@@ -38,12 +40,23 @@ class GenerateThumbnail:
                         image.thumbnail((512, 512))
                         if image.mode in ("RGBA", "P"):
                             image = image.convert("RGB")
-                        if orientation == 3:
+                        
+                        # Appliquer l'orientation sur la miniature (plus rapide)
+                        if orientation == 2:
+                            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+                        elif orientation == 3:
                             image = image.rotate(180, expand=True)
+                        elif orientation == 4:
+                            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+                        elif orientation == 5:
+                            image = image.transpose(Image.FLIP_LEFT_RIGHT).rotate(270, expand=True)
                         elif orientation == 6:
                             image = image.rotate(270, expand=True)
+                        elif orientation == 7:
+                            image = image.transpose(Image.FLIP_LEFT_RIGHT).rotate(90, expand=True)
                         elif orientation == 8:
                             image = image.rotate(90, expand=True)
+                            
                         image.save(thb_path, format='JPEG')
             else:
                 videoCapture = cv2.VideoCapture(file_access.get_path())

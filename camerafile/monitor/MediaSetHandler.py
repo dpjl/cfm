@@ -18,3 +18,15 @@ class MediaSetHandler(FileSystemEventHandler):
             self.watcher.wake_up(self.media_set, Path(event.src_path).parent.as_posix())
         else:
             self.watcher.wake_up(self.media_set, Path(event.src_path).as_posix())
+    
+    def on_moved(self, event: FileSystemEvent):
+        # Ignorer les événements de déplacement/renommage
+        pass
+    
+    def on_modified(self, event: FileSystemEvent):
+        # Ignorer les événements de modification
+        pass
+    
+    def on_deleted(self, event: FileSystemEvent):
+        # Ignorer les événements de suppression
+        pass
