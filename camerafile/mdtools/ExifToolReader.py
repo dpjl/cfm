@@ -33,7 +33,7 @@ class ExifTool(object):
     SUB_SEC_DATE_TIME_ORIGINAL = "SubSecDateTimeOriginal"
     SUB_SEC_MODIFY_DATE = "SubSecModifyDate"
     DATE_TIME_ORIGINAL = "DateTimeOriginal"  # Attention to timezone ?
-    CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: no. If yes, attention to timezone
+    CREATE_DATE_METADATA = "CreateDate"  # Use it or not ? Currently: YES. Attention to timezone ?
     MODIFY_DATE_METADATA = "FileModifyDate"  # not used anymore in ExifTool because of differences between fat and ntfs
     THUMBNAIL_METADATA = "ThumbnailImage"
     ROTATION_METADATA = "Rotation"
@@ -43,7 +43,8 @@ class ExifTool(object):
     BEST_CREATION_DATE_LIST = (SUB_SEC_CREATE_DATE,
                                SUB_SEC_DATE_TIME_ORIGINAL,
                                SUB_SEC_MODIFY_DATE,
-                               DATE_TIME_ORIGINAL)
+                               DATE_TIME_ORIGINAL,
+                               CREATE_DATE_METADATA)
     SENTINEL = "{ready}\n"
 
     executable = None
@@ -138,6 +139,8 @@ class ExifTool(object):
             date = cls.parse_date(exif_tool_result, cls.SUB_SEC_MODIFY_DATE, '%Y:%m:%d %H:%M:%S.%f')
         if date is None:
             date = cls.parse_date(exif_tool_result, cls.DATE_TIME_ORIGINAL, '%Y:%m:%d %H:%M:%S')
+        if date is None:
+            date = cls.parse_date(exif_tool_result, cls.CREATE_DATE_METADATA, '%Y:%m:%d %H:%M:%S')
         return date
 
     @classmethod

@@ -53,10 +53,8 @@ class ZipFileAccess(FileAccess):
                 destination.write(origin.read(self.file_desc.file_path))
             date_time = self.get_last_modification_date().timestamp()
             os.utime(new_file_path, (date_time, date_time))
-            self.copy_post_processing(new_file_path)
 
-        post_proc_status = self.copy_post_processing(new_file_path)
-        status = f"Extracted {post_proc_status}"
+        status = "Extracted"
         return True, status, self.file_desc, StandardFileDescription(new_relative_file_path,
                                                                      self.file_desc.file_size)
 

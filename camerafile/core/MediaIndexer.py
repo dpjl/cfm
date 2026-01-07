@@ -78,7 +78,7 @@ class MediaIndexer:
             # Iterate over a copy of items to allow safe removal
             for existing_sig, media_list in list(dmap.items()):
                 if media_file in media_list:
-                    MediaIndexer._remove_from_x_y_map(dmap, date, existing_sig, media_file)
+                    MediaIndexer._remove_from_x_y_map(self.date_sig_map, date, existing_sig, media_file)
                     return
 
     def _add_media_file_by_system_id(self, media_file) -> None:

@@ -43,20 +43,17 @@ class FileAccess:
     def get_extension(self):
         return self.file_desc.extension
 
-    def copy_post_processing(self, new_file_path):
-        if Configuration.get().whatsapp_date_update:
-            sent_date, _ = self.read_whatsapp_info()
-            if sent_date is not None:
-                os.utime(new_file_path, (sent_date.timestamp(), sent_date.timestamp()))
-                return "[time modified]"
-        return ""
-
     def read_whatsapp_info(self) -> Tuple[Union[datetime, None], Union[str, None]]:
         if Configuration.get().whatsapp:
+            # Determine WhatsApp label based on parent directory
+            from pathlib import Path
+            parent_dir = Path(self.file_desc.relative_path).parent.name.lower()
+            whatsapp_label = "WhatsApp-sent" if parent_dir == "sent" else "WhatsApp"
+            
             whatsapp_db = Configuration.get().whatsapp_db
             if whatsapp_db is not None:
                 if self.file_desc.name in whatsapp_db:
-                    return datetime.fromtimestamp(whatsapp_db[self.file_desc.name] / 1000), "WhatsApp"
+                    return datetime.fromtimestamp(whatsapp_db[self.file_desc.name] / 1000), whatsapp_label
 
             fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', self.file_desc.name)
             if len(fields) == 1 and len(fields[0]) == 3:
@@ -64,11 +61,11 @@ class FileAccess:
                 last_modified_date = self.get_last_modification_date()
                 if last_modified_date is not None and str_date != last_modified_date.strftime("%Y%m%d"):
                     try:
-                        return datetime.strptime(str_date, '%Y%m%d'), "WhatsApp"
+                        return datetime.strptime(str_date, '%Y%m%d'), whatsapp_label
                     except ValueError:
                         return None, None
                 else:
-                    return last_modified_date, "WhatsApp"
+                    return last_modified_date, whatsapp_label
         return None, None
 
     @staticmethod

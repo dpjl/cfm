@@ -234,9 +234,14 @@ def execute_organize(args, media_set1, media_set2):
         print("!!!!!!!!!!!!!!!!!!!")
     else:
         from camerafile.processor.BatchCopy import BatchCopy
+        from camerafile.processor.BatchUpdateWhatsAppDates import BatchUpdateWhatsAppDates
 
         copy_mode = Configuration.get().copy_mode
         BatchCopy(media_set1, media_set2, copy_mode).execute()
+        
+        # Update WhatsApp file modification dates if option is enabled
+        if Configuration.get().whatsapp_date_update:
+            BatchUpdateWhatsAppDates(media_set2).execute()
 
 def start_management_server(app: FastAPI):
     uvicorn.run(app, host="0.0.0.0", port=5678)

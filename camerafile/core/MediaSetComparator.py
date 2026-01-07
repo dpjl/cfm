@@ -108,6 +108,7 @@ class MediaSetComparator:
         - all_media is sorted in reverse chronological order.
         """
         from camerafile.core.MediaFile import MediaFile
+        from datetime import datetime
         map_source = {}
         map_dest = {}
         system_id_to_sync_id = {}
@@ -115,9 +116,10 @@ class MediaSetComparator:
         treated = set()
         # Tri chronologique normal (plus ancien d'abord) pour que les nouvelles photos aient de nouveaux IDs
         # et que les anciennes photos gardent leurs IDs (utile pour l'affichage dans la galerie)
+        fallback_date = datetime(1982, 2, 2)
         all_media = sorted(
             list(media_set1.media_file_list) + list(media_set2.media_file_list),
-            key=lambda m: (m.get_date() or 0),
+            key=lambda m: (m.get_date() or fallback_date),
             reverse=False
         )
         for media in all_media:

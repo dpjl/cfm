@@ -85,6 +85,12 @@ class Watcher(Thread):
         BatchComputeNecessarySignaturesMultiProcess(self.media_set1, self.media_set2).execute()
         bc = BatchCopy(self.media_set1, self.media_set2, Configuration.get().copy_mode)
         bc.execute()
+        
+        # Update WhatsApp file modification dates if option is enabled
+        if Configuration.get().whatsapp_date_update:
+            from camerafile.processor.BatchUpdateWhatsAppDates import BatchUpdateWhatsAppDates
+            BatchUpdateWhatsAppDates(self.media_set2).execute()
+        
         print("")
 
         pp_script = Configuration.get().pp_script
