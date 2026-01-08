@@ -235,9 +235,14 @@ def execute_organize(args, media_set1, media_set2):
     else:
         from camerafile.processor.BatchCopy import BatchCopy
         from camerafile.processor.BatchUpdateWhatsAppDates import BatchUpdateWhatsAppDates
+        from camerafile.task.PostProcessor import PostProcessor
 
         copy_mode = Configuration.get().copy_mode
-        BatchCopy(media_set1, media_set2, copy_mode).execute()
+        bc = BatchCopy(media_set1, media_set2, copy_mode)
+        bc.execute()
+        
+        if bc.target_modified_paths:
+            PostProcessor.execute_for_paths(Configuration.get().pp_script, 'd', [""])
         
         # Update WhatsApp file modification dates if option is enabled
         if Configuration.get().whatsapp_date_update:

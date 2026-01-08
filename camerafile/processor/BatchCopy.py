@@ -84,26 +84,44 @@ class BatchCopy(CFMBatch):
         return args_list
 
     def __create_copy_list(self, copy_elements_map, ignore):
+        # Phase 1: Create source file list (all files)
+        source_files_to_copy = []
         for media in self.old_media_set:
-            date: datetime = media.get_last_modification_date()
+            date = media.get_last_modification_date()
+            source_files_to_copy.append((media, date))
+        
+        # Phase 2: Calculate all destinations with source-to-source collision resolution
+        for media, date in source_files_to_copy:
             cp_element = BatchCopyElement(media, date)
             CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
             if cp_element.collision_policy == CollisionPolicy.IGNORE:
                 ignore += 1
+        
+        # Phase 3: No filtering needed (not using ignore_duplicates)
         return ignore
 
     def __create_copy_list_without_duplicates(self, copy_elements_map, ignore):
+        # Phase 1: Create source file list (oldest from each duplicate group)
+        source_files_to_copy = []
         n_copy_list = MediaDuplicateManager.duplicates_map(self.old_media_set)
         for n_copy in n_copy_list.values():
             for media_list in n_copy:
-                media: MediaFile
-                date: datetime
                 media, date = self.old_media_set.get_oldest_modified_file(media_list)
-                if not self.new_media_set.contains(media):
-                    cp_element = BatchCopyElement(media, date)
-                    CopyFile.add_new_copy_element(copy_elements_map, cp_element, self.new_media_set)
-                    if cp_element.collision_policy == CollisionPolicy.IGNORE:
-                        ignore += 1
+                source_files_to_copy.append((media, date))
+        
+        # Phase 2: Calculate all destinations with source-to-source collision resolution
+        all_copy_elements_map = {}
+        for media, date in source_files_to_copy:
+            cp_element = BatchCopyElement(media, date)
+            CopyFile.add_new_copy_element(all_copy_elements_map, cp_element, self.new_media_set)
+            if cp_element.collision_policy == CollisionPolicy.IGNORE:
+                ignore += 1
+        
+        # Phase 3: Filter by destination content
+        for path, cp_element in all_copy_elements_map.items():
+            if not self.new_media_set.contains(cp_element.media):
+                copy_elements_map[path] = cp_element
+        
         return ignore
 
     def add_target_modified_path(self, new_path: str):

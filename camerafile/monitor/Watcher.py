@@ -12,6 +12,7 @@ from camerafile.processor.BatchComputeCm import BatchComputeCm
 from camerafile.processor.BatchComputeNecessarySignatures import BatchComputeNecessarySignaturesMultiProcess
 from camerafile.processor.BatchCopy import BatchCopy
 from camerafile.processor.BatchReadInternalMd import BatchReadInternalMd
+from camerafile.task.PostProcessor import PostProcessor
 
 LOGGER = Logger(__name__)
 
@@ -93,20 +94,8 @@ class Watcher(Thread):
         
         print("")
 
-        pp_script = Configuration.get().pp_script
-        for path in to_update[self.media_set1]:
-            LOGGER.info(f"This path has been modified in origin media set: {path}")
-            if pp_script is not None:
-                cmd_to_execute = f"{pp_script} o {path}"
-                LOGGER.info(cmd_to_execute)
-                os.system(cmd_to_execute)
-
-        for path in bc.target_modified_paths:
-            LOGGER.info(f"This path has been modified in target media set: {path}")
-            if pp_script is not None:
-                cmd_to_execute = f"{pp_script} d {path}"
-                LOGGER.info(cmd_to_execute)
-                os.system(cmd_to_execute)
+        PostProcessor.execute_for_paths(Configuration.get().pp_script, 'o', to_update[self.media_set1])
+        PostProcessor.execute_for_paths(Configuration.get().pp_script, 'd', bc.target_modified_paths)
 
         self.media_set1.save_on_disk()
         self.media_set2.save_on_disk()
