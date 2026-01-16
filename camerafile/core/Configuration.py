@@ -5,6 +5,8 @@ from argparse import Namespace
 from multiprocessing import cpu_count
 from pathlib import Path
 
+from camerafile.core.Constants import WHATSAPP_ORIG_LINK_REGEX, WHATSAPP_SIDECAR_REGEX
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -37,6 +39,7 @@ class Configuration:
         self.pp_script = None
         self.whatsapp = False
         self.whatsapp_date_update = False
+        self.whatsapp_sidecar_links = False
         self.whatsapp_db = None
         self.whatsapp_db_name = None
         self.ui = False
@@ -106,15 +109,24 @@ class Configuration:
             self.ignore_list = args.ignore
             self.ui = self.get_bool_param("UI", "ui")
             self.whatsapp_date_update = self.get_bool_param("WHATSAPP_DATE_UPDATE", "whatsapp_date_update")
+            self.whatsapp_sidecar_links = self.get_bool_param("WHATSAPP_SIDECAR_LINKS", "whatsapp_sidecar_links")
             self.whatsapp_db_name = self.get_param("WHATSAPP_DB", "whatsapp_db")
             self.whatsapp = self.get_bool_param("WHATSAPP", "whatsapp")
-            if self.whatsapp_date_update or self.whatsapp_db_name:
+            if self.whatsapp_date_update or self.whatsapp_db_name or self.whatsapp_sidecar_links:
                 self.whatsapp = True
             self.load_whatsapp_db(self.whatsapp_db_name)
 
             default_ignore_from_env = ast.literal_eval(os.getenv("IGNORE")) if os.getenv("IGNORE") is not None else None
             if self.ignore_list is None:
                 self.ignore_list = default_ignore_from_env
+            if self.whatsapp_sidecar_links:
+                if self.ignore_list is None:
+                    self.ignore_list = []
+                elif not isinstance(self.ignore_list, list):
+                    self.ignore_list = list(self.ignore_list)
+                for pattern in (WHATSAPP_ORIG_LINK_REGEX, WHATSAPP_SIDECAR_REGEX):
+                    if pattern not in self.ignore_list:
+                        self.ignore_list.append(pattern)
 
             self.progress = self.get_bool_param("PROGRESS", "progress", True)
             if args.no_progress:
@@ -145,13 +157,60 @@ class Configuration:
             self.whatsapp_db = {}
             file_connection = sqlite3.connect(whatsapp_db)
             cursor = file_connection.cursor()
-            cursor.execute("""SELECT 
-                                message_media.file_path, available_message_view.received_timestamp
-                            FROM
-                                available_message_view INNER JOIN message_media
-                            ON
-                                available_message_view._id = message_media.message_row_id""")
-            for (file_path, timestamp) in cursor:
-                if file_path is not None:
-                    self.whatsapp_db[Path(file_path).name] = timestamp
+            try:
+                cursor.execute(
+                    """SELECT
+                            message_media.media_name,
+                            message_media.file_path,
+                            message.received_timestamp,
+                            message.from_me,
+                            chat.subject,
+                            jid.raw_string,
+                            lid_display_name.display_name
+                        FROM
+                            message_media
+                        INNER JOIN message
+                            ON message._id = message_media.message_row_id
+                        LEFT JOIN chat
+                            ON chat._id = message.chat_row_id
+                        LEFT JOIN jid
+                            ON jid._id = chat.jid_row_id
+                        LEFT JOIN jid_map
+                            ON jid_map.jid_row_id = jid._id
+                        LEFT JOIN lid_display_name
+                            ON lid_display_name.lid_row_id = jid_map.lid_row_id
+                        WHERE
+                            message_media.media_name IS NOT NULL
+                            OR message_media.file_path IS NOT NULL"""
+                )
+                for (media_name, file_path, timestamp, from_me, subject, raw_jid, display_name) in cursor:
+                    name = None
+                    if file_path:
+                        name = Path(file_path).name or None
+                    if not name and media_name:
+                        name = Path(media_name).name or None
+                    if name is None:
+                        continue
+                    recipient_label = subject or display_name or "unknown"
+                    self.whatsapp_db[name] = {
+                        "timestamp_ms": timestamp,
+                        "recipient_label": recipient_label,
+                        "recipient_id": raw_jid,
+                        "from_me": from_me
+                    }
+            except sqlite3.Error:
+                cursor.execute("""SELECT 
+                                    message_media.file_path, available_message_view.received_timestamp
+                                FROM
+                                    available_message_view INNER JOIN message_media
+                                ON
+                                    available_message_view._id = message_media.message_row_id""")
+                for (file_path, timestamp) in cursor:
+                    if file_path is not None:
+                        self.whatsapp_db[Path(file_path).name] = {
+                            "timestamp_ms": timestamp,
+                            "recipient_label": "unknown",
+                            "recipient_id": None,
+                            "from_me": None
+                        }
             LOGGER.debug("%s: %s media loaded", whatsapp_db, len(self.whatsapp_db))

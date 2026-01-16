@@ -84,6 +84,7 @@ class Watcher(Thread):
         BatchComputeCm(self.media_set2).execute()
 
         BatchComputeNecessarySignaturesMultiProcess(self.media_set1, self.media_set2).execute()
+        
         bc = BatchCopy(self.media_set1, self.media_set2, Configuration.get().copy_mode)
         bc.execute()
         
@@ -91,7 +92,18 @@ class Watcher(Thread):
         if Configuration.get().whatsapp_date_update:
             from camerafile.processor.BatchUpdateWhatsAppDates import BatchUpdateWhatsAppDates
             BatchUpdateWhatsAppDates(self.media_set2).execute()
-        
+
+        if Configuration.get().whatsapp_sidecar_links:
+            from camerafile.processor.BatchFindWhatsAppOriginalsSidecar import BatchFindWhatsAppOriginalsSidecar
+            from camerafile.processor.BatchComputeAllImageSignatures import BatchComputeAllImageSignatures
+
+            wa_batch = BatchFindWhatsAppOriginalsSidecar(self.media_set2)
+            date_range = wa_batch.compute_required_date_range()
+            if date_range:
+                date_start, date_end = date_range
+                BatchComputeAllImageSignatures(self.media_set2, date_start, date_end).execute()
+            wa_batch.execute()
+
         print("")
 
         PostProcessor.execute_for_paths(Configuration.get().pp_script, 'o', to_update[self.media_set1])

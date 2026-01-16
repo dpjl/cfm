@@ -16,6 +16,10 @@ ORIGINAL_COPY_PATH = "ori-cp-path"
 DESTINATION_COPY_PATH = "dest-cp-path"
 ORIGINAL_MOVE_PATH = "ori-mv-path"
 DESTINATION_MOVE_PATH = "dest-mv-path"
+WHATSAPP_SIDECAR_SUFFIX = ".__cfm-wa-link__.json"
+WHATSAPP_ORIG_LINK_SUFFIX = ".__cfm-wa-orig__"
+WHATSAPP_ORIG_LINK_REGEX = r".*__cfm-wa-orig__\.[^/]+$"
+WHATSAPP_SIDECAR_REGEX = r".*__cfm-wa-link__\.json$"
 UNKNOWN = "Unknown"
 
 # consider that files are identical if creation date, dimensions and file size are identical

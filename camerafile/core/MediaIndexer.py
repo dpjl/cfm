@@ -169,4 +169,34 @@ class MediaIndexer:
         result.discard(media_file)
         return list(result)
 
+    def find_similar_in_date_range(self, signature: int, date_start: str, date_end: str, threshold: int = 10) -> list:
+        """
+        Finds MediaFiles with similar signatures within a date range.
+        
+        Args:
+            signature: The dhash signature to compare against
+            date_start: Start date string in format 'YYYY/MM/DD HH:MM:SS.ffffff'
+            date_end: End date string in format 'YYYY/MM/DD HH:MM:SS.ffffff'
+            threshold: Maximum Hamming distance to consider as similar (default: 10)
+            
+        Returns:
+            List of tuples (media_file, hamming_distance) sorted by distance ascending
+        """
+        if signature is None:
+            return []
+        
+        results = []
+        for date_key, sig_map in self.date_sig_map.items():
+            # Check if date is within range
+            if date_start <= date_key <= date_end:
+                for existing_sig, media_list in sig_map.items():
+                    bits_diff = dhash.get_num_bits_different(signature, existing_sig)
+                    if bits_diff < threshold:
+                        for media_file in media_list:
+                            results.append((media_file, bits_diff))
+        
+        # Sort by Hamming distance (ascending)
+        results.sort(key=lambda x: x[1])
+        return results
+
 

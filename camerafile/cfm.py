@@ -83,6 +83,10 @@ def create_main_args_parser():
     parser.add_argument('-w3', '--whatsapp-date-update', action='store_true',
                         help="Modify computed destination file's modification date (only for Whatsapp files).")
 
+    parser.add_argument('-w5', '--whatsapp-sidecar-links', action='store_true',
+                        help="Create sidecar JSON and links for WhatsApp-sent files in destination. "
+                             "Searches within 30 days before the WhatsApp date.")
+
     sp_list = parser.add_subparsers(title="Commands list",
                                     description="Use 'cfm <command> -h' to display the help of a specific command",
                                     metavar="<command>")
@@ -190,7 +194,6 @@ def execute(args):
     elif media_set2:
         BatchComputeNecessarySignaturesMultiProcess(media_set2).execute()
 
-
     if Configuration.get().get_command() == ANALYZE_CMD:
         SearchForDuplicates.execute(media_set1)
 
@@ -247,6 +250,16 @@ def execute_organize(args, media_set1, media_set2):
         # Update WhatsApp file modification dates if option is enabled
         if Configuration.get().whatsapp_date_update:
             BatchUpdateWhatsAppDates(media_set2).execute()
+        if Configuration.get().whatsapp_sidecar_links:
+            from camerafile.processor.BatchFindWhatsAppOriginalsSidecar import BatchFindWhatsAppOriginalsSidecar
+            from camerafile.processor.BatchComputeAllImageSignatures import BatchComputeAllImageSignatures
+
+            wa_batch = BatchFindWhatsAppOriginalsSidecar(media_set2)
+            date_range = wa_batch.compute_required_date_range()
+            if date_range:
+                date_start, date_end = date_range
+                BatchComputeAllImageSignatures(media_set2, date_start, date_end).execute()
+            wa_batch.execute()
 
 def start_management_server(app: FastAPI):
     uvicorn.run(app, host="0.0.0.0", port=5678)

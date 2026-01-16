@@ -48,12 +48,18 @@ class FileAccess:
             # Determine WhatsApp label based on parent directory
             from pathlib import Path
             parent_dir = Path(self.file_desc.relative_path).parent.name.lower()
-            whatsapp_label = "WhatsApp-sent" if parent_dir == "sent" else "WhatsApp"
+            whatsapp_label = "WhatsApp-sent" if parent_dir in ("sent", "whatsapp-sent") else "WhatsApp"
             
             whatsapp_db = Configuration.get().whatsapp_db
             if whatsapp_db is not None:
-                if self.file_desc.name in whatsapp_db:
-                    return datetime.fromtimestamp(whatsapp_db[self.file_desc.name] / 1000), whatsapp_label
+                entry = whatsapp_db.get(self.file_desc.name)
+                timestamp_ms = None
+                if isinstance(entry, dict):
+                    timestamp_ms = entry.get("timestamp_ms")
+                elif isinstance(entry, (int, float)):
+                    timestamp_ms = entry
+                if timestamp_ms is not None:
+                    return datetime.fromtimestamp(timestamp_ms / 1000), whatsapp_label
 
             fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', self.file_desc.name)
             if len(fields) == 1 and len(fields[0]) == 3:
