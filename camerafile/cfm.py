@@ -83,6 +83,11 @@ def create_main_args_parser():
     parser.add_argument('-w3', '--whatsapp-date-update', action='store_true',
                         help="Modify computed destination file's modification date (only for Whatsapp files).")
 
+    parser.add_argument('-w4', '--contacts-db', type=str,
+                        help='Specify an Android contacts DB (contacts2.db) to resolve contact names from WhatsApp JIDs.',
+                        default=None,
+                        metavar="<path>")
+
     parser.add_argument('-w5', '--whatsapp-sidecar-links', action='store_true',
                         help="Create sidecar JSON and links for WhatsApp-sent files in destination. "
                              "Searches within 30 days before the WhatsApp date.")

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 
 from camerafile.core.Configuration import Configuration
-from camerafile.core.Constants import CFM_CAMERA_MODEL, SIGNATURE, IMAGE_TYPE, WHATSAPP_SIDECAR_SUFFIX, \
+from camerafile.core.Constants import CFM_CAMERA_MODEL, SIGNATURE, IMAGE_TYPE, MANAGED_TYPE, WHATSAPP_SIDECAR_SUFFIX, \
     WHATSAPP_ORIG_LINK_SUFFIX
 from camerafile.core.Logging import Logger
 from camerafile.core.MediaFile import MediaFile
@@ -18,25 +18,43 @@ from camerafile.processor.BatchTool import BatchElement, TaskWithProgression
 
 LOGGER = Logger(__name__)
 
-# WhatsApp filename pattern (same as BatchFindWhatsAppOriginals)
-WHATSAPP_FILENAME_PATTERN = re.compile(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', re.IGNORECASE)
-
 # Default values
 DEFAULT_DATE_WINDOW_DAYS = 30
 DEFAULT_SIMILARITY_THRESHOLD = 10
-EPOCH_DATE_CUTOFF = datetime(1970, 1, 2)
-SIDECAR_SCHEMA = "cfm-wa-link-v2"
-DEFAULT_RECIPIENT_LABEL = "unknown"
-WHATSAPP_TAG_PREFIX = "WhatsApp"
+SIDECAR_SCHEMA = "cfm-wa-link-v4"
+DEFAULT_PARTY_LABEL_DB = "unknown"
+DEFAULT_PARTY_LABEL_TAG = "Inconnu"
+WHATSAPP_TAG_PREFIX = "WA"
+TAG_SENT = "Env"
+TAG_RECEIVED = "Rec"
+TAG_ORIGINAL = "Orig"
+TAG_REDUCED = "Reduit"
+TAG_HD = "HD"
+DUPLICATE_REDUCED_HD_TAG = "WA_ReduitDupliqueHD"
+FRENCH_MONTH_NAMES = (
+    "Janvier",
+    "Fevrier",
+    "Mars",
+    "Avril",
+    "Mai",
+    "Juin",
+    "Juillet",
+    "Aout",
+    "Septembre",
+    "Octobre",
+    "Novembre",
+    "Decembre"
+)
 XMP_SUFFIX = ".xmp"
+WHATSAPP_DATE_PATTERN = re.compile(r'^(?:VID|IMG)-([0-9]{8})-WA[0-9]{4}\.[^.]+$', re.IGNORECASE)
 STATUS_LINKED = "linked"
+STATUS_REDUCED = "reduced"
 STATUS_REJECTED = "rejected"
-STATUS_STALE = "stale"
 
 
 class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
     """
-    Finds original files for WhatsApp-sent images by comparing dhash signatures.
+    Finds originals for WhatsApp media by comparing signatures for images.
     Instead of writing metadata, writes a JSON sidecar and creates a link to the original.
     """
 
@@ -45,53 +63,52 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         self.media_set = media_set
         self.date_window_days = date_window_days
         self.similarity_threshold = similarity_threshold
-        self.whatsapp_sent_files: List[MediaFile] = []
+        self.whatsapp_files: List[MediaFile] = []
         self.matches_found = 0
+        self.reduced_tagged = 0
         self.links_created = 0
         self.skipped_rejected = 0
         self.skipped_existing = 0
         TaskWithProgression.__init__(
             self,
-            batch_title="Find WhatsApp-sent originals (sidecar)",
+            batch_title="Find WhatsApp originals (sidecar)",
             nb_sub_process=0
         )
 
     def initialize(self):
         LOGGER.write_title(self.media_set, self.update_title())
 
-        self.whatsapp_sent_files = self._get_whatsapp_sent_images()
-        if not self.whatsapp_sent_files:
-            LOGGER.info("No WhatsApp-sent image files found")
+        self.whatsapp_files = self._get_whatsapp_files()
+        if not self.whatsapp_files:
+            LOGGER.info("No WhatsApp media files found")
             return
         self._compute_whatsapp_signatures()
 
-    def _get_whatsapp_sent_candidates(self) -> List[MediaFile]:
+    @staticmethod
+    def _is_whatsapp_file(media_file: MediaFile) -> bool:
+        camera_model = media_file.metadata[CFM_CAMERA_MODEL].value
+        return camera_model in ["WhatsApp", "WhatsApp-sent"]
+
+    @staticmethod
+    def _is_searchable_for_original(media_file: MediaFile) -> bool:
+        return media_file.file_desc.extension in IMAGE_TYPE
+
+    def _get_whatsapp_candidates(self) -> List[MediaFile]:
         result = []
-        excluded_invalid_date = 0
         for media_file in self.media_set.media_file_list:
             if not isinstance(media_file.file_desc, StandardFileDescription):
                 continue
-            if media_file.file_desc.extension not in IMAGE_TYPE:
+            if media_file.file_desc.extension not in MANAGED_TYPE:
                 continue
-            if media_file.metadata[CFM_CAMERA_MODEL].value != "WhatsApp-sent":
-                continue
-            if not WHATSAPP_FILENAME_PATTERN.match(media_file.file_desc.name):
-                continue
-            wa_date = media_file.get_date()
-            if wa_date is None or wa_date <= EPOCH_DATE_CUTOFF:
-                excluded_invalid_date += 1
+            if not self._is_whatsapp_file(media_file):
                 continue
             result.append(media_file)
-        LOGGER.info(f"WhatsApp-sent candidate files: {len(result)}")
-        if excluded_invalid_date:
-            LOGGER.info(
-                f"Excluded {excluded_invalid_date} WhatsApp-sent file(s) with missing/epoch date"
-            )
+        LOGGER.info(f"WhatsApp candidate files: {len(result)}")
         return result
 
-    def _get_whatsapp_sent_images(self) -> List[MediaFile]:
+    def _get_whatsapp_files(self) -> List[MediaFile]:
         result = []
-        for media_file in self._get_whatsapp_sent_candidates():
+        for media_file in self._get_whatsapp_candidates():
             sidecar_data = self._read_sidecar(media_file)
             if sidecar_data and sidecar_data.get("status") == STATUS_REJECTED:
                 self._remove_xmp_for_rejected(media_file, sidecar_data)
@@ -101,11 +118,13 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         return result
 
     def compute_required_date_range(self) -> Optional[Tuple[datetime, datetime]]:
-        candidates = self._get_whatsapp_sent_candidates()
+        candidates = self._get_whatsapp_candidates()
         if not candidates:
             return None
         eligible = []
         for media_file in candidates:
+            if not self._is_searchable_for_original(media_file):
+                continue
             sidecar_data = self._read_sidecar(media_file)
             if sidecar_data and sidecar_data.get("status") == STATUS_REJECTED:
                 continue
@@ -114,9 +133,9 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
 
     @staticmethod
     def _extract_whatsapp_date(media_file: MediaFile) -> Optional[datetime]:
-        match = WHATSAPP_FILENAME_PATTERN.match(media_file.file_desc.name)
+        match = WHATSAPP_DATE_PATTERN.match(media_file.file_desc.name)
         if match:
-            date_str = match.group(2)
+            date_str = match.group(1)
             try:
                 return datetime.strptime(date_str, '%Y%m%d')
             except ValueError:
@@ -151,10 +170,22 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
             return entry
         if isinstance(entry, (int, float)):
             return {
+                "filename": media_file.file_desc.name,
                 "timestamp_ms": entry,
-                "recipient_label": DEFAULT_RECIPIENT_LABEL,
+                "from_me": None,
+                "direction": None,
+                "party_label": DEFAULT_PARTY_LABEL_DB,
+                "party_id": None,
+                "recipient_label": DEFAULT_PARTY_LABEL_DB,
                 "recipient_id": None,
-                "from_me": None
+                "sender_label": DEFAULT_PARTY_LABEL_DB,
+                "sender_id": None,
+                "message_row_id": None,
+                "wa_quality_kind": None,
+                "media_transcode_quality": None,
+                "has_hd_duplicate": False,
+                "hd_peer_message_row_id": None,
+                "hd_peer_filename": None
             }
         return None
 
@@ -199,7 +230,7 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         self, media_files: Optional[List[MediaFile]] = None
     ) -> Optional[Tuple[datetime, datetime]]:
         if media_files is None:
-            media_files = self.whatsapp_sent_files
+            media_files = self.whatsapp_files
         if not media_files:
             return None
 
@@ -221,7 +252,9 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         return min_date, max_date
 
     def _compute_whatsapp_signatures(self):
-        for media_file in self.whatsapp_sent_files:
+        for media_file in self.whatsapp_files:
+            if not self._is_searchable_for_original(media_file):
+                continue
             if media_file.metadata[SIGNATURE].value is None:
                 try:
                     file_access = FileAccessFactory.get(media_file.parent_set.root_path, media_file.file_desc)
@@ -233,7 +266,7 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         return self._find_original
 
     def arguments(self) -> List[BatchElement]:
-        return [BatchElement(media_file, media_file.get_path()) for media_file in self.whatsapp_sent_files]
+        return [BatchElement(media_file, media_file.get_path()) for media_file in self.whatsapp_files]
 
     def _find_original(self, batch_element: BatchElement):
         media_file = batch_element.args
@@ -248,17 +281,42 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
                 self._ensure_xmp_from_sidecar(media_file, sidecar_data)
                 batch_element.result = {"status": "skipped_existing", "media_file": media_file}
                 return batch_element
+        if sidecar_data and sidecar_data.get("status") == STATUS_REDUCED:
+            if self._ensure_xmp_from_sidecar(media_file, sidecar_data):
+                batch_element.result = {"status": "skipped_existing", "media_file": media_file}
+                return batch_element
 
         date_info = self._get_whatsapp_date_info(media_file)
         if date_info is None:
-            batch_element.result = {"status": "unmatched", "media_file": media_file, "sidecar": sidecar_data}
+            batch_element.result = {"status": "skipped_no_date", "media_file": media_file}
             return batch_element
 
         wa_date, date_source, date_start, date_end, wa_entry = date_info
+        wa_info = self._build_wa_info(media_file, wa_entry)
+        wa_info["date_source"] = date_source
+        wa_info["timestamp_ms"] = wa_entry.get("timestamp_ms") if wa_entry else None
+
+        # Only image signatures are comparable with current matching strategy.
+        if not self._is_searchable_for_original(media_file):
+            batch_element.result = {
+                "status": STATUS_REDUCED,
+                "media_file": media_file,
+                "wa_date": wa_date,
+                "wa_info": wa_info,
+                "sidecar": sidecar_data
+            }
+            return batch_element
 
         signature = media_file.metadata[SIGNATURE].value
         if signature is None:
-            batch_element.result = {"status": "unmatched", "media_file": media_file, "sidecar": sidecar_data}
+            batch_element.result = {
+                "status": STATUS_REDUCED,
+                "media_file": media_file,
+                "wa_date": wa_date,
+                "wa_info": wa_info,
+                "wa_signature": None,
+                "sidecar": sidecar_data
+            }
             return batch_element
 
         date_start_str = date_start.strftime('%Y/%m/%d %H:%M:%S.%f')
@@ -302,16 +360,23 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
                 best_hamming = hamming_distance
 
         if best_match is None:
-            batch_element.result = {"status": "unmatched", "media_file": media_file, "sidecar": sidecar_data}
+            batch_element.result = {
+                "status": STATUS_REDUCED,
+                "media_file": media_file,
+                "wa_date": wa_date,
+                "wa_info": wa_info,
+                "wa_signature": signature,
+                "sidecar": sidecar_data
+            }
             return batch_element
 
         batch_element.result = {
-            "status": "matched",
+            "status": STATUS_LINKED,
             "media_file": media_file,
             "original": best_match,
             "wa_date": wa_date,
             "date_source": date_source,
-            "wa_info": wa_entry,
+            "wa_info": wa_info,
             "wa_signature": signature,
             "hamming": best_hamming,
             "date_diff_s": int(best_date_diff) if best_date_diff is not None else None,
@@ -323,15 +388,17 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         status = result.get("status")
         media_file = result.get("media_file")
 
-        if status == "matched":
+        if status == STATUS_LINKED:
             original = result.get("original")
             link_info = self._create_link_for_match(media_file, original)
-            xmp_info = self._create_xmp_for_match(
-                original=original,
+            xmp_info = self._create_xmp_for_media(
+                target_media=original,
                 wa_date=result.get("wa_date"),
-                wa_info=result.get("wa_info")
+                wa_info=result.get("wa_info"),
+                tag_kind=TAG_ORIGINAL
             )
             sidecar_data = self._build_sidecar_data(
+                status=STATUS_LINKED,
                 media_file=media_file,
                 original=original,
                 wa_date=result.get("wa_date"),
@@ -349,28 +416,53 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
             if link_info.get("created"):
                 self.links_created += 1
             LOGGER.debug(f"Matched: {media_file.get_path()} -> {original.get_path()}")
-        elif status == "unmatched":
-            sidecar_data = result.get("sidecar")
-            if sidecar_data and sidecar_data.get("status") != STATUS_REJECTED:
-                self._mark_sidecar_stale(media_file, sidecar_data)
+        elif status == STATUS_REDUCED:
+            reduced_tag_kind = self._reduced_tag_kind(result.get("wa_info"))
+            extra_tags = self._build_extra_xmp_tags(reduced_tag_kind, result.get("wa_info"))
+            xmp_info = self._create_xmp_for_media(
+                target_media=media_file,
+                wa_date=result.get("wa_date"),
+                wa_info=result.get("wa_info"),
+                tag_kind=reduced_tag_kind,
+                extra_tags=extra_tags
+            )
+            sidecar_data = self._build_sidecar_data(
+                status=STATUS_REDUCED,
+                media_file=media_file,
+                original=None,
+                wa_date=result.get("wa_date"),
+                date_source=result.get("wa_info", {}).get("date_source"),
+                wa_info=result.get("wa_info"),
+                wa_signature=result.get("wa_signature"),
+                hamming=None,
+                date_diff_s=None,
+                link_info=None,
+                xmp_info=xmp_info,
+                existing_sidecar=result.get("sidecar")
+            )
+            self._write_sidecar(self._get_sidecar_path(media_file), sidecar_data)
+            self.reduced_tagged += 1
         elif status == "skipped_rejected":
             self.skipped_rejected += 1
         elif status == "skipped_existing":
             self.skipped_existing += 1
+        elif status == "skipped_no_date":
+            LOGGER.debug(f"Skipping WhatsApp file without valid date: {media_file.get_path()}")
 
         progress_bar.increment()
 
     def finalize(self):
         LOGGER.info(
-            f"Found {self.matches_found} WhatsApp-sent files with matching originals "
+            f"Found {self.matches_found} WhatsApp files with matching originals, "
+            f"{self.reduced_tagged} tagged as reduced "
             f"({self.links_created} link(s) created, {self.skipped_existing} reused, "
             f"{self.skipped_rejected} rejected)"
         )
 
     def display_final_status(self, progress_bar):
         print(
-            f"{progress_bar.position} WhatsApp-sent files processed, "
-            f"{self.matches_found} originals found in {progress_bar.processing_time}"
+            f"{progress_bar.position} WhatsApp files processed, "
+            f"{self.matches_found} originals found, {self.reduced_tagged} reduced in {progress_bar.processing_time}"
         )
 
     def _get_sidecar_path(self, media_file: MediaFile) -> Path:
@@ -399,11 +491,6 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         with open(tmp_path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2, ensure_ascii=True)
         os.replace(tmp_path, sidecar_path)
-
-    def _mark_sidecar_stale(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> None:
-        sidecar_data["status"] = STATUS_STALE
-        sidecar_data["updated_at"] = self._now_iso()
-        self._write_sidecar(self._get_sidecar_path(media_file), sidecar_data)
 
     def _ensure_link_from_sidecar(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> bool:
         original_rel = sidecar_data.get("original", {}).get("path")
@@ -477,71 +564,144 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
                 return link_info
 
     @staticmethod
-    def _sanitize_recipient_label(label: Optional[str]) -> str:
+    def _sanitize_party_label(label: Optional[str]) -> str:
         if not label:
-            return DEFAULT_RECIPIENT_LABEL
+            return DEFAULT_PARTY_LABEL_TAG
         sanitized = label.strip()
         sanitized = re.sub(r"[\\/|]+", "_", sanitized)
         sanitized = re.sub(r"\s+", " ", sanitized)
+        sanitized = sanitized.replace("\u200e", "").strip()
         if not sanitized:
-            return DEFAULT_RECIPIENT_LABEL
+            return DEFAULT_PARTY_LABEL_TAG
+        if sanitized.lower() == DEFAULT_PARTY_LABEL_DB:
+            return DEFAULT_PARTY_LABEL_TAG
         return sanitized
 
-    def _build_whatsapp_tag(self, recipient_label: Optional[str], wa_date: Optional[datetime]) -> Optional[str]:
-        if wa_date is None:
-            return None
-        recipient = self._sanitize_recipient_label(recipient_label)
-        date_str = wa_date.strftime("%Y-%m-%d")
-        return f"{WHATSAPP_TAG_PREFIX}/{recipient}/{date_str}"
+    @staticmethod
+    def _compute_direction(media_file: Optional[MediaFile], wa_info: Optional[Dict[str, Any]]) -> str:
+        if wa_info:
+            direction = wa_info.get("direction")
+            if direction in (TAG_SENT, TAG_RECEIVED):
+                return direction
+            from_me = wa_info.get("from_me")
+            if from_me in (1, True):
+                return TAG_SENT
+            if from_me in (0, False):
+                return TAG_RECEIVED
+        if media_file and media_file.metadata[CFM_CAMERA_MODEL].value == "WhatsApp-sent":
+            return TAG_SENT
+        return TAG_RECEIVED
+
+    def _build_wa_info(self, media_file: MediaFile, wa_entry: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        wa_info = dict(wa_entry) if wa_entry else {}
+        wa_info["direction"] = self._compute_direction(media_file, wa_entry)
+        party_label = wa_info.get("party_label")
+        party_id = wa_info.get("party_id")
+        if not party_label:
+            if wa_info["direction"] == TAG_SENT:
+                party_label = wa_info.get("recipient_label")
+                party_id = party_id or wa_info.get("recipient_id")
+            else:
+                party_label = wa_info.get("sender_label")
+                party_id = party_id or wa_info.get("sender_id")
+        if not party_label:
+            party_label = DEFAULT_PARTY_LABEL_DB
+        wa_info["party_id"] = party_id
+        wa_info["party_label"] = party_label
+        if wa_info.get("wa_quality_kind") is None:
+            quality_value = wa_info.get("media_transcode_quality")
+            if quality_value == 4:
+                wa_info["wa_quality_kind"] = TAG_HD
+            elif quality_value == 3:
+                wa_info["wa_quality_kind"] = TAG_REDUCED
+        if wa_info.get("has_hd_duplicate") is not None:
+            wa_info["has_hd_duplicate"] = bool(wa_info.get("has_hd_duplicate"))
+        return wa_info
 
     @staticmethod
-    def _is_unknown_recipient(label: Optional[str]) -> bool:
+    def _reduced_tag_kind(wa_info: Optional[Dict[str, Any]]) -> str:
+        if wa_info and wa_info.get("wa_quality_kind") == TAG_HD:
+            return TAG_HD
+        return TAG_REDUCED
+
+    @staticmethod
+    def _build_extra_xmp_tags(tag_kind: str, wa_info: Optional[Dict[str, Any]]) -> List[str]:
+        if tag_kind != TAG_REDUCED:
+            return []
+        if wa_info and bool(wa_info.get("has_hd_duplicate")):
+            return [DUPLICATE_REDUCED_HD_TAG]
+        return []
+
+    def _build_whatsapp_tag(
+        self,
+        wa_date: Optional[datetime],
+        wa_info: Optional[Dict[str, Any]],
+        tag_kind: str
+    ) -> Optional[str]:
+        if wa_date is None:
+            return None
+        year_str = wa_date.strftime("%Y")
+        month_str = f"{wa_date.strftime('%m')}-{FRENCH_MONTH_NAMES[wa_date.month - 1]}"
+        day_str = wa_date.strftime("%d")
+        direction = self._compute_direction(None, wa_info)
+        party = self._sanitize_party_label(wa_info.get("party_label") if wa_info else None)
+        return f"{WHATSAPP_TAG_PREFIX}/{year_str}/{month_str}/{day_str}/{direction}/{party}/{tag_kind}"
+
+    @staticmethod
+    def _is_unknown_party(label: Optional[str]) -> bool:
         if label is None:
             return True
-        return label.strip().lower() == DEFAULT_RECIPIENT_LABEL
+        normalized = label.strip().replace("\u200e", "")
+        return normalized.lower() in {DEFAULT_PARTY_LABEL_DB, DEFAULT_PARTY_LABEL_TAG.lower()}
 
     @staticmethod
     def _is_unknown_tag(tag: Optional[str]) -> bool:
         if not tag:
             return True
-        prefix = f"{WHATSAPP_TAG_PREFIX}/{DEFAULT_RECIPIENT_LABEL}/".lower()
-        return tag.strip().lower().startswith(prefix)
+        return f"/{DEFAULT_PARTY_LABEL_TAG.lower()}/" in tag.strip().lower()
 
     @staticmethod
     def _get_xmp_path(original_abs: Path) -> Path:
         return original_abs.with_name(original_abs.name + XMP_SUFFIX)
 
-    def _create_xmp_for_match(
+    def _create_xmp_for_media(
         self,
-        original: MediaFile,
+        target_media: MediaFile,
         wa_date: Optional[datetime],
-        wa_info: Optional[Dict[str, Any]]
+        wa_info: Optional[Dict[str, Any]],
+        tag_kind: str,
+        extra_tags: Optional[List[str]] = None
     ) -> Optional[Dict[str, Any]]:
-        tag = self._build_whatsapp_tag(
-            recipient_label=wa_info.get("recipient_label") if wa_info else None,
-            wa_date=wa_date
-        )
-        if not tag:
+        main_tag = self._build_whatsapp_tag(wa_date=wa_date, wa_info=wa_info, tag_kind=tag_kind)
+        if not main_tag:
             return None
-        original_abs = Path(self.media_set.root_path) / original.file_desc.relative_path
-        xmp_abs = self._get_xmp_path(original_abs)
+
+        tags_to_ensure = [main_tag]
+        if extra_tags:
+            for extra_tag in extra_tags:
+                if extra_tag and extra_tag not in tags_to_ensure:
+                    tags_to_ensure.append(extra_tag)
+
+        target_abs = Path(self.media_set.root_path) / target_media.file_desc.relative_path
+        xmp_abs = self._get_xmp_path(target_abs)
         existing_tags = set(XmpTool.read_digikam_tags(xmp_abs))
-        if tag not in existing_tags:
-            if not XmpTool.ensure_digikam_tag(original_abs, xmp_abs, tag):
+        for tag_to_ensure in tags_to_ensure:
+            if tag_to_ensure in existing_tags:
+                continue
+            if not XmpTool.ensure_digikam_tag(target_abs, xmp_abs, tag_to_ensure):
                 return None
+            existing_tags.add(tag_to_ensure)
+
         xmp_rel = os.path.relpath(xmp_abs, self.media_set.root_path)
-        return {"path": xmp_rel, "tag": tag}
+        return {"path": xmp_rel, "tag": main_tag, "tags": tags_to_ensure, "kind": tag_kind}
 
-    def _build_tag_from_sidecar(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> Optional[str]:
+    def _build_tag_from_sidecar(
+        self, media_file: MediaFile, sidecar_data: Dict[str, Any], tag_kind: str
+    ) -> Optional[str]:
         wa_data = sidecar_data.get("wa", {})
-        recipient_label = wa_data.get("recipient_label")
-        if not recipient_label:
-            wa_entry = self._get_whatsapp_db_entry(media_file)
-            if wa_entry:
-                recipient_label = wa_entry.get("recipient_label")
-
+        wa_info = self._build_wa_info(media_file, wa_data)
         wa_date = self._get_tag_date(media_file, sidecar_data)
-        return self._build_whatsapp_tag(recipient_label, wa_date)
+        return self._build_whatsapp_tag(wa_date=wa_date, wa_info=wa_info, tag_kind=tag_kind)
 
     def _get_tag_date(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> Optional[datetime]:
         wa_data = sidecar_data.get("wa", {})
@@ -553,36 +713,58 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         return wa_date
 
     def _get_upgrade_tag_and_entry(
-        self, media_file: MediaFile, sidecar_data: Dict[str, Any]
+        self, media_file: MediaFile, sidecar_data: Dict[str, Any], tag_kind: str
     ) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
         wa_data = sidecar_data.get("wa", {})
-        if not self._is_unknown_recipient(wa_data.get("recipient_label")):
+        if not self._is_unknown_party(wa_data.get("party_label")):
             return None, None
 
         wa_entry = self._get_whatsapp_db_entry(media_file)
         if not wa_entry:
             return None, None
+        wa_info = self._build_wa_info(media_file, wa_entry)
 
-        recipient_label = wa_entry.get("recipient_label")
-        if self._is_unknown_recipient(recipient_label):
+        party_label = wa_info.get("party_label")
+        if self._is_unknown_party(party_label):
             return None, None
 
         wa_date = self._get_tag_date(media_file, sidecar_data)
         if wa_date is None:
             return None, None
 
-        return self._build_whatsapp_tag(recipient_label, wa_date), wa_entry
+        return self._build_whatsapp_tag(wa_date=wa_date, wa_info=wa_info, tag_kind=tag_kind), wa_info
 
     @staticmethod
     def _apply_wa_upgrade(sidecar_data: Dict[str, Any], wa_entry: Dict[str, Any]) -> None:
         wa_data = sidecar_data.get("wa", {})
-        wa_data["recipient_label"] = wa_entry.get("recipient_label")
-        if wa_data.get("recipient_id") is None:
-            wa_data["recipient_id"] = wa_entry.get("recipient_id")
+        wa_data["party_label"] = wa_entry.get("party_label")
+        wa_data["direction"] = wa_entry.get("direction")
+        if wa_data.get("party_id") is None:
+            wa_data["party_id"] = wa_entry.get("party_id")
         if wa_data.get("from_me") is None:
             wa_data["from_me"] = wa_entry.get("from_me")
         if wa_data.get("sent_at_ms") is None:
             wa_data["sent_at_ms"] = wa_entry.get("timestamp_ms")
+        if wa_data.get("recipient_label") is None:
+            wa_data["recipient_label"] = wa_entry.get("recipient_label")
+        if wa_data.get("recipient_id") is None:
+            wa_data["recipient_id"] = wa_entry.get("recipient_id")
+        if wa_data.get("sender_label") is None:
+            wa_data["sender_label"] = wa_entry.get("sender_label")
+        if wa_data.get("sender_id") is None:
+            wa_data["sender_id"] = wa_entry.get("sender_id")
+        if wa_data.get("message_row_id") is None:
+            wa_data["message_row_id"] = wa_entry.get("message_row_id")
+        if wa_data.get("wa_quality_kind") is None:
+            wa_data["wa_quality_kind"] = wa_entry.get("wa_quality_kind")
+        if wa_data.get("media_transcode_quality") is None:
+            wa_data["media_transcode_quality"] = wa_entry.get("media_transcode_quality")
+        if not wa_data.get("has_hd_duplicate"):
+            wa_data["has_hd_duplicate"] = bool(wa_entry.get("has_hd_duplicate"))
+        if wa_data.get("hd_peer_message_row_id") is None:
+            wa_data["hd_peer_message_row_id"] = wa_entry.get("hd_peer_message_row_id")
+        if wa_data.get("hd_peer_filename") is None:
+            wa_data["hd_peer_filename"] = wa_entry.get("hd_peer_filename")
         sidecar_data["wa"] = wa_data
 
     def _get_xmp_path_from_sidecar(self, sidecar_data: Dict[str, Any], original_abs: Path) -> Path:
@@ -591,22 +773,40 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
             return Path(self.media_set.root_path) / xmp_rel
         return self._get_xmp_path(original_abs)
 
+    @staticmethod
+    def _tag_kind_from_sidecar(sidecar_data: Dict[str, Any]) -> str:
+        status = sidecar_data.get("status")
+        if status == STATUS_LINKED:
+            return TAG_ORIGINAL
+        wa_data = sidecar_data.get("wa", {})
+        return TAG_HD if wa_data.get("wa_quality_kind") == TAG_HD else TAG_REDUCED
+
+    def _get_xmp_target_path(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> Optional[Path]:
+        status = sidecar_data.get("status")
+        if status == STATUS_LINKED:
+            original_rel = sidecar_data.get("original", {}).get("path")
+            if not original_rel:
+                return None
+            return Path(self.media_set.root_path) / original_rel
+        return Path(self.media_set.root_path) / media_file.file_desc.relative_path
+
     def _ensure_xmp_from_sidecar(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> bool:
-        original_rel = sidecar_data.get("original", {}).get("path")
-        if not original_rel:
+        target_abs = self._get_xmp_target_path(media_file, sidecar_data)
+        if target_abs is None:
             return False
-        original_abs = Path(self.media_set.root_path) / original_rel
-        if not original_abs.exists():
+        if not target_abs.exists():
             return False
 
-        xmp_abs = self._get_xmp_path_from_sidecar(sidecar_data, original_abs)
+        xmp_abs = self._get_xmp_path_from_sidecar(sidecar_data, target_abs)
+        tag_kind = self._tag_kind_from_sidecar(sidecar_data)
+        extra_tags = self._build_extra_xmp_tags(tag_kind, sidecar_data.get("wa", {}))
         current_tag = sidecar_data.get("xmp", {}).get("tag")
-        upgrade_tag, upgrade_entry = self._get_upgrade_tag_and_entry(media_file, sidecar_data)
+        upgrade_tag, upgrade_entry = self._get_upgrade_tag_and_entry(media_file, sidecar_data, tag_kind)
         tags = set(XmpTool.read_digikam_tags(xmp_abs))
 
         if upgrade_tag and self._is_unknown_tag(current_tag):
             if not xmp_abs.exists():
-                if not XmpTool.ensure_digikam_tag(original_abs, xmp_abs, upgrade_tag):
+                if not XmpTool.ensure_digikam_tag(target_abs, xmp_abs, upgrade_tag):
                     return False
             else:
                 if current_tag and current_tag in tags:
@@ -617,33 +817,66 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
                     if not XmpTool.add_digikam_tag(xmp_abs, upgrade_tag):
                         return False
             self._apply_wa_upgrade(sidecar_data, upgrade_entry)
+            full_tags = [upgrade_tag]
+            for extra_tag in extra_tags:
+                if extra_tag and extra_tag not in full_tags:
+                    full_tags.append(extra_tag)
             sidecar_data["xmp"] = {
                 "path": os.path.relpath(xmp_abs, self.media_set.root_path),
-                "tag": upgrade_tag
+                "tag": upgrade_tag,
+                "tags": full_tags,
+                "kind": tag_kind
             }
             self._write_sidecar(self._get_sidecar_path(media_file), sidecar_data)
-            return True
+            current_tag = upgrade_tag
+            tags = set(XmpTool.read_digikam_tags(xmp_abs))
 
         if not current_tag:
-            current_tag = self._build_tag_from_sidecar(media_file, sidecar_data)
+            current_tag = self._build_tag_from_sidecar(media_file, sidecar_data, tag_kind)
             if current_tag:
+                full_tags = [current_tag]
+                for extra_tag in extra_tags:
+                    if extra_tag and extra_tag not in full_tags:
+                        full_tags.append(extra_tag)
                 sidecar_data["xmp"] = {
                     "path": os.path.relpath(xmp_abs, self.media_set.root_path),
-                    "tag": current_tag
+                    "tag": current_tag,
+                    "tags": full_tags,
+                    "kind": tag_kind
                 }
                 self._write_sidecar(self._get_sidecar_path(media_file), sidecar_data)
 
         if not current_tag:
             return False
 
+        desired_tags = [current_tag]
+        for extra_tag in extra_tags:
+            if extra_tag and extra_tag not in desired_tags:
+                desired_tags.append(extra_tag)
+
         if not xmp_abs.exists():
-            if not XmpTool.ensure_digikam_tag(original_abs, xmp_abs, current_tag):
-                return False
+            for desired_tag in desired_tags:
+                if not XmpTool.ensure_digikam_tag(target_abs, xmp_abs, desired_tag):
+                    return False
             return True
 
-        if current_tag not in tags:
-            if not XmpTool.add_digikam_tag(xmp_abs, current_tag):
+        for desired_tag in desired_tags:
+            if desired_tag in tags:
+                continue
+            if not XmpTool.add_digikam_tag(xmp_abs, desired_tag):
                 return False
+            tags.add(desired_tag)
+
+        xmp_updated = sidecar_data.get("xmp", {})
+        if xmp_updated.get("tag") != current_tag or xmp_updated.get("tags") != desired_tags or xmp_updated.get("kind") != tag_kind:
+            sidecar_data["xmp"] = {
+                "path": os.path.relpath(xmp_abs, self.media_set.root_path),
+                "tag": current_tag,
+                "tags": desired_tags,
+                "kind": tag_kind
+            }
+            self._write_sidecar(self._get_sidecar_path(media_file), sidecar_data)
+
         return True
 
     def _remove_xmp_for_rejected(self, media_file: MediaFile, sidecar_data: Dict[str, Any]) -> None:
@@ -651,11 +884,10 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
         if xmp_rel:
             xmp_abs = Path(self.media_set.root_path) / xmp_rel
         else:
-            original_rel = sidecar_data.get("original", {}).get("path")
-            if not original_rel:
+            target_abs = self._get_xmp_target_path(media_file, sidecar_data)
+            if target_abs is None:
                 return
-            original_abs = Path(self.media_set.root_path) / original_rel
-            xmp_abs = self._get_xmp_path(original_abs)
+            xmp_abs = self._get_xmp_path(target_abs)
         if not xmp_abs.exists():
             return
         try:
@@ -665,15 +897,16 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
 
     def _build_sidecar_data(
         self,
+        status: str,
         media_file: MediaFile,
-        original: MediaFile,
+        original: Optional[MediaFile],
         wa_date: Optional[datetime],
         date_source: Optional[str],
         wa_info: Optional[Dict[str, Any]],
         wa_signature: Optional[int],
         hamming: Optional[int],
         date_diff_s: Optional[int],
-        link_info: Dict[str, Any],
+        link_info: Optional[Dict[str, Any]],
         xmp_info: Optional[Dict[str, Any]],
         existing_sidecar: Optional[Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -684,14 +917,25 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
             created_at = self._now_iso()
 
         wa_date_str = wa_date.strftime('%Y/%m/%d %H:%M:%S.%f') if wa_date else None
+        wa_direction = wa_info.get("direction") if wa_info else self._compute_direction(media_file, None)
+        wa_party_label = wa_info.get("party_label") if wa_info else DEFAULT_PARTY_LABEL_DB
+        wa_party_id = wa_info.get("party_id") if wa_info else None
         wa_recipient_label = wa_info.get("recipient_label") if wa_info else None
         wa_recipient_id = wa_info.get("recipient_id") if wa_info else None
+        wa_sender_label = wa_info.get("sender_label") if wa_info else None
+        wa_sender_id = wa_info.get("sender_id") if wa_info else None
         wa_from_me = wa_info.get("from_me") if wa_info else None
         wa_timestamp_ms = wa_info.get("timestamp_ms") if wa_info else None
+        wa_message_row_id = wa_info.get("message_row_id") if wa_info else None
+        wa_quality_kind = wa_info.get("wa_quality_kind") if wa_info else None
+        wa_media_transcode_quality = wa_info.get("media_transcode_quality") if wa_info else None
+        wa_has_hd_duplicate = bool(wa_info.get("has_hd_duplicate")) if wa_info else False
+        wa_hd_peer_message_row_id = wa_info.get("hd_peer_message_row_id") if wa_info else None
+        wa_hd_peer_filename = wa_info.get("hd_peer_filename") if wa_info else None
 
         data = {
             "schema": SIDECAR_SCHEMA,
-            "status": STATUS_LINKED,
+            "status": status,
             "created_at": created_at,
             "wa": {
                 "path": media_file.get_path(),
@@ -701,26 +945,39 @@ class BatchFindWhatsAppOriginalsSidecar(TaskWithProgression):
                 "date": wa_date_str,
                 "date_source": date_source,
                 "sent_at_ms": wa_timestamp_ms,
+                "direction": wa_direction,
+                "party_label": wa_party_label,
+                "party_id": wa_party_id,
                 "recipient_label": wa_recipient_label,
                 "recipient_id": wa_recipient_id,
+                "sender_label": wa_sender_label,
+                "sender_id": wa_sender_id,
                 "from_me": wa_from_me,
+                "message_row_id": wa_message_row_id,
+                "wa_quality_kind": wa_quality_kind,
+                "media_transcode_quality": wa_media_transcode_quality,
+                "has_hd_duplicate": wa_has_hd_duplicate,
+                "hd_peer_message_row_id": wa_hd_peer_message_row_id,
+                "hd_peer_filename": wa_hd_peer_filename,
                 "camera_model": media_file.metadata[CFM_CAMERA_MODEL].value
-            },
-            "original": {
+            }
+        }
+        if original is not None:
+            data["original"] = {
                 "path": original.get_path(),
                 "filename": original.file_desc.name,
                 "media_id": original.file_desc.id,
                 "system_id": original.file_desc.system_id,
                 "signature": self._signature_to_hex(original.metadata[SIGNATURE].value)
-            },
-            "match": {
+            }
+            data["match"] = {
                 "hamming": hamming,
                 "date_diff_s": date_diff_s,
                 "threshold": self.similarity_threshold,
                 "window_days": self.date_window_days
-            },
-            "link": link_info
-        }
+            }
+        if link_info is not None:
+            data["link"] = link_info
         if xmp_info:
             data["xmp"] = xmp_info
         return data

@@ -59,6 +59,11 @@ class FileAccess:
                 elif isinstance(entry, (int, float)):
                     timestamp_ms = entry
                 if timestamp_ms is not None:
+                    try:
+                        timestamp_ms = int(timestamp_ms)
+                    except (TypeError, ValueError):
+                        timestamp_ms = None
+                if timestamp_ms is not None and timestamp_ms > 0:
                     return datetime.fromtimestamp(timestamp_ms / 1000), whatsapp_label
 
             fields = re.findall(r'^(VID|IMG)-([0-9]{8})-WA[0-9]{4}\.(jpg|jpeg|mp4)$', self.file_desc.name)
