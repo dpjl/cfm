@@ -10,7 +10,11 @@ class MediaSetComparator:
         for date, size_map1 in media_set1.indexer.date_size_map.items():
             size_map2 = media_set2.indexer.date_size_map.get(date)
             if size_map2:
-                if len(size_map1) > 1 or len(size_map2) > 1:
+                # Cas 1: Il y a plusieurs fichiers avec la même date dans au moins un des deux sets
+                # Cas 2: Chaque set a exactement un fichier avec cette date, mais les tailles sont différentes
+                if len(size_map1) > 1 or len(size_map2) > 1 or \
+                   (len(size_map1) == 1 and len(size_map2) == 1 and 
+                    next(iter(size_map1.keys())) != next(iter(size_map2.keys()))):
                     for file_size in size_map1:
                         result.append(size_map1[file_size][0])
                     for file_size in size_map2:

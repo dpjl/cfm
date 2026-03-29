@@ -414,7 +414,7 @@ class Configuration:
                             message_media.media_name,
                             message_media.file_path,
                             message._id,
-                            message.received_timestamp,
+                            message.timestamp,
                             message.from_me,
                             chat.subject,
                             chat_jid.raw_string,
@@ -522,7 +522,7 @@ class Configuration:
                     entry["hd_peer_filename"] = peer_entry.get("filename")
             except sqlite3.Error:
                 cursor.execute("""SELECT 
-                                    message_media.file_path, available_message_view.received_timestamp
+                                    message_media.file_path, available_message_view.timestamp
                                 FROM
                                     available_message_view INNER JOIN message_media
                                 ON
