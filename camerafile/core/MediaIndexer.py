@@ -140,7 +140,7 @@ class MediaIndexer:
         sig = media_file.get_signature()
         if sig and date and date in self.date_sig_map:
             for existing_sig in self.date_sig_map[date]:
-                if dhash.get_num_bits_different(existing_sig, sig) < 4:
+                if dhash.get_num_bits_different(existing_sig, sig) < 7:
                     return True
         return False
 
@@ -163,7 +163,7 @@ class MediaIndexer:
         sig = media_file.get_signature()
         if sig and date and date in self.date_sig_map:
             for existing_sig, media_list in self.date_sig_map[date].items():
-                if dhash.get_num_bits_different(existing_sig, sig) < 4:
+                if dhash.get_num_bits_different(existing_sig, sig) < 7:
                     result.update(media_list)
         # Retirer le media_file lui-même si présent
         result.discard(media_file)
